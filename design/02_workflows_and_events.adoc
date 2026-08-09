@@ -25,7 +25,7 @@ it.
    Agent, checks availability on the Airline Booking System sim, and publishes
    `ItineraryProposed`.
 3. For a multi-item trip, the Trip Coordinator instead fans out `FlightSearchRequested` /
-   `HotelSearchRequested`; the search agents answer with `FlightOffersProposed` /
+   `HotelSearchRequested`; the airline and hotel agents answer with `FlightOffersProposed` /
    `HotelOffersProposed`; the barrier releases `ItineraryAssembled`; conflicting details go
    through `ActionProposed` → `ActionCommitted` (Arbiter).
 4. The customer accepts: `ItineraryApproved` (via UI). The Policy Gate checks the B2B client's
@@ -49,7 +49,7 @@ sequenceDiagram
     participant BA as Booking Agent
     participant B as EventBroker
     participant CO as Coordinator
-    participant SA as Search Agents
+    participant SA as Airline + Hotel Agents
     participant PG as Policy Gate
     participant SUP as Airline + Hotel Booking Systems
     participant PAY as Payment sim
@@ -116,7 +116,7 @@ The unhappy path as a business reality: the trip is partly booked and the world 
 `CancellationDrafted` (a nuanced customer email and cancellation plan); deterministic
 compensation code executes the mutations — cancelling the flight on the airline booking system
 (`FlightBookingCancelled`) — and the Coordinator closes the workflow with `TripCancelled`. If
-the Cleanup Agent's negotiation with the hotel booking system's scripted auto-responder loops,
+the Hotel Agent's rebooking negotiation with the hotel booking system's scripted auto-responder loops,
 the livelock breaker
 increments `negotiation_turn_count` in the `WorkflowStateStore` and terminates the loop into the
 same compensation path. The circular wait between the parallel flight and hotel sub-workflows is
@@ -137,8 +137,8 @@ flowchart LR
 
 === W6 — Failure Recovery and Replay
 
-*Flow:* a malformed booking confirmation (poison pill) crashes the Pydantic AI Hotel Search
-Agent → the event lands on the DLQ → the bug is fixed → the same pure business event is replayed
+*Flow:* a malformed booking confirmation (poison pill) crashes the Pydantic AI Hotel Agent →
+the event lands on the DLQ → the bug is fixed → the same pure business event is replayed
 to a LangGraph-built replacement agent, which finishes the trip. Separately, a duplicate
 delivery of `PaymentRequested` is absorbed by an `IdempotencyStore` check before the Payment sim
 is charged twice.
@@ -201,11 +201,11 @@ Conventions:
 | TripCancelled | Coordinator | Booking Agent, Observer | ch 8
 
 4+e| search — offers (scatter-gather)
-| FlightSearchRequested | Coordinator | Flight Search Agent | ch 6
-| HotelSearchRequested | Coordinator | Hotel Search Agent | ch 6
-| FlightOffersProposed | Flight Search Agent | Coordinator (barrier) | ch 6
-| HotelOffersProposed | Hotel Search Agent | Coordinator (barrier) | ch 6
-| ActionProposed | Flight/Hotel Search Agents | Arbiter | ch 6
+| FlightSearchRequested | Coordinator | Airline Agent | ch 6
+| HotelSearchRequested | Coordinator | Hotel Agent | ch 6
+| FlightOffersProposed | Airline Agent | Coordinator (barrier) | ch 6
+| HotelOffersProposed | Hotel Agent | Coordinator (barrier) | ch 6
+| ActionProposed | Airline/Hotel Agents | Arbiter | ch 6
 | ActionCommitted | Arbiter | Coordinator, Observer | ch 6
 | CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 6
 

@@ -62,7 +62,7 @@ carries the narrative.
 | 6
 | Workflow
 | W1 slice 3: multi-item parallel trip, booked without approval
-| Coordinator, Flight Search Agent (py), Hotel Search Agent (Pydantic AI), Rental Car Agent,
+| Coordinator, Airline Agent (py), Hotel Agent (Pydantic AI), Rental Car Agent,
   Arbiter, `BarrierStore`, Hotel Booking System sim, context paths
 | Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical
   context, communication topologies
@@ -86,7 +86,7 @@ carries the narrative.
 | Layer (with W6 demos)
 | W6 complete; W1 payment step added, idempotent
 | DLQ wiring, `IdempotencyStore`, Payment sim (Stripe-like), idempotent payment step,
-  replacement Hotel Search Agent (LangGraph), poison-pill scripts
+  replacement Hotel Agent (LangGraph), poison-pill scripts
 | At-least-once reality, deterministic idempotency, internal checkpointing, DLQ, time travel,
   cross-framework replay
 

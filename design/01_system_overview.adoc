@@ -92,8 +92,8 @@ flowchart TB
         PLANNER[Itinerary Planner - ADK/A2A]
         RESEARCH[Destination Research - LlamaIndex/MCP]
         COORD[Trip Coordinator - py]
-        FSA[Flight Search - py]
-        HSA[Hotel Search - Pydantic AI]
+        AIRA[Airline Agent - py]
+        HOTA[Hotel Agent - Pydantic AI]
         CAR[Rental Car - py]
         ARB[Arbiter - py]
         OBSERVER[Observer/Reflector - py ambient]
@@ -130,8 +130,8 @@ Inbox, Barrier, Idempotency stores)]
     Deterministic <--> BROKER
     SCHED --> BROKER
     PLANNER -.REST.-> AIR
-    FSA -.REST.-> AIR
-    HSA -.REST.-> HOTEL
+    AIRA -.REST.-> AIR
+    HOTA -.REST.-> HOTEL
     COORD -.REST.-> AIR
     COORD -.REST.-> HOTEL
     COORD -.REST.-> PAYGW
@@ -149,19 +149,20 @@ stream, read through semantic views (ch 5) and workflow state (ch 7).
 === Realism rule: what is an agent and what is not
 
 Agents exist only where non-deterministic reasoning earns its place; deterministic work is done
-by deterministic code and simulated vendor services. Chapter 1's forward-looking figures preview
-six design-true components — Booking Agent, Itinerary Planner Agent, Flight Search Agent, Hotel
-Search Agent, and the airlines' and hotels' independent booking systems — so deterministic
-vendors are present from the very first diagram, and the reader's mental picture of the cast
-never changes as the book progresses.
+by deterministic code and simulated vendor services. Chapter 1's request-response scenario and
+its cascade figure use six design-true components — Booking Agent, Itinerary Planner Agent,
+Airline Agent, Hotel Agent, and the airlines' and hotels' independent booking systems — so
+deterministic vendors are present from the first chapter and the reader's mental picture of the
+cast never changes as the book progresses; the connection-explosion figures stay deliberately
+generic.
 
 === Realism kept as texture
 
 The researched industry realism stays in the book as prose, not code:
 
 * **NDC offers and fare conditions** — the Airline Booking System sim's flight offers carry
-  change/refund-penalty fields the search agents reason over; a sidebar can name NDC as the
-  real-world shape.
+  change/refund-penalty fields the airline and hotel agents reason over; a sidebar can name NDC
+  as the real-world shape.
 * **IATA ONE Order** — a sidebar candidate where event sourcing is taught (ch 5): the industry
   is converging on exactly the "single record of the trip" the event log provides.
 * **Treasury, VCCs, ticketing deadlines, commission reconciliation, duty of care** — mid/back
@@ -222,20 +223,22 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
   `WorkflowStateStore`, the outbox, scheduled timeouts — and executes the deterministic booking
   and payment steps (idempotent from ch 9).
 
-| Flight Search Agent
+| Airline Agent
 | Tool-Using
 | py
 | 6
-| Sources flight offers from the Airline Booking System sim; interprets fare conditions into
-  structured proposals; proposes arrival times (`ActionProposed`).
+| Owns the airline side of the trip: sources flight offers from the Airline Booking System
+  sim, interprets fare conditions into structured proposals, and proposes arrival times
+  (`ActionProposed`).
 
-| Hotel Search Agent
+| Hotel Agent
 | Tool-Using
 | Pydantic AI
 | 6
-| Sources hotel offers from the Hotel Booking System sim; typed offer schemas are the Pydantic
-  AI showcase; proposes check-in times. Crashed by the ch 9 poison pill and replaced
-  cross-framework.
+| Owns the hotel side of the trip: sources offers from the Hotel Booking System sim (typed
+  offer schemas are the Pydantic AI showcase), proposes check-in times, and negotiates
+  rebooking with the hotel vendor after disruptions (ch 8). Crashed by the ch 9 poison pill
+  and replaced cross-framework.
 
 | Rental Car Agent
 | Tool-Using
@@ -277,7 +280,7 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 
 Framework debut order across the book: **ADK + LlamaIndex in ch 2 → Pydantic AI in ch 6 →
 LangGraph in ch 8**, with ch 9's cross-framework replay replacing the crashed Pydantic AI Hotel
-Search Agent with a LangGraph-built replacement (both frameworks already taught by then).
+Agent with a LangGraph-built replacement (both frameworks already taught by then).
 
 === Deterministic components
 
