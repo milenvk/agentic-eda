@@ -22,22 +22,24 @@ it.
 1. `TripRequested` (Booking Agent, from the UI chat — or from the Semantic Router when the
    request arrives by email).
 2. For a simple trip, the Itinerary Planner Agent consumes it, consults the Destination Research
-   Agent, checks availability on the Supplier sim, and publishes `ItineraryProposed`.
+   Agent, checks availability on the Airline Booking System sim, and publishes
+   `ItineraryProposed`.
 3. For a multi-item trip, the Trip Coordinator instead fans out `FlightSearchRequested` /
    `HotelSearchRequested`; the search agents answer with `FlightOffersProposed` /
    `HotelOffersProposed`; the barrier releases `ItineraryAssembled`; conflicting details go
    through `ActionProposed` → `ActionCommitted` (Arbiter).
 4. The customer accepts: `ItineraryApproved` (via UI). The Policy Gate checks the B2B client's
    rules and either stays silent or opens the approval workflow (W4).
-5. The Coordinator's deterministic booking step calls the Supplier sim: `FlightBooked`,
-   `HotelBooked`. The Rental Car Agent reacts to `FlightBooked` by pure choreography
-   (`CarRentalBooked`).
+5. The Coordinator's deterministic booking step calls the airline and hotel booking systems:
+   `FlightBooked`, `HotelBooked`. The Rental Car Agent reacts to `FlightBooked` by pure
+   choreography (`CarRentalBooked`).
 6. The Coordinator's payment step publishes `PaymentRequested` and charges the Payment sim under
    an idempotency key: `PaymentAuthorized`.
 7. `TripConfirmed` (Coordinator); the Booking Agent relays it to the customer.
 
 *Built in:* ch 1 (steps 1–2 decoupled, one event type, audit consumer), ch 2 (planning against
-the Supplier sim, CloudEvents, correlation IDs), ch 6 (step 3, step 5 without approval),
+the airline booking system, CloudEvents, correlation IDs), ch 6 (step 3, step 5 without
+approval),
 ch 7 (steps 4 and 7), ch 9 (step 6 made idempotent).
 
 [source,mermaid]
@@ -49,7 +51,7 @@ sequenceDiagram
     participant CO as Coordinator
     participant SA as Search Agents
     participant PG as Policy Gate
-    participant SUP as Supplier sim
+    participant SUP as Airline + Hotel Booking Systems
     participant PAY as Payment sim
 
     UI->>BA: trip request
@@ -109,13 +111,13 @@ agents to payment data (contextual segregation).
 
 The unhappy path as a business reality: the trip is partly booked and the world changes.
 
-*Flow:* the manager approves, the flight books — then the Supplier sim's scripted `HotelSoldOut`
-arrives. The Cleanup Agent (LangGraph) catches the failure event, assesses the trip, and drafts
+*Flow:* the manager approves, the flight books — then the Hotel Booking System sim's scripted
+`HotelSoldOut` arrives. The Cleanup Agent (LangGraph) catches the failure event, assesses the trip, and drafts
 `CancellationDrafted` (a nuanced customer email and cancellation plan); deterministic
-compensation code executes the mutations — cancelling the flight on the Supplier sim
+compensation code executes the mutations — cancelling the flight on the airline booking system
 (`FlightBookingCancelled`) — and the Coordinator closes the workflow with `TripCancelled`. If
-the Cleanup Agent's negotiation with the Supplier sim's scripted auto-responder loops, the
-livelock breaker
+the Cleanup Agent's negotiation with the hotel booking system's scripted auto-responder loops,
+the livelock breaker
 increments `negotiation_turn_count` in the `WorkflowStateStore` and terminates the loop into the
 same compensation path. The circular wait between the parallel flight and hotel sub-workflows is
 the ch 8 deadlock demo.
@@ -208,9 +210,9 @@ Conventions:
 | CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 6
 
 4+e| booking and compensation
-| FlightBooked | Coordinator (booking step, via Supplier sim) | Rental Car Agent, Observer | ch 6
-| HotelBooked | Coordinator (booking step, via Supplier sim) | Observer | ch 6
-| HotelSoldOut | Supplier sim adapter | Cleanup Agent (W5) | ch 8
+| FlightBooked | Coordinator (booking step, via the airline booking system) | Rental Car Agent, Observer | ch 6
+| HotelBooked | Coordinator (booking step, via the hotel booking system) | Observer | ch 6
+| HotelSoldOut | Hotel Booking System adapter | Cleanup Agent (W5) | ch 8
 | CancellationDrafted | Cleanup Agent | Compensation code, Booking Agent | ch 8
 | FlightBookingCancelled | Compensation code | Coordinator, Observer | ch 8
 

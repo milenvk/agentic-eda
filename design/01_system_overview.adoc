@@ -111,7 +111,8 @@ flowchart TB
 Kafka adapter))
 
     subgraph Simulators["External vendor simulators"]
-        SUPPLIER[Supplier sim - flights + hotels REST]
+        AIR[Airline Booking System sim - REST]
+        HOTEL[Hotel Booking System sim - REST]
         PAYGW[Payment sim - Stripe-like]
         SUPPORT[Support Desk AaaS sim]
     end
@@ -128,10 +129,11 @@ Inbox, Barrier, Idempotency stores)]
     Agents <--> BROKER
     Deterministic <--> BROKER
     SCHED --> BROKER
-    PLANNER -.REST.-> SUPPLIER
-    FSA -.REST.-> SUPPLIER
-    HSA -.REST.-> SUPPLIER
-    COORD -.REST.-> SUPPLIER
+    PLANNER -.REST.-> AIR
+    FSA -.REST.-> AIR
+    HSA -.REST.-> HOTEL
+    COORD -.REST.-> AIR
+    COORD -.REST.-> HOTEL
     COORD -.REST.-> PAYGW
     SUPPORT -.edge prompting.-> BROKER
 ----
@@ -146,30 +148,18 @@ stream, read through semantic views (ch 5) and workflow state (ch 7).
 
 === Realism rule: what is an agent and what is not
 
-The naive design of Chapter 1's figures calls all five core components "agents" (Booking, Planner,
-Inventory, Pricing, Payment). The end-state design deliberately re-classifies:
-
-[cols="1,1,2", options="header"]
-|===
-| Ch 1 naive name | End-state element | Why
-
-| Booking Agent | Booking Agent (LLM) | Conversational intake genuinely needs language understanding.
-| Itinerary Planner Agent | Itinerary Planner Agent (LLM) | Reasoning over trade-offs, preferences, and fare conditions is the core cognitive task.
-| Inventory Agent | Supplier sim + search agents | Inventory is a deterministic supplier API; only the *interpretation* of offers is agentic.
-| Pricing Agent | Seeded prices in the Supplier sim's offers | Pricing math must never hallucinate — and needs no service of its own here.
-| Payment Agent | Deterministic payment step + Payment sim | Money movement is exactly the work the book reserves for deterministic code.
-|===
-
-This re-classification is proposed as a *teaching beat* in Chapter 2 (typology and boundaries):
-the naive all-agent sketch is what the reader would draw on day one, and demoting deterministic
-work to deterministic code is the first act of architectural judgement the book models. No
-Chapter 1 rework is required.
+Agents exist only where non-deterministic reasoning earns its place; deterministic work is done
+by deterministic code and simulated vendor services. Chapter 1's forward-looking figures preview
+six design-true components — Booking Agent, Itinerary Planner Agent, Flight Search Agent, Hotel
+Search Agent, and the airlines' and hotels' independent booking systems — so deterministic
+vendors are present from the very first diagram, and the reader's mental picture of the cast
+never changes as the book progresses.
 
 === Realism kept as texture
 
 The researched industry realism stays in the book as prose, not code:
 
-* **NDC offers and fare conditions** — the Supplier sim's flight offers carry
+* **NDC offers and fare conditions** — the Airline Booking System sim's flight offers carry
   change/refund-penalty fields the search agents reason over; a sidebar can name NDC as the
   real-world shape.
 * **IATA ONE Order** — a sidebar candidate where event sourcing is taught (ch 5): the industry
@@ -180,7 +170,7 @@ The researched industry realism stays in the book as prose, not code:
 
 == Component Inventory
 
-Nineteen components in total: 12 agents, 3 simulators, and 4 deterministic components. Every
+Twenty components in total: 12 agents, 4 simulators, and 4 deterministic components. Every
 agent is one the outline itself names.
 
 === LLM agents
@@ -203,8 +193,8 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Tool-Using
 | ADK (A2A edge)
 | 1 (plain), rebuilt 2
-| Turns a request into a proposed itinerary: queries availability on the Supplier sim, reasons
-  over fare conditions and preferences, publishes `ItineraryProposed`.
+| Turns a request into a proposed itinerary: queries availability on the Airline Booking
+  System sim, reasons over fare conditions and preferences, publishes `ItineraryProposed`.
 
 | Destination Research Agent
 | Tool-Using
@@ -236,15 +226,16 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Tool-Using
 | py
 | 6
-| Sources flight offers from the Supplier sim; interprets fare conditions into structured
-  proposals; proposes arrival times (`ActionProposed`).
+| Sources flight offers from the Airline Booking System sim; interprets fare conditions into
+  structured proposals; proposes arrival times (`ActionProposed`).
 
 | Hotel Search Agent
 | Tool-Using
 | Pydantic AI
 | 6
-| Sources hotel offers from the Supplier sim; typed offer schemas are the Pydantic AI showcase;
-  proposes check-in times. Crashed by the ch 9 poison pill and replaced cross-framework.
+| Sources hotel offers from the Hotel Booking System sim; typed offer schemas are the Pydantic
+  AI showcase; proposes check-in times. Crashed by the ch 9 poison pill and replaced
+  cross-framework.
 
 | Rental Car Agent
 | Tool-Using
@@ -322,12 +313,17 @@ Search Agent with a LangGraph-built replacement (both frameworks already taught 
 |===
 | Simulator | Chapter | Behavior
 
-| Supplier sim
-| 2 (flights), 6 (hotels)
-| One REST service for flights and hotels: offer search with seeded prices and fare conditions
-  (change/refund penalties), booking, cancellation. Scriptable failure modes: sold-out hotel
-  (the ch 8 saga trigger), slow-vendor responses, and a canned negotiation auto-responder (the
-  ch 8 livelock counterparty). This *is* ch 2's external booking system.
+| Airline Booking System sim
+| 2
+| REST flight supplier: offer search with seeded prices and fare conditions (change/refund
+  penalties), booking, cancellation, scriptable slow-vendor mode. This *is* ch 2's external
+  booking system.
+
+| Hotel Booking System sim
+| 6
+| REST hotel supplier: availability, booking, cancellation. Scriptable failure modes: sold-out
+  (the ch 8 saga trigger) and a canned negotiation auto-responder (the ch 8 livelock
+  counterparty).
 
 | Payment sim
 | 9

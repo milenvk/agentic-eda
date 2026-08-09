@@ -35,11 +35,10 @@ carries the narrative.
 | 2
 | Component
 | W1 slice 2: planning against real availability; support AaaS wired
-| Planner rebuilt (ADK, A2A edge), Research Agent (LlamaIndex, MCP edge), Supplier sim (the
-  external booking system, REST), Support AaaS sim, InMemoryBroker, CloudEvents + Pydantic
-  contracts, correlation IDs, first mock test
-| Agent typology, boundaries (naive-agents → deterministic-code teaching beat), universal
-  integration, edge prompting, data contracts
+| Planner rebuilt (ADK, A2A edge), Research Agent (LlamaIndex, MCP edge), Airline Booking
+  System sim (the external booking system, REST), Support AaaS sim, InMemoryBroker, CloudEvents
+  + Pydantic contracts, correlation IDs, first mock test
+| Agent typology, boundaries, universal integration, edge prompting, data contracts
 
 | 3
 | Workflow
@@ -64,7 +63,7 @@ carries the narrative.
 | Workflow
 | W1 slice 3: multi-item parallel trip, booked without approval
 | Coordinator, Flight Search Agent (py), Hotel Search Agent (Pydantic AI), Rental Car Agent,
-  Arbiter, `BarrierStore`, Supplier sim hotel endpoints, context paths
+  Arbiter, `BarrierStore`, Hotel Booking System sim, context paths
 | Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical
   context, communication topologies
 
@@ -80,7 +79,7 @@ carries the narrative.
 | Workflow
 | W5 complete
 | Cleanup Agent (LangGraph), deterministic compensation code, livelock breaker, sold-out and
-  negotiation auto-responder injection in Supplier sim, deadlock demo
+  negotiation auto-responder injection in the Hotel Booking System sim, deadlock demo
 | Sagas, semantic rollback, livelock circuit breaker, deadlock resolution
 
 | 9
