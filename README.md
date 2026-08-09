@@ -43,4 +43,7 @@ the code in your printed copy is always reachable.
 - One cloud LLM API key (any LiteLLM-supported provider); [Ollama](https://ollama.com) as the
   optional zero-cost local fallback
 
-Per-chapter setup instructions live in each chapter branch's README.
+Per-chapter setup instructions live in each chapter branch's README. Every chapter branch also
+ships a minimal web UI (compose profile `ui`) — a chat front door and, from chapter 7, a manager
+approval console — for watching the workflows from the customer's seat. The book's examples run
+from scripts and never depend on those UI components; they are included for convenience.
