@@ -244,8 +244,6 @@ Conventions:
 Notes:
 
 * Chapter 1 publishes exactly one event type (`TripRequested`) with two consumers (Planner +
-  audit), honoring the outline's minimal first commit. The ch 1.3 prose example
-  `FlightBookingRequested` remains valid as an illustrative business event; the design's intake
-  event is trip-level.
+  audit), honoring the outline's minimal first commit.
 * DLQ and replay are broker-contract behavior (ch 9), not separate event types: dead-lettered
   events are the original business events on a DLQ topic.
