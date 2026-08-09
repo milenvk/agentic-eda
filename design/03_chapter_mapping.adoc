@@ -1,0 +1,126 @@
+= Travel Agency Application — System Design: Chapter Mapping
+:toc:
+
+// Design documentation for the Travel Agency application built across the book. Companion
+// documents: 01_system_overview.adoc (components) and 02_workflows_and_events.adoc
+// (workflows + events).
+
+== The Three Mapping Types
+
+Each chapter maps to the application in one of three ways:
+
+* **Workflow chapter** — introduces or extends a business workflow; new components arrive only
+  because that workflow slice needs them.
+* **Component chapter** — a new agent/service/store is the star; workflows advance as a side
+  effect.
+* **Layer chapter** — a cross-cutting concern (testing, security, observability, cloud) applied
+  across the existing system; it owns no new business workflow but touches many.
+
+Every chapter still ends with the working system one increment richer — the type only says what
+carries the narrative.
+
+== Chapter-by-Chapter Mapping
+
+[cols="1,1,2,2,2", options="header"]
+|===
+| Ch | Type | Workflow slice(s) | New app elements | Patterns/concepts represented in the app
+
+| 1
+| Workflow
+| W1 slice 1: `TripRequested` decoupled from planning
+| Booking Agent (minimal), Planner (plain py), `EventBroker` port, Kafka adapter, audit
+  consumer, first compose file; UI shell exists in repo only
+| Decoupling, durability, pub/sub, second consumer at zero producer cost
+
+| 2
+| Component
+| W1 slice 2: planning against real availability; support AaaS wired
+| Planner rebuilt (ADK, A2A edge), Research Agent (LlamaIndex, MCP edge), Supplier sim (the
+  external booking system, REST), Support AaaS sim, InMemoryBroker, CloudEvents + Pydantic
+  contracts, correlation IDs, first mock test
+| Agent typology, boundaries (naive-agents → deterministic-code teaching beat), universal
+  integration, edge prompting, data contracts
+
+| 3
+| Workflow
+| W2 complete: email triage
+| Email replay script + seeded dataset, Semantic Router, Token Defense Filter, `InboxStore`
+| Reflex agents, semantic routing, semantic windowing, filters/payload mediation,
+  out-of-sequence handling, broadcast vs competing consumers
+
+| 4
+| Component
+| W3 complete; S1 variants
+| `BlobStore` (MinIO), claim-check flow, Observer A/B (summarizing vs experiential)
+| Claim check, context bottleneck, memory strategies
+
+| 5
+| Component
+| S1 complete
+| Observer/Reflector Agent, `SemanticViewStore`, stateless hydration
+| Event sourcing, Agentic CQRS, materialized semantic views, Tier 1+2 hydration
+
+| 6
+| Workflow
+| W1 slice 3: multi-item parallel trip, booked without approval
+| Coordinator, Flight Search Agent (py), Hotel Search Agent (Pydantic AI), Rental Car Agent,
+  Arbiter, `BarrierStore`, Supplier sim hotel endpoints, context paths
+| Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical
+  context, communication topologies
+
+| 7
+| Workflow
+| W4 complete; W1 slice 4 (customer acceptance, policy check, `TripConfirmed`); **B2B pivot**
+| `WorkflowStateStore`, outbox relay, `EventScheduler` (APScheduler+PG), Policy Gate,
+  approval console in UI shell
+| Durable state machines, agentic outbox, human-in-the-loop, semantic checkpointing,
+  macro-timeouts, ABA
+
+| 8
+| Workflow
+| W5 complete
+| Cleanup Agent (LangGraph), deterministic compensation code, livelock breaker, sold-out and
+  negotiation auto-responder injection in Supplier sim, deadlock demo
+| Sagas, semantic rollback, livelock circuit breaker, deadlock resolution
+
+| 9
+| Layer (with W6 demos)
+| W6 complete; W1 payment step added, idempotent
+| DLQ wiring, `IdempotencyStore`, Payment sim (Stripe-like), idempotent payment step,
+  replacement Hotel Search Agent (LangGraph), poison-pill scripts
+| At-least-once reality, deterministic idempotency, internal checkpointing, DLQ, time travel,
+  cross-framework replay
+
+| 10
+| Layer
+| cost governance across W1/W5 traffic
+| Token budget guard, economic circuit breaker, LiteLLM fallback chain (cloud → Ollama)
+| Token backpressure, economic circuit breaking, model fallbacks
+
+| 11
+| Layer
+| all workflows under test
+| Offline semantic test harness, LLM mock fixtures, LLM-as-judge scripts, shadow consumer
+| Deterministic testing of non-deterministic agents, semantic regression, shadow processing
+
+| 12
+| Layer
+| security across W1/W2/W4
+| Guardrail Worker, quarantine DLQ, Egress DLP Interceptor, Policy Gate hardening, contextual
+  data segregation, red-team script
+| Zero trust, asynchronous prompt injection defense, confused deputy, egress DLP
+
+| 13
+| Layer
+| observability across W1 end-to-end
+| OTel instrumentation, Jaeger in compose, V1→V2 Translator
+| Semantic observability, schema evolution
+
+| 14
+| Layer
+| all workflows on cloud adapters, under load
+| Broker/scheduler/store cloud adapters (GCP primary, AWS secondary, Azure repo), Redis
+  Streams adapter, model swap to Vertex/Bedrock via LiteLLM config, Terraform, load + chaos test
+| Ports pay off: zero agent-code changes; serverless scale-to-zero
+|===
+
