@@ -386,6 +386,18 @@ Ports (all outline-established, unchanged): `EventBroker`, `EventScheduler`,
 `WorkflowStateStore`, `SemanticViewStore`, `BlobStore`, `InboxStore`, `BarrierStore`,
 `IdempotencyStore`.
 
+**`EventBroker` subscription capabilities.** Beyond per-event-type subscription, the port
+offers subscribe-all (or an event-type prefix) — the intersection floor across backends,
+never arbitrary regex. The Kafka adapter implements it with a regex topic subscription over
+the application's namespace, picking up newly created topics on the periodic metadata
+refresh; an adapter whose backend has no native patterns emulates the promise from its own
+event-type→topic registry; on GCP (ch 14) the mechanism moves into infrastructure — an
+Eventarc Advanced enrollment feeds a pipeline that pushes to the consumer's ingestion
+endpoint, so the consumer does not subscribe at all. Consumers therefore come in both
+invocation models the container supports (ch 2.4): a pull loop, or a push endpoint the
+infrastructure delivers into. The audit consumer is the standing beneficiary: it sees every
+event, including types added chapters later, with no code change.
+
 **Model access — LiteLLM, not a Port.** There is deliberately no hand-written model port.
 The book's Ports exist to abstract infrastructure the architecture owns; model access is
 already commoditized by **LiteLLM**, a mature library exposing 100+ providers (cloud APIs and

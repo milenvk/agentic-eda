@@ -120,7 +120,8 @@ carries the narrative.
 | 14
 | Layer
 | all workflows on cloud adapters, under load
-| Broker/scheduler/store cloud adapters (GCP primary, AWS secondary, Azure repo), Redis
+| Broker/scheduler/store cloud adapters (GCP primary via Eventarc Advanced — a single
+  enrollment + pipeline delivers subscribe-all by push; AWS secondary, Azure repo), Redis
   Streams adapter, model swap to Vertex/Bedrock via LiteLLM config, Terraform, load + chaos test
 | Ports pay off: zero agent-code changes; serverless scale-to-zero
 |===

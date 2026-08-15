@@ -187,7 +187,8 @@ Conventions:
   CloudEvents extension attributes; the full identity conventions — UUID event ids,
   causation, order id — are the Identifiers section of 01_system_overview.adoc.
 * One producer per event type (single writer); consumers listed are typical, not exclusive —
-  the audit consumer and Observer see everything.
+  the audit consumer and Observer see everything via the port's subscribe-all capability
+  (01_system_overview.adoc, Ports).
 
 [cols="2,1,2,1", options="header"]
 |===
