@@ -24,13 +24,16 @@ decisions, settled in the design interviews of 2026-08-09:
 * **Realism split:** agents only where non-deterministic reasoning earns its place; deterministic
   work is done by deterministic code and simulated vendor services.
 * **Front door:** a minimal web/chat UI exists as a demo shell (kept out of the book's page
-  budget); runnable scripts remain the primary teaching harness.
+  budget); runnable scripts remain the primary teaching harness. Every entry into the *system*
+  is a published event — the UI, the email replay, and the scripts are all edge producers. A
+  framework's own UI (ADK's `adk web`, used to develop the Planner) is an entry into a single
+  agent, never into the system.
 * **LLM strategy:** reasoning agents default to one cloud API key; Ollama is the documented
   zero-cost fallback and powers the Semantic Router and Guardrail models. Model access goes
   through **LiteLLM** rather than a hand-written port (see Ports below).
 * **Vendors:** external systems are shipped, deterministic, seeded simulators.
 * **Frameworks:** the roster is fixed by section 1.5 — **LangGraph, Google ADK, LlamaIndex,
-  Pydantic AI**. Framework agents are the showcases; every other agent is plain Python against
+  CrewAI**. Framework agents are the showcases; every other agent is plain Python against
   the Ports.
 * **Repo model:** the code — and these design docs — live in this repository, separate from
   the book manuscript. One branch per chapter (`ch01`…`ch14`), each branched from its predecessor; a
@@ -93,7 +96,7 @@ flowchart TB
         RESEARCH[Destination Research - LlamaIndex/MCP]
         COORD[Trip Coordinator - py]
         AIRA[Airline Agent - py]
-        HOTA[Hotel Agent - Pydantic AI]
+        HOTA[Hotel Agent - CrewAI]
         CAR[Rental Car - py]
         ARB[Arbiter - py]
         OBSERVER[Observer/Reflector - py ambient]
@@ -196,6 +199,7 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | 1 (plain), rebuilt 2
 | Turns a request into a proposed itinerary: queries availability on the Airline Booking
   System sim, reasons over fare conditions and preferences, publishes `ItineraryProposed`.
+  Developed and debugged through ADK's `adk web` dev UI (ch 2).
 
 | Destination Research Agent
 | Tool-Using
@@ -233,12 +237,13 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 
 | Hotel Agent
 | Tool-Using
-| Pydantic AI
+| CrewAI
 | 6
-| Owns the hotel side of the trip: sources offers from the Hotel Booking System sim (typed
-  offer schemas are the Pydantic AI showcase), proposes check-in times, and negotiates
-  rebooking with the hotel vendor after disruptions (ch 8). Crashed by the ch 9 poison pill
-  and replaced cross-framework.
+| Owns the hotel side of the trip: sources offers from the Hotel Booking System sim (a
+  compact crew and the CrewAI showcase; its offers stay typed through CrewAI's Pydantic
+  structured outputs), proposes check-in times, and negotiates rebooking with the hotel
+  vendor after disruptions (ch 8). Crashed by the ch 9 poison pill and replaced
+  cross-framework.
 
 | Rental Car Agent
 | Tool-Using
@@ -278,8 +283,8 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
   topics, quarantines the rest.
 |===
 
-Framework debut order across the book: **ADK + LlamaIndex in ch 2 → Pydantic AI in ch 6 →
-LangGraph in ch 8**, with ch 9's cross-framework replay replacing the crashed Pydantic AI Hotel
+Framework debut order across the book: **ADK + LlamaIndex in ch 2 → CrewAI in ch 6 →
+LangGraph in ch 8**, with ch 9's cross-framework replay replacing the crashed CrewAI Hotel
 Agent with a LangGraph-built replacement (both frameworks already taught by then).
 
 === Deterministic components
@@ -360,9 +365,9 @@ abstraction. Concretely:
   Ollama-fallback strategy is a LiteLLM `fallbacks` configuration rather than code.
 * **ADK agents** use ADK's own `LiteLlm` wrapper (`Agent(model=LiteLlm(model=...))`) — the
   framework's native model abstraction *is* LiteLLM, which is the precedent for this decision.
-* **LlamaIndex, LangGraph, and Pydantic AI agents** either use their LiteLLM integrations or
-  point their OpenAI-compatible client at a LiteLLM endpoint; either way the model choice stays
-  in config.
+* **LlamaIndex, LangGraph, and CrewAI agents** either use their LiteLLM integrations or
+  point their OpenAI-compatible client at a LiteLLM endpoint — CrewAI's own LLM class is built
+  on LiteLLM — so either way the model choice stays in config.
 * **Chapter 10** divides cleanly: mechanical provider fallback on outage is LiteLLM
   configuration; the *economic circuit breaker* (token budget per `correlation_id`, spanning
   agents and frameworks) remains the book's own pattern on the `WorkflowStateStore`, because no

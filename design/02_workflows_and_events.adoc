@@ -137,7 +137,7 @@ flowchart LR
 
 === W6 — Failure Recovery and Replay
 
-*Flow:* a malformed booking confirmation (poison pill) crashes the Pydantic AI Hotel Agent →
+*Flow:* a malformed booking confirmation (poison pill) crashes the CrewAI Hotel Agent →
 the event lands on the DLQ → the bug is fixed → the same pure business event is replayed
 to a LangGraph-built replacement agent, which finishes the trip. Separately, a duplicate
 delivery of `PaymentRequested` is absorbed by an `IdempotencyStore` check before the Payment sim

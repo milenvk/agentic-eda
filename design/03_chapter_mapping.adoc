@@ -37,7 +37,7 @@ carries the narrative.
 | W1 slice 2: planning against real availability; support AaaS wired
 | Planner rebuilt (ADK, A2A edge), Research Agent (LlamaIndex, MCP edge), Airline Booking
   System sim (the external booking system, REST), Support AaaS sim, InMemoryBroker, CloudEvents
-  + Pydantic contracts, correlation IDs, first mock test
+  + Pydantic contracts, correlation IDs, first mock test, `adk web` as the Planner's dev UI
 | Agent typology, boundaries, universal integration, edge prompting, data contracts
 
 | 3
@@ -62,7 +62,7 @@ carries the narrative.
 | 6
 | Workflow
 | W1 slice 3: multi-item parallel trip, booked without approval
-| Coordinator, Airline Agent (py), Hotel Agent (Pydantic AI), Rental Car Agent,
+| Coordinator, Airline Agent (py), Hotel Agent (CrewAI), Rental Car Agent,
   Arbiter, `BarrierStore`, Hotel Booking System sim, context paths
 | Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical
   context, communication topologies
