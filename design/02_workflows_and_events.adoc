@@ -20,7 +20,7 @@ it.
 *End-state flow:*
 
 1. `TripRequested` (Booking Agent, from the UI chat — or from the Semantic Router when the
-   request arrives by email).
+   request arrives by email; in ch 1, the demo script publishes it directly).
 2. For a simple trip, the Itinerary Planner Agent consumes it, consults the Destination Research
    Agent, checks availability on the Airline Booking System sim, and publishes
    `ItineraryProposed`.
@@ -37,10 +37,10 @@ it.
    an idempotency key: `PaymentAuthorized`.
 7. `TripConfirmed` (Coordinator); the Booking Agent relays it to the customer.
 
-*Built in:* ch 1 (steps 1–2 decoupled, one event type, audit consumer), ch 2 (planning against
-the airline booking system, CloudEvents, correlation IDs), ch 6 (step 3, step 5 without
-approval),
-ch 7 (steps 4 and 7), ch 9 (step 6 made idempotent).
+*Built in:* ch 1 (steps 1–2 decoupled as a round trip — the demo script publishes
+`TripRequested` and receives `ItineraryProposed`, matching on the request event's id; audit
+consumer), ch 2 (planning against the airline booking system, CloudEvents, correlation IDs),
+ch 6 (step 3, step 5 without approval), ch 7 (steps 4 and 7), ch 9 (step 6 made idempotent).
 
 [source,mermaid]
 ----
@@ -183,8 +183,9 @@ Conventions:
   the bare name. Payload schemas are Pydantic models (ch 2.5); this catalog fixes names and
   ownership, not field lists — full contract detail would be invalidated by chapter-level
   discoveries.
-* Every event carries `correlation_id` and (from ch 6) `context_path` as CloudEvents extension
-  attributes.
+* Every event carries `correlation_id` (from ch 2) and `context_path` (from ch 6) as
+  CloudEvents extension attributes; the full identity conventions — UUID event ids,
+  causation, order id — are the Identifiers section of 01_system_overview.adoc.
 * One producer per event type (single writer); consumers listed are typical, not exclusive —
   the audit consumer and Observer see everything.
 
@@ -193,8 +194,8 @@ Conventions:
 | Event | Producer | Typical consumers | Debut
 
 4+e| trip — intake and planning
-| TripRequested | Booking Agent (or Router, from ch 3) | Planner, Coordinator, audit | ch 1
-| ItineraryProposed | Planner | Booking Agent (to customer), Observer | ch 2
+| TripRequested | Booking Agent (demo script in ch 1; Router from ch 3) | Planner, Coordinator, audit | ch 1
+| ItineraryProposed | Planner | Booking Agent (to customer; the demo script in ch 1), Observer | ch 1
 | ItineraryAssembled | Coordinator | Booking Agent, Policy Gate | ch 6
 | ItineraryApproved | Booking Agent (customer via UI) | Policy Gate, Coordinator | ch 7
 | TripConfirmed | Coordinator | Booking Agent, Observer | ch 7
@@ -245,7 +246,8 @@ Conventions:
 
 Notes:
 
-* Chapter 1 publishes exactly one event type (`TripRequested`) with two consumers (Planner +
-  audit), honoring the outline's minimal first commit.
+* Chapter 1 publishes two event types — `TripRequested` (demo script → Planner + audit) and
+  `ItineraryProposed` (Planner → the script) — the reply carrying the request event's id as
+  a `request_id` payload field, the causation link ch 2.8 later names.
 * DLQ and replay are broker-contract behavior (ch 9), not separate event types: dead-lettered
   events are the original business events on a DLQ topic.

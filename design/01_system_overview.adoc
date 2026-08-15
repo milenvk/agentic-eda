@@ -42,6 +42,12 @@ decisions, settled in the design interviews of 2026-08-09:
   branches are never rebased). Chapter branches are tagged at manuscript freeze and re-tagged
   after errata cascades, with a release per tag. `main` carries the README, these design docs,
   the cascade script, and CI — never a chapter copy.
+* **Additive evolution:** a chapter extends an existing component or replaces it with a new
+  one subscribed to the same events — it never rewrites a component in place, and a
+  superseded component stays in the tree as its chapter's artifact (the compose file
+  switches which one runs). This keeps `git diff chNN..chNN+1` additive, keeps cascade
+  merges nearly conflict-free, and keeps every chapter's teaching code present in a ch 14
+  checkout.
 
 == The Business
 
@@ -87,6 +93,7 @@ flowchart TB
     subgraph Ingress
         UI[Web/Chat UI shell]
         MAIL[Email replay script + dataset]
+        SCRIPTS[Demo scripts]
     end
 
     subgraph Agents["LLM agents"]
@@ -143,11 +150,31 @@ Inbox, Barrier, Idempotency stores)]
 
 === Identifiers
 
-Every event carries a `correlation_id` — the execution-thread key (established in ch 2.8) that
-replaces the synchronous call stack — and, from Chapter 6 on, a `context_path` (established in
-ch 6.6), e.g. `/trips/{correlation_id}/paris/hotel`, for hierarchical context scoping. There is
-deliberately no separate business-aggregate identifier: the trip *is* the correlated event
-stream, read through semantic views (ch 5) and workflow state (ch 7).
+Identity conventions, in the order the book introduces them:
+
+* **Event `id`** (CloudEvents core attribute) — every event's own identity, minted as a
+  UUID and **globally unique across the entire solution** by architectural decision. This is
+  deliberately stricter than the CloudEvents minimum (unique per `source`): the reader's own
+  system may not have a `source`, and a single unique key keeps references and table lookups
+  one-column simple. The book explains this reasoning where CloudEvents is introduced
+  (ch 2.5).
+* **Causation** — a reply carries the globally unique id of the event it answers: ch 1's
+  `ItineraryProposed` holds the `TripRequested` id as a `request_id` payload field, and the
+  demo script matches on it. Whether it is promoted to a `causationid` extension attribute
+  is parked for ch 2.5 planning — ch 13's `traceparent` carries parent identity anyway.
+* **`correlation_id`** — the execution-thread key (established in ch 2.8), minted at the
+  first request and copied to every event of the execution; it replaces the synchronous
+  call stack. Causation is a link, correlation a label: following causation walks the
+  thread hop by hop, filtering on correlation returns it whole.
+* **`context_path`** (from ch 6.6) — hierarchical context scoping, e.g.
+  `/trips/{correlation_id}/paris/hotel`.
+* **Order id** — a business fact, not a scoping mechanism: created and returned to the
+  customer only when an order comes into existence (the booking chapters, ch 6–7), expected
+  as a CloudEvents extension attribute; the minting owner and its exact relationship to
+  `correlation_id` are decided at that chapter's planning. Scoping stays correlation's job —
+  sub-workflows may run before any order exists or never concern one. There is still no
+  order aggregate or Order Service: the trip *is* the correlated event stream, read through
+  semantic views (ch 5) and workflow state (ch 7).
 
 === Realism rule: what is an agent and what is not
 
@@ -189,17 +216,21 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Booking Agent
 | Tool-Using
 | py
-| 1
+| 2
 | Customer-facing intake: accepts trip requests (UI/chat), publishes `TripRequested`, relays
-  proposals, confirmations, and questions back to the customer.
+  proposals, confirmations, and questions back to the customer. Debuts when this language
+  work arrives; in ch 1 the demo script publishes `TripRequested` directly as the front
+  door's stand-in.
 
 | Itinerary Planner Agent
 | Tool-Using
 | ADK (A2A edge)
-| 1 (plain), rebuilt 2
+| 1 (plain), replaced 2
 | Turns a request into a proposed itinerary: queries availability on the Airline Booking
   System sim, reasons over fare conditions and preferences, publishes `ItineraryProposed`.
-  Developed and debugged through ADK's `adk web` dev UI (ch 2).
+  Developed and debugged through ADK's `adk web` dev UI (ch 2). The ch 2 ADK Planner is a
+  new component on the same subscription; the ch 1 minimal Planner (a plain loop over
+  LiteLLM) stays in the tree.
 
 | Destination Research Agent
 | Tool-Using
@@ -262,10 +293,10 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Observer/Reflector Agent
 | Ambient
 | py
-| seeded 1 (audit), A/B in 4, built 5
+| A/B in 4, built 5
 | Agentic CQRS projector: prunes and summarizes the log into Materialized Semantic Views
   (`TripView`) through the `SemanticViewStore`. The ch 4 A/B compares its summarization and
-  experiential variants.
+  experiential variants. Runs beside the ch 1 audit consumer, which it does not replace.
 
 | Cleanup Agent
 | Reflective
@@ -306,7 +337,9 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
 
 | Audit Consumer
 | 1
-| Appends every event to a durable audit record; the seed that grows into the Observer Agent.
+| Appends every event to a durable audit record. Permanent: auditing is deterministic work,
+  so it never becomes an agent and is never replaced; the Observer Agent (ch 5) is a separate
+  component applying the same listen-to-everything pattern with reasoning.
 
 | Web/Chat UI shell ("Front Desk")
 | repo from 1, approval console 7

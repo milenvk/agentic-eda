@@ -27,17 +27,19 @@ carries the narrative.
 
 | 1
 | Workflow
-| W1 slice 1: `TripRequested` decoupled from planning
-| Booking Agent (minimal), Planner (plain py), `EventBroker` port, Kafka adapter, audit
-  consumer, first compose file; UI shell exists in repo only
-| Decoupling, durability, pub/sub, second consumer at zero producer cost
+| W1 slice 1: `TripRequested` → `ItineraryProposed` round trip, decoupled
+| Demo script as front-door producer, Planner (plain py over LiteLLM), `EventBroker` port,
+  Kafka adapter, audit consumer, first compose file; UI shell exists in repo only
+| Decoupling, durability, pub/sub, reply by subscription (causation by request id), second
+  consumer at zero producer cost
 
 | 2
 | Component
 | W1 slice 2: planning against real availability; support AaaS wired
-| Planner rebuilt (ADK, A2A edge), Research Agent (LlamaIndex, MCP edge), Airline Booking
-  System sim (the external booking system, REST), Support AaaS sim, InMemoryBroker, CloudEvents
-  + Pydantic contracts, correlation IDs, first mock test, `adk web` as the Planner's dev UI
+| ADK Planner replacing the ch 1 minimal Planner on the same subscription (A2A edge), Booking
+  Agent (chat intake), Research Agent (LlamaIndex, MCP edge), Airline Booking System sim (the
+  external booking system, REST), Support AaaS sim, InMemoryBroker, CloudEvents + Pydantic
+  contracts, correlation IDs, first mock test, `adk web` as the Planner's dev UI
 | Agent typology, boundaries, universal integration, edge prompting, data contracts
 
 | 3
