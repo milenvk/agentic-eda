@@ -52,6 +52,13 @@ docker compose --profile demo up -d --force-recreate demo
 docker compose logs -f --since 30s demo itinerary-planner
 ```
 
+On a fresh broker, the first start may log a few alarming-looking client reports —
+`Topic ... not found in cluster metadata`, `Group Coordinator Request failed` —
+before the stack settles. They are routine: a topic exists only once the first
+event is published to it, and a brand-new Kafka elects its group coordinator on
+first contact. Both resolve within seconds; a real failure would stop the demo,
+not precede it.
+
 Observe, in order:
 
 1. `demo-1` prints a PUBLISHED card for `booking.TripRequested`, then

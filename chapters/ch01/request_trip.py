@@ -6,7 +6,6 @@ script stands in for it.
 """
 
 import asyncio
-import logging
 import os
 
 from travel_agency import console
@@ -16,10 +15,8 @@ from travel_agency.kafka_broker import KafkaEventBroker
 
 SOURCE = "RequestTripScript"
 
-# The Kafka client logs routine metadata chatter at WARNING (for example
-# "Topic ... not found" before the first reply ever creates the topic).
-# Keep only real errors; the demo's own output is the show.
-logging.getLogger("aiokafka").setLevel(logging.ERROR)
+# The demo's own output is the show; keep client libraries to real errors.
+console.quiet_client_logs()
 
 # The running example from chapter 1: the Lisbon trip for two.
 TRIP = {

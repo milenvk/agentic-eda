@@ -78,3 +78,19 @@ def test_success_check_is_green_when_color_is_forced(monkeypatch, capsys):
     monkeypatch.setenv("FORCE_COLOR", "1")
     console.success("SUCCESS")
     assert "\033[1;32m✔\033[0m" in capsys.readouterr().out
+
+
+def test_client_errors_stay_visible(caplog):
+    import logging
+
+    console.quiet_client_logs()
+    with caplog.at_level(logging.ERROR):
+        logging.getLogger("aiokafka.cluster").error(
+            "Topic X not found in cluster metadata"
+        )
+        logging.getLogger("aiokafka.conn").info("routine chatter")
+
+    # Errors — including Kafka's routine fresh-start reports, which the demos
+    # explain rather than hide — pass; INFO chatter does not.
+    assert "not found in cluster metadata" in caplog.text
+    assert "routine chatter" not in caplog.text

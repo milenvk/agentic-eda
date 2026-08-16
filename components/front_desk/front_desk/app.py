@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
 
+from travel_agency import console
 from travel_agency.broker import Event
 from travel_agency.event_types import ITINERARY_PROPOSED, TRIP_REQUESTED
 from travel_agency.kafka_broker import KafkaEventBroker
@@ -33,8 +34,7 @@ async def relay(event: Event) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
-    logging.getLogger("aiokafka").setLevel(logging.ERROR)
+    console.configure_logging()
     async with KafkaEventBroker(
         os.environ["KAFKA_BOOTSTRAP_SERVERS"], client_name=SOURCE
     ) as broker:
