@@ -19,12 +19,6 @@ services:
       dockerfile: components/audit_consumer/Dockerfile
     command: ["pytest", "component/tests", "-q"]
 
-  tests-front-desk:
-    build:
-      context: ../..
-      dockerfile: components/front_desk/Dockerfile
-    command: ["pytest", "component/tests", "-q"]
-
   tests-chapter:
     build:
       context: ../..

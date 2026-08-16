@@ -8,8 +8,7 @@ the script receives the reply by subscribing. Nothing waits on anything.
 
 Components in play: Kafka (single KRaft container), the Itinerary Planner Agent
 ([components/itinerary_planner_minimal](../../components/itinerary_planner_minimal)),
-the audit consumer ([components/audit_consumer](../../components/audit_consumer)),
-and optionally the Front Desk UI ([components/front_desk](../../components/front_desk)).
+and the audit consumer ([components/audit_consumer](../../components/audit_consumer)).
 The demo script stands in for the front door until the Booking Agent arrives in
 chapter 2.
 
@@ -127,22 +126,13 @@ script and planner published them exactly as before — neither changed by a
 single line. (The extra envelope fields in the log — `specversion`, `time`,
 and friends — are chapter 2's subject.)
 
-## Watching in a browser (optional)
-
-```sh
-# Start the Front Desk page, then open http://localhost:8000.
-docker compose --profile ui up -d
-```
-
-The Front Desk streams every event live while you run the acts.
-
 ## Shutting down
 
 ```sh
 # Stop and remove all of the chapter's containers, including the optional
 # profile ones. Add --volumes to also discard Kafka's stored events and
 # Ollama's downloaded models.
-docker compose --profile demo --profile audit --profile ui down
+docker compose --profile demo --profile audit down
 ```
 
 ## Tests

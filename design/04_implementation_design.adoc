@@ -113,8 +113,8 @@ one-place change and remains the adapter's business alone; agents never name top
 * `lib/travel_agency/` — the shared kernel (port, adapters, event-type constants, and the
   `console` event renderer) every component installs; its own pyproject and tests.
 * `components/<book_component_name>/` — one self-contained directory per component, named
-  after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`,
-  `front_desk`): sources, Dockerfile, pyproject with **pinned exact versions**, unit tests.
+  after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`):
+  sources, Dockerfile, pyproject with **pinned exact versions**, unit tests.
   A component's image carries only its own dependencies — one framework's agent never drags
   another's.
 * `chapters/chNN/` — the chapter's README (what is demonstrated, how to run it), its

@@ -344,10 +344,11 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
   component applying the same listen-to-everything pattern with reasoning.
 
 | Web/Chat UI shell ("Front Desk")
-| repo from 1, approval console 7
-| One small FastAPI app: a live event-stream view (SSE) from ch 1; chat intake (publishes to
-  the Booking Agent) from ch 2; the ch 7 manager approval console. Out of the book's page
-  budget by design.
+| 2, approval console 7
+| One small FastAPI app, arriving with the Booking Agent: chat intake (publishes to the
+  Booking Agent) and a live event-stream view; the ch 7 manager approval console. Out of
+  the book's page budget by design. Chapter 1 needs no UI — the demo's labeled log stream
+  is the whole show.
 |===
 
 === External vendor simulators (shipped, seeded, deterministic)

@@ -103,8 +103,7 @@ set `OLLAMA_GPU=1` in place of `OLLAMA_ENABLED=1` in `.env` once the runtime is 
 The default model is `llama3.2` (about 2 GB). A larger machine runs a larger model by
 changing the `LLM_MODEL` string in `.env`; the download happens automatically.
 
-Per-chapter setup instructions are in each chapter directory's README. Every chapter also
-ships a minimal web UI (compose profile `ui`) — a live event view, with chat intake joining
-in chapter 2 and a manager approval console in chapter 7 — for watching the workflows from
-the customer's seat. The book's examples run from scripts and never depend on those UI
-components; they are included for convenience.
+Per-chapter setup instructions are in each chapter directory's README. A minimal web UI
+joins in chapter 2 — a chat front door with a live event view — and gains a manager
+approval console in chapter 7. The book's examples run from scripts and never depend on
+it; it is included for convenience.

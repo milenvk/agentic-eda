@@ -1,6 +1,6 @@
 # Chapter 1 — the decoupled booking workflow.
-# Kafka, the Itinerary Planner Agent, and (per demo act) the audit consumer and
-# the Front Desk UI. See README.md for the walkthrough.
+# Kafka, the Itinerary Planner Agent, and (per demo act) the audit consumer.
+# See README.md for the walkthrough.
 
 include:
   - ../../compose/kafka.yaml
@@ -43,20 +43,6 @@ services:
       FORCE_COLOR: "1"
     volumes:
       - ./data:/data
-    depends_on:
-      kafka:
-        condition: service_healthy
-
-  # Optional: the watch-only web UI at http://localhost:8000
-  front-desk:
-    profiles: [ui]
-    build:
-      context: ../..
-      dockerfile: components/front_desk/Dockerfile
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    ports:
-      - "8000:8000"
     depends_on:
       kafka:
         condition: service_healthy

@@ -9,7 +9,6 @@ suites=(
     tests-travel-agency
     tests-itinerary-planner
     tests-audit-consumer
-    tests-front-desk
     tests-chapter
 )
 
