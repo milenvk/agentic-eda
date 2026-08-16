@@ -120,7 +120,11 @@ one-place change and remains the adapter's business alone; agents never name top
 * `chapters/chNN/` — the chapter's README (what is demonstrated, how to run it), its
   `compose.yaml` entry point, its demo scripts, chapter-level tests, and `test.sh`. In
   README command blocks, every command carries a comment saying what it does — and how
-  long it takes, when that is not obvious (first builds, model downloads). Demo scripts
+  long it takes, when that is not obvious (first builds, model downloads). Chapter
+  walkthroughs lead the reader step by step and never leave them guessing: assign each
+  terminal a role up front (watching a component's log is part of the demo, not
+  optional), then for each act give the numbered commands followed by an "Observe"
+  that says what appears in which terminal and what it proves. Demo scripts
   narrate events, not model output: every publish and receive is printed as an event card
   via `travel_agency.console` (id, type, source, attributes, payload), with long values
   truncated — the full facts are on the audit record. Components get the same narration
