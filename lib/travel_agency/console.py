@@ -27,9 +27,12 @@ def _paint(text: str, code: str) -> str:
 
 def _clip(value: object) -> str:
     text = value if isinstance(value, str) else json.dumps(value)
-    if len(text) <= _VALUE_WIDTH:
+    original_length = len(text)
+    # A card row stays one line: newlines and runs of whitespace collapse.
+    text = " ".join(text.split())
+    if original_length <= _VALUE_WIDTH:
         return text
-    return f"{text[:_VALUE_WIDTH]}… [truncated: {len(text):,} chars total]"
+    return f"{text[:_VALUE_WIDTH]}… [truncated: {original_length:,} chars total]"
 
 
 def format_event(action: str, event: Event) -> str:

@@ -111,8 +111,7 @@ one-place change and remains the adapter's business alone; agents never name top
 == Repository Layout Conventions
 
 * `lib/travel_agency/` — the shared kernel (port, adapters, event-type constants, and the
-  `console` event renderer for demo scripts) every component installs; its own pyproject
-  and tests.
+  `console` event renderer) every component installs; its own pyproject and tests.
 * `components/<book_component_name>/` — one self-contained directory per component, named
   after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`,
   `front_desk`): sources, Dockerfile, pyproject with **pinned exact versions**, unit tests.
@@ -124,7 +123,10 @@ one-place change and remains the adapter's business alone; agents never name top
   long it takes, when that is not obvious (first builds, model downloads). Demo scripts
   narrate events, not model output: every publish and receive is printed as an event card
   via `travel_agency.console` (id, type, source, attributes, payload), with long values
-  truncated — the full facts are on the audit record.
+  truncated — the full facts are on the audit record. Components get the same narration
+  for free: the Kafka adapter logs a card for every event it publishes or receives (the
+  `EventBroker` logger, INFO), so `docker compose logs <component>` shows that
+  component's side of the conversation.
 * `compose/` — one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
   later `postgres.yaml`, `minio.yaml`, …). A chapter's `compose.yaml` uses `include:` to
   pull exactly the fragments it needs, so no chapter drags infrastructure it does not use.

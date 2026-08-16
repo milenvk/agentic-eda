@@ -40,6 +40,12 @@ def test_short_values_are_printed_whole():
     assert "truncated" not in card
 
 
+def test_multiline_values_stay_on_one_card_row():
+    card = format_event("RECEIVED", make_event(payload={"note": "Day 1\n\nDay 2"}))
+    assert "Day 1 Day 2" in card
+    assert "Day 1\n" not in card
+
+
 def test_no_color_codes_when_output_is_not_a_terminal():
     # Under pytest, stdout is captured and is not a tty.
     assert "\033" not in format_event("PUBLISHED", make_event())

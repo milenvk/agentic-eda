@@ -37,6 +37,10 @@ docker compose up -d
 
 # Publish a trip request, then wait for the itinerary to arrive as an event.
 docker compose run --rm demo
+
+# Optional, in a second terminal: the planner's side of the same conversation —
+# it prints a RECEIVED card for the request and a PUBLISHED card for the reply.
+docker compose logs -f itinerary-planner
 ```
 
 The demo prints each event as a card — id, type, source, attributes, and
@@ -54,8 +58,10 @@ the consumer mid-inference:
 # In one terminal: publish another trip request and wait for the reply.
 docker compose run --rm demo
 
-# In a second terminal, while the planner is reasoning: kill the consumer
-# mid-inference, then bring it back.
+# In a second terminal: watch the planner receive the request...
+docker compose logs -f itinerary-planner
+
+# ...and while it is reasoning, kill it mid-inference, then bring it back.
 docker compose stop itinerary-planner
 docker compose start itinerary-planner
 ```

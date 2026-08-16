@@ -5,12 +5,18 @@ consumer groups, and offset commits. No component imports aiokafka.
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from .broker import Event, EventHandler
+from .console import format_event
+
+# Every event a component publishes or receives passes through this adapter,
+# so this one logger shows each component's side of the conversation.
+log = logging.getLogger("EventBroker")
 
 # The CloudEvents attributes that are fields of Event rather than entries in
 # Event.attributes; everything else in an envelope is an attribute.
@@ -90,6 +96,7 @@ class KafkaEventBroker:
             attributes=attributes,
         )
         await self._producer.send_and_wait(topic_for(event.type), encode(event))
+        log.info("\n%s", format_event("PUBLISHED", event))
         return event.id
 
     async def subscribe(
@@ -119,6 +126,7 @@ class KafkaEventBroker:
         try:
             async for message in consumer:
                 event = decode(message.value)
+                log.info("\n%s", format_event("RECEIVED", event))
                 for handler in self._handlers.get(event.type, []):
                     await handler(event)
                 await consumer.commit()

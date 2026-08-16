@@ -174,6 +174,32 @@ async def test_commit_happens_only_after_the_handler_finishes(fake_kafka):
     assert order == ["start", "handled event-1", "commit", "stop"]
 
 
+async def test_both_sides_of_the_conversation_are_logged(fake_kafka, caplog):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="EventBroker")
+    broker = KafkaEventBroker("kafka:9092", client_name="test")
+
+    async with broker:
+        await broker.publish("SomethingHappened", "test", {"a": 1})
+    assert "PUBLISHED" in caplog.text
+
+    async def handler(event: Event) -> None:
+        pass
+
+    await broker.subscribe("com.travelagency.booking.TripRequested", handler)
+    message = SimpleNamespace(value=encode(make_event()))
+    original_init = FakeConsumer.__init__
+
+    def init_with_message(self, *topics, **config):
+        original_init(self, *topics, **{**config, "_messages": [message]})
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(FakeConsumer, "__init__", init_with_message)
+        await broker.run()
+    assert "RECEIVED" in caplog.text
+
+
 async def test_no_commit_when_the_handler_fails(fake_kafka):
     broker = KafkaEventBroker("kafka:9092", client_name="test")
 
