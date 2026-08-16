@@ -62,3 +62,8 @@ def format_event(action: str, event: Event) -> str:
 
 def show(action: str, event: Event) -> None:
     print(format_event(action, event), flush=True)
+
+
+def success(text: str) -> None:
+    """A green check for a demo milestone."""
+    print(f"{_paint('✔', '1;32')} {text}", flush=True)

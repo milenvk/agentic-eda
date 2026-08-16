@@ -49,8 +49,10 @@ async def main() -> None:
             if is_reply_to(request_id, event):
                 print(flush=True)
                 console.show("RECEIVED", event)
+                print(flush=True)
+                console.success("SUCCESS: the itinerary arrived as the reply event.")
                 print(
-                    "\nThe reply's request_id names our request;"
+                    "The reply's request_id names our request;"
                     " that is how this script matched it.",
                     flush=True,
                 )

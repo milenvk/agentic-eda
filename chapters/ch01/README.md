@@ -63,7 +63,7 @@ Observe, in order:
 3. `itinerary-planner-1` prints a PUBLISHED card for
    `itinerary.ItineraryProposed`; its `request_id` is the request's event id.
 4. `demo-1` receives that same reply as a RECEIVED card, matched by
-   `request_id`.
+   `request_id`, and prints a green ✔ SUCCESS.
 
 The model spent the whole time reasoning and nothing waited on it: the
 customer's side was free after one publish, and the answer came back as an

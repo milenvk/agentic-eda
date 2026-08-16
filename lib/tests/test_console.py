@@ -65,3 +65,16 @@ def test_no_color_wins_over_force_color(monkeypatch):
     monkeypatch.setenv("FORCE_COLOR", "1")
     monkeypatch.setenv("NO_COLOR", "1")
     assert "\033" not in format_event("PUBLISHED", make_event())
+
+
+def test_success_prints_a_check_and_the_message(capsys):
+    console.success("SUCCESS: the itinerary arrived.")
+    out = capsys.readouterr().out
+    assert "✔" in out
+    assert "SUCCESS: the itinerary arrived." in out
+
+
+def test_success_check_is_green_when_color_is_forced(monkeypatch, capsys):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    console.success("SUCCESS")
+    assert "\033[1;32m✔\033[0m" in capsys.readouterr().out
