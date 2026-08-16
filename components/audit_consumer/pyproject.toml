@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "audit-consumer"
+version = "0.1.0"
+description = "The Audit Consumer: appends every event to a durable record. Deterministic, and stays that way for the whole book."
+requires-python = ">=3.13"
+# The travel-agency kernel (lib/) is installed alongside this package; see Dockerfile.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["audit_consumer"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

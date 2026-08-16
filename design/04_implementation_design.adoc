@@ -1,0 +1,170 @@
+= Travel Agency Application — System Design: Implementation Design
+:toc:
+
+// Design documentation for the Travel Agency application built across the book. Companion
+// documents: 01_system_overview.adoc (components), 02_workflows_and_events.adoc
+// (workflows + events), 03_chapter_mapping.adoc (chapter mapping). This document is the
+// low-level authority: the exact port surfaces, event envelope, naming, and repository
+// conventions that every chapter's code obeys.
+
+== The `EventBroker` Surface — Final Form
+
+One tree means one kernel, so the public surface is designed complete up front and is
+**frozen for the whole book**: the book's listings and the repository never drift. Adapter
+internals may mature chapter by chapter; these signatures do not.
+
+[source,python]
+----
+@dataclass(frozen=True)
+class Event:
+    id: str                    # UUID, globally unique across the whole system
+    type: str                  # full domain-prefixed name, e.g. "com.travelagency.booking.TripRequested"
+    source: str                # who published it
+    payload: dict              # the business fact (CloudEvents `data`)
+    attributes: dict[str, str] # every CloudEvents attribute not promoted to a root field
+
+class EventBroker(Protocol):
+    async def publish(
+        self, event_type: str, source: str, payload: dict,
+        id: str | None = None, attributes: dict[str, str] | None = None,
+    ) -> str: ...
+    async def subscribe(
+        self, event_type: str, handler: EventHandler, mode: str = "broadcast"
+    ) -> None: ...
+----
+
+* `publish` returns the event's id, whether passed or minted.
+* `handler` is an async callable receiving an `Event`.
+* Deferred capabilities carried by the frozen surface: `attributes` is exercised from ch 2
+  (CloudEvents), `mode="competing"` and the `"*"` subscribe-all sentinel from ch 3. Ch 1
+  code uses none of them.
+
+=== Ports are `typing.Protocol` (PEP 544)
+
+Structural subtyping: an adapter satisfies a port by method shape alone — no inheritance,
+and the adapter never imports the port. Agents type-hint against the Protocol; any object
+with the right methods qualifies (the Kafka adapter, the ch 2 `InMemoryBroker`, a test
+double). This is the ports-and-adapters dependency direction expressed in Python's own
+idiom: agents depend on the port, adapters depend on nothing from the agents' world.
+
+=== Minting rules
+
+`publish` completes whatever the caller omits, so every event is spec-complete no matter how
+little is passed:
+
+* `id` — a UUID. Ids are globally unique across the entire solution by architectural
+  decision (see Identifiers in `01_system_overview.adoc`), deliberately stricter than the
+  CloudEvents per-`source` minimum.
+* `time` — now, UTC, RFC 3339, unless supplied in `attributes`.
+* `datacontenttype` — `application/json` unless supplied in `attributes`.
+* `specversion` — supplied by the wire codec, never by callers.
+
+=== `attributes` semantics
+
+`Event.attributes` holds every CloudEvents attribute that is not a root field: the optional
+standard attributes (`datacontenttype`, `subject`, `dataschema`, `time`) and all extension
+attributes (`correlationid` from ch 2, `contextpath` from ch 6). Root fields are exactly the
+required core attributes (`id`, `type`, `source`) plus `payload` as `data`.
+
+== Wire Format
+
+CloudEvents 1.0 **structured JSON** from day one — the codec is written once, inside
+the adapter, and components never see bytes. Encoding: root fields in their core positions,
+`payload` as `data`, each `attributes` entry in its spec position (standard names at the top
+level under their standard keys; everything else as an extension attribute). The codec
+stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
+`specversion`/`id`/`source`/`type`/`data` lands in `Event.attributes`.
+
+== Event Type Naming
+
+* Code always carries the full reverse-DNS type: `com.travelagency.<domain>.<Name>`, where
+  `<domain>` is the bounded context (the catalog groups in
+  `02_workflows_and_events.adoc`: booking, itinerary, disruption, approval, payment,
+  communication, content, system).
+* Every type is declared exactly once, as a constant in
+  `lib/travel_agency/event_types.py`, grown additively by later chapters. Components import
+  the constant, never retype the string.
+* The producer is **never** part of the type. Its identity is carried by the CloudEvents
+  `source` attribute; the Single Writer Principle assigns one producer per type, and the book
+  replaces producers behind stable events (ch 2, ch 9), which producer-named types would
+  break.
+* Quoting registers: code uses the full string; repository documentation (chapter READMEs,
+  design docs where disambiguation helps) quotes domain-qualified — `booking.TripRequested`;
+  book prose uses the bare name.
+
+== Topic Mapping
+
+`topic_for(event_type)` in the Kafka adapter — identity mapping today: the full type string
+is the topic name (Kafka permits dots). The function exists so that a different scheme is a
+one-place change and remains the adapter's business alone; agents never name topics.
+
+== Subscription Mechanics (Kafka adapter)
+
+* Consumer group id = the adapter's `client_name`. Distinct components therefore each
+  receive every event (broadcast across components), while replicas sharing a `client_name`
+  compete within one group — the two `mode` semantics fall out of group identity.
+* Offsets are committed manually, **only after the handler returns**
+  (`enable_auto_commit=False`). A consumer killed mid-handler never commits, so the event is
+  redelivered on restart — the ch 1 durability demonstration, and the at-least-once floor
+  the book teaches in ch 2.9.
+
+== Repository Layout Conventions
+
+* `lib/travel_agency/` — the shared kernel (port, adapters, event-type constants, and the
+  `console` event renderer for demo scripts) every component installs; its own pyproject
+  and tests.
+* `components/<book_component_name>/` — one self-contained directory per component, named
+  after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`,
+  `front_desk`): sources, Dockerfile, pyproject with **pinned exact versions**, unit tests.
+  A component's image carries only its own dependencies — one framework's agent never drags
+  another's.
+* `chapters/chNN/` — the chapter's README (what is demonstrated, how to run it), its
+  `compose.yaml` entry point, its demo scripts, chapter-level tests, and `test.sh`. In
+  README command blocks, every command carries a comment saying what it does — and how
+  long it takes, when that is not obvious (first builds, model downloads). Demo scripts
+  narrate events, not model output: every publish and receive is printed as an event card
+  via `travel_agency.console` (id, type, source, attributes, payload), with long values
+  truncated — the full facts are on the audit record.
+* `compose/` — one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
+  later `postgres.yaml`, `minio.yaml`, …). A chapter's `compose.yaml` uses `include:` to
+  pull exactly the fragments it needs, so no chapter drags infrastructure it does not use.
+* `docker/` — shared Dockerfiles, named by what they build (`python.Dockerfile`: the
+  kernel-equipped Python image used by demo scripts and chapter-level tests).
+* `.env` at the repository root — one required file of reader configuration for the whole
+  book. Containers read it through `env_file`; compose-time switches (`OLLAMA_ENABLED`)
+  reach the shared fragments through `include:` with `env_file`, since Compose interpolation
+  only reads the project directory's own `.env`.
+* Tests: unit tests are colocated with each component and run inside that component's image
+  (the only environment with its exact dependencies). The entry point is per chapter:
+  `tests-<component>` services plus `tests-chapter` in the chapter's own
+  `compose.tests.yaml`, looped by the chapter's `test.sh` — the CI gate. Tests have a
+  separate compose file deliberately: they must run with no Kafka, no model, and no `.env`.
+
+== House Style
+
+* **asyncio throughout** — agents are async loops; handlers are async callables.
+* **Everything runs in containers.** The reader needs git, Docker (with Compose), and an
+  internet connection; every reader command is `docker compose …` from the chapter
+  directory, identical on Mac, Windows, and Linux. Host Python is a contributor
+  convenience, never a requirement.
+* **Model access:** LiteLLM; the general-case model — what most agents use — is the
+  `LLM_MODEL` string in `.env`, one of four reader choices: Gemini (default), OpenAI,
+  Claude, or Ollama. Each choice is one block to uncomment, key included; the Ollama
+  block needs no key and carries `OLLAMA_ENABLED=1`, which replicas-gates the service.
+  The service pulls its own models on first start, and consumers attach with
+  `depends_on … required: false` — no compose flags and no manual pulls exist anywhere.
+  The four blocks are curated defaults, not a boundary: no compose file or component
+  enumerates providers (containers receive the whole `.env`, agents read only
+  `LLM_MODEL`), so any of LiteLLM's 100+ providers is two `.env` lines — its key
+  variable plus the model string — and providers LiteLLM does not know are still
+  reachable when OpenAI-compatible, via `openai/<model>` + `OPENAI_API_BASE`.
+* **Chapter-mandated local models** (the ch 3 Semantic Router's embeddings, ch 12's
+  Llama Guard, the ch 10 fallback chain) never read the general `LLM_MODEL`. The chapter
+  pins the component's model in its own compose files and forces the service on by
+  including `compose/ollama.yaml` with an env-file list —
+  `env_file: [../../.env, ollama-required.env]` — where the committed second file
+  overrides `OLLAMA_ENABLED=1` and lists the `OLLAMA_MODELS` to pull. A chapter never
+  edits reader configuration.
+* **Comments clarify.** All code is read and judged by humans; comments explain what the
+  code cannot say itself, and listings printed in the book are extracts of this working
+  code, never parallel snippets.

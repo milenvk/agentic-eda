@@ -1,0 +1,34 @@
+# Chapter 1 test runners — deliberately separate from compose.yaml: tests need
+# no Kafka, no model, and no `.env`. `./test.sh` loops over these.
+services:
+  tests-travel-agency:
+    build:
+      context: ../..
+      dockerfile: docker/python.Dockerfile
+    command: ["pytest", "lib/tests", "-q"]
+
+  tests-itinerary-planner:
+    build:
+      context: ../..
+      dockerfile: components/itinerary_planner_minimal/Dockerfile
+    command: ["pytest", "component/tests", "-q"]
+
+  tests-audit-consumer:
+    build:
+      context: ../..
+      dockerfile: components/audit_consumer/Dockerfile
+    command: ["pytest", "component/tests", "-q"]
+
+  tests-front-desk:
+    build:
+      context: ../..
+      dockerfile: components/front_desk/Dockerfile
+    command: ["pytest", "component/tests", "-q"]
+
+  tests-chapter:
+    build:
+      context: ../..
+      dockerfile: docker/python.Dockerfile
+    volumes:
+      - .:/chapter
+    command: ["pytest", "/chapter/tests", "-q"]

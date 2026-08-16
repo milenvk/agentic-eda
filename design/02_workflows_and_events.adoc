@@ -179,7 +179,8 @@ Conventions:
 
 * Names are **PascalCase past-tense business facts** (`FlightBooked`), never commands.
 * On the wire every event is a CloudEvent; `type` is
-  `com.travelagency.<domain>.<Name>` (e.g. `com.travelagency.trip.TripRequested`); prose uses
+  `com.travelagency.<domain>.<Name>` (e.g. `com.travelagency.booking.TripRequested`), where
+  `<domain>` is the bounded context — the catalog's group headers below; prose uses
   the bare name. Payload schemas are Pydantic models (ch 2.5); this catalog fixes names and
   ownership, not field lists — full contract detail would be invalidated by chapter-level
   discoveries.
@@ -194,31 +195,31 @@ Conventions:
 |===
 | Event | Producer | Typical consumers | Debut
 
-4+e| trip — intake and planning
+4+e| booking — the front door and the booking lifecycle
 | TripRequested | Booking Agent (demo script in ch 1; Router from ch 3) | Planner, Coordinator, audit | ch 1
-| ItineraryProposed | Planner | Booking Agent (to customer; the demo script in ch 1), Observer | ch 1
-| ItineraryAssembled | Coordinator | Booking Agent, Policy Gate | ch 6
 | ItineraryApproved | Booking Agent (customer via UI) | Policy Gate, Coordinator | ch 7
 | TripConfirmed | Coordinator | Booking Agent, Observer | ch 7
 | TripCancelled | Coordinator | Booking Agent, Observer | ch 8
+| FlightBooked | Coordinator (booking step, via the airline booking system) | Rental Car Agent, Observer | ch 6
+| HotelBooked | Coordinator (booking step, via the hotel booking system) | Observer | ch 6
+| CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 6
 
-4+e| search — offers (scatter-gather)
+4+e| itinerary — planning and assembly (scatter-gather)
+| ItineraryProposed | Planner | Booking Agent (to customer; the demo script in ch 1), Observer | ch 1
+| ItineraryAssembled | Coordinator | Booking Agent, Policy Gate | ch 6
 | FlightSearchRequested | Coordinator | Airline Agent | ch 6
 | HotelSearchRequested | Coordinator | Hotel Agent | ch 6
 | FlightOffersProposed | Airline Agent | Coordinator (barrier) | ch 6
 | HotelOffersProposed | Hotel Agent | Coordinator (barrier) | ch 6
 | ActionProposed | Airline/Hotel Agents | Arbiter | ch 6
 | ActionCommitted | Arbiter | Coordinator, Observer | ch 6
-| CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 6
 
-4+e| booking and compensation
-| FlightBooked | Coordinator (booking step, via the airline booking system) | Rental Car Agent, Observer | ch 6
-| HotelBooked | Coordinator (booking step, via the hotel booking system) | Observer | ch 6
+4+e| disruption — compensation (W5)
 | HotelSoldOut | Hotel Booking System adapter | Cleanup Agent (W5) | ch 8
 | CancellationDrafted | Cleanup Agent | Compensation code, Booking Agent | ch 8
 | FlightBookingCancelled | Compensation code | Coordinator, Observer | ch 8
 
-4+e| approvals (W4)
+4+e| approval (W4)
 | PolicyViolationDetected | Policy Gate | Coordinator | ch 7
 | ApprovalRequested | Coordinator (outbox) | Approval console, audit | ch 7
 | ApprovalGranted | Approval console | Coordinator | ch 7
@@ -235,7 +236,7 @@ Conventions:
 | VendorUpdateReceived | Router | Agentic Inbox staging, Coordinator | ch 3
 | SupportTicketResolved | Support AaaS adapter | Booking Agent, Observer | ch 2
 
-4+e| research and content (W3)
+4+e| content — research and ingestion (W3)
 | BrochureUploaded | UI shell or script | Claim-check ingestion | ch 4
 | DocumentAvailable | Claim-check ingestion | Research Agent | ch 4
 

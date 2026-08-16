@@ -21,7 +21,7 @@ decisions, settled in the design interviews of 2026-08-09:
   research (NDC offers, fare conditions, mid/back-office operations) survives as naming, seeded
   data, and sidebar material — never as components the reader must hold in their head. See
   "Realism kept as texture" below.
-* **Realism split:** agents only where non-deterministic reasoning earns its place; deterministic
+* **Realism split:** agents only where non-deterministic reasoning is genuinely needed; deterministic
   work is done by deterministic code and simulated vendor services.
 * **Front door:** a minimal web/chat UI exists as a demo shell (kept out of the book's page
   budget); runnable scripts remain the primary teaching harness. Every entry into the *system*
@@ -35,19 +35,21 @@ decisions, settled in the design interviews of 2026-08-09:
 * **Frameworks:** the roster is fixed by section 1.5 — **LangGraph, Google ADK, LlamaIndex,
   CrewAI**. Framework agents are the showcases; every other agent is plain Python against
   the Ports.
-* **Repo model:** the code — and these design docs — live in this repository, separate from
-  the book manuscript. One branch per chapter (`ch01`…`ch14`), each branched from its predecessor; a
-  change belonging to chapter N is implemented on `chN` and cascade-merged forward through the
-  later branches (scripted, with `git rerere`; merges flow forward only, and published chapter
-  branches are never rebased). Chapter branches are tagged at manuscript freeze and re-tagged
-  after errata cascades, with a release per tag. `main` carries the README, these design docs,
-  the cascade script, and CI — never a chapter copy.
+* **Repo model:** the code — and these design docs — are in this repository, separate from
+  the book manuscript, on a single `main` branch. Each component is a self-contained
+  directory (sources, Dockerfile, dependencies, unit tests); each chapter owns
+  `chapters/chNN/` — a README, the chapter's Docker Compose files, and its demo scripts —
+  composing exactly that chapter's cast from the shared component pool. The whole book's
+  code is visible at a glance and a fix lands exactly once. `main` is tagged at each
+  chapter's manuscript freeze (`chNN-1.0`, re-tagged after errata) with a release per tag,
+  so the tree as printed stays reachable.
 * **Additive evolution:** a chapter extends an existing component or replaces it with a new
   one subscribed to the same events — it never rewrites a component in place, and a
-  superseded component stays in the tree as its chapter's artifact (the compose file
-  switches which one runs). This keeps `git diff chNN..chNN+1` additive, keeps cascade
-  merges nearly conflict-free, and keeps every chapter's teaching code present in a ch 14
-  checkout.
+  superseded component stays in the tree as its chapter's artifact (each chapter's compose
+  files select which components run). Every chapter's teaching code is therefore present in
+  the one shared tree. Where a later in-place extension would change behavior an earlier
+  chapter's demo depends on, the component is replaced rather than extended, decided at
+  chapter planning.
 
 == The Business
 
@@ -178,7 +180,7 @@ Identity conventions, in the order the book introduces them:
 
 === Realism rule: what is an agent and what is not
 
-Agents exist only where non-deterministic reasoning earns its place; deterministic work is done
+Agents exist only where non-deterministic reasoning is genuinely needed; deterministic work is done
 by deterministic code and simulated vendor services. Chapter 1's request-response scenario and
 its cascade figure use six design-true components — Booking Agent, Itinerary Planner Agent,
 Airline Agent, Hotel Agent, and the airlines' and hotels' independent booking systems — so
@@ -343,9 +345,9 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
 
 | Web/Chat UI shell ("Front Desk")
 | repo from 1, approval console 7
-| One small FastAPI app, three screens: chat intake (publishes to the Booking Agent), a live
-  event-stream view (SSE), and the ch 7 manager approval console. Out of the book's page budget
-  by design.
+| One small FastAPI app: a live event-stream view (SSE) from ch 1; chat intake (publishes to
+  the Booking Agent) from ch 2; the ch 7 manager approval console. Out of the book's page
+  budget by design.
 |===
 
 === External vendor simulators (shipped, seeded, deterministic)
@@ -384,7 +386,8 @@ spam) publishing `EmailReceived` — a script, not a service.
 
 Ports (all outline-established, unchanged): `EventBroker`, `EventScheduler`,
 `WorkflowStateStore`, `SemanticViewStore`, `BlobStore`, `InboxStore`, `BarrierStore`,
-`IdempotencyStore`.
+`IdempotencyStore`. The low-level design — exact port signatures, the event envelope,
+minting rules, naming, and repo layout conventions — is `04_implementation_design.adoc`.
 
 **`EventBroker` subscription capabilities.** Beyond per-event-type subscription, the port
 offers subscribe-all (or an event-type prefix) — the intersection floor across backends,

@@ -3,47 +3,55 @@
 Companion code for *Event-Driven Agentic Architecture: Building enterprise-grade multi-agent
 systems* by Milen Kovachev. One Travel Agency application, built chapter by chapter on an
 event-driven backbone: autonomous agents from four frameworks (LangGraph, Google ADK, LlamaIndex,
-Pydantic AI) and traditional deterministic services, integrated through a swappable `EventBroker`
+CrewAI) and traditional deterministic services, integrated through a swappable `EventBroker`
 port with Kafka as the first adapter.
 
 ## How this repository works
 
-**One branch per chapter.** Each `chNN` branch is the complete, runnable application exactly as it
-stands at the end of that chapter, branched from the chapter before it:
+Everything lives on `main`, organized so the whole book's code is visible at a glance:
+
+- **`components/`** — every component of the application as a self-contained directory:
+  sources, Dockerfile, pinned dependencies, and unit tests. Components are added and
+  replaced as the book progresses, never rewritten in place, so each chapter's teaching
+  code stays in the tree.
+- **`lib/travel_agency/`** — the shared kernel: the `EventBroker` port, its adapters, and
+  the event-type constants.
+- **`chapters/chNN/`** — one directory per chapter: a README describing what the chapter
+  demonstrates and how to run it, the Docker Compose files that assemble exactly that
+  chapter's components, and the chapter's demo scripts.
 
 ```
-git switch ch05        # the application as of Chapter 5
-docker compose up      # that chapter's full stack
-git diff ch04..ch05    # exactly what Chapter 5 added
+cd chapters/ch01
+docker compose up          # that chapter's stack
+docker compose run --rm demo
 ```
 
-`main` carries only this README, the application design, and tooling — never application code.
-Chapter branches appear here as the book's chapters are written.
-
-**Fixes cascade forward.** A change that belongs to chapter N is implemented on `chNN` and merged
-forward through every later branch with [`scripts/cascade.sh`](scripts/cascade.sh). Merges flow
-forward only, and published chapter branches are never rebased.
-
-**Tags pin the book.** Chapter branches move as fixes cascade; tags don't. Each chapter is tagged
-(`chNN-1.0`) when the manuscript freezes and re-tagged after errata, with a release per tag — so
-the code in your printed copy is always reachable.
+**Tags pin the book.** `main` moves as chapters are written and fixes land; tags don't. Each
+chapter is tagged (`chNN-1.0`) when its manuscript freezes and re-tagged after errata, with a
+release per tag — so the code in your printed copy is always reachable.
 
 ## The application design
 
 | Document | Contents |
 |---|---|
-| [design/01_system_overview.adoc](design/01_system_overview.adoc) | The business, architecture, and every component: 12 agents, 3 vendor simulators, 4 deterministic components, the Ports |
+| [design/01_system_overview.adoc](design/01_system_overview.adoc) | The business, architecture, and every component: 12 agents, 4 vendor simulators, 4 deterministic components, the Ports |
 | [design/02_workflows_and_events.adoc](design/02_workflows_and_events.adoc) | The workflow catalog and the event catalog |
 | [design/03_chapter_mapping.adoc](design/03_chapter_mapping.adoc) | What each chapter adds to the system |
+| [design/04_implementation_design.adoc](design/04_implementation_design.adoc) | The low-level design: port surfaces, event envelope, naming, and repository conventions |
 
 ## Requirements
 
-- Python 3.11+
+- git
 - Docker with Docker Compose
-- One cloud LLM API key (any LiteLLM-supported provider); [Ollama](https://ollama.com) as the
-  optional zero-cost local fallback
+- An internet connection
+- An API key in `.env` for one of Gemini (free tier available), OpenAI, or Claude — or no
+  key at all, choosing free local models via Ollama
 
-Per-chapter setup instructions live in each chapter branch's README. Every chapter branch also
-ships a minimal web UI (compose profile `ui`) — a chat front door and, from chapter 7, a manager
-approval console — for watching the workflows from the customer's seat. The book's examples run
-from scripts and never depend on those UI components; they are included for convenience.
+That is the whole list: every component, demo, and test runs in containers, identically on
+Mac, Windows, and Linux. Host Python is never required.
+
+Per-chapter setup instructions are in each chapter directory's README. Every chapter also
+ships a minimal web UI (compose profile `ui`) — a live event view, with chat intake joining
+in chapter 2 and a manager approval console in chapter 7 — for watching the workflows from
+the customer's seat. The book's examples run from scripts and never depend on those UI
+components; they are included for convenience.
