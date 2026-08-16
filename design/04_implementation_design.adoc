@@ -167,6 +167,19 @@ one-place change and remains the adapter's business alone; agents never name top
   `LLM_MODEL`), so any of LiteLLM's 100+ providers is two `.env` lines — its key
   variable plus the model string — and providers LiteLLM does not know are still
   reachable when OpenAI-compatible, via `openai/<model>` + `OPENAI_API_BASE`.
+  Ollama placement: `compose/ollama.yaml` defines two flavors of one service off a
+  shared anchor — `ollama` (CPU, `OLLAMA_ENABLED=1`) and `ollama-gpu` (NVIDIA device
+  reservation, `OLLAMA_GPU=1`), the GPU flavor network-aliased to `ollama` so the
+  address is `http://ollama:11434` either way and switching flavors is one `.env`
+  change, never a file copy. The reservation lives only on the gated service because it
+  fails startup outright on machines without an NVIDIA runtime. Neither flavor
+  publishes a host port, so a natively installed Ollama never collides. macOS never
+  exposes Apple GPUs to containers, so `.env.example` also documents the host-native
+  variant (`OLLAMA_API_BASE=http://host.docker.internal:11434`; GPU via Metal, no
+  container), and LLM-calling services carry
+  `extra_hosts: host.docker.internal:host-gateway` so that variant works on Linux too.
+  Reader-facing setup for all three variants lives in one place: the root README's
+  "Local models with Ollama" section; chapter READMEs and `.env.example` point there.
 * **Chapter-mandated local models** (the ch 3 Semantic Router's embeddings, ch 12's
   Llama Guard, the ch 10 fallback chain) never read the general `LLM_MODEL`. The chapter
   pins the component's model in its own compose files and forces the service on by

@@ -1,49 +1,67 @@
-# Local models. The service starts in two cases, and stays off otherwise:
-#   - the reader's general model choice in the repository-root `.env` is
-#     Ollama (`OLLAMA_ENABLED=1`, part of that choice's block), or
-#   - the chapter mandates local models for specific components, by including
-#     this fragment with an extra env file that forces `OLLAMA_ENABLED=1` and
-#     lists the models in `OLLAMA_MODELS` (space-separated).
-# On first start the service pulls its models itself; nothing to run by hand.
+# Free local models. Two flavors of the same service; at most one runs,
+# chosen by a single .env switch, and both answer on http://ollama:11434
+# inside the stack:
+#   OLLAMA_ENABLED=1  — CPU (works everywhere; on macOS Docker is CPU-only)
+#   OLLAMA_GPU=1      — NVIDIA GPUs (Linux / Windows WSL2 with the NVIDIA
+#                       container toolkit; startup fails without one)
+# Chapters that mandate local models force OLLAMA_ENABLED=1 via their include
+# env-file. On first start the running service pulls its models itself;
+# nothing to run by hand.
+
+x-ollama: &ollama
+  image: ollama/ollama:0.5.7
+  # Interpolated from the including chapter's env-file list, so a chapter's
+  # override file reaches the running container too.
+  environment:
+    LLM_MODEL: ${LLM_MODEL:-}
+    OLLAMA_MODELS: ${OLLAMA_MODELS:-}
+  entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      ollama serve &
+      models="$${OLLAMA_MODELS:-$${LLM_MODEL#ollama_chat/}}"
+      for model in $$models; do
+        until ollama pull "$$model"; do
+          echo "pull of $$model failed; retrying..."
+          sleep 3
+        done
+      done
+      wait
+  healthcheck:
+    # Healthy once every model is pulled and the API answers; consumers that
+    # depend on this service wait for the one-time download to finish.
+    test:
+      - CMD-SHELL
+      - >
+        for model in $${OLLAMA_MODELS:-$${LLM_MODEL#ollama_chat/}};
+        do ollama ls | grep -q "$$model" || exit 1; done
+    interval: 10s
+    timeout: 5s
+    retries: 360
+    start_period: 30s
+  volumes:
+    - ollama-models:/root/.ollama
+
 services:
   ollama:
-    image: ollama/ollama:0.5.7
+    <<: *ollama
     deploy:
       replicas: ${OLLAMA_ENABLED:-0}
-    # Interpolated from the including chapter's env-file list, so a chapter's
-    # override file reaches the running container too.
-    environment:
-      LLM_MODEL: ${LLM_MODEL:-}
-      OLLAMA_MODELS: ${OLLAMA_MODELS:-}
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        ollama serve &
-        models="$${OLLAMA_MODELS:-$${LLM_MODEL#ollama_chat/}}"
-        for model in $$models; do
-          until ollama pull "$$model"; do
-            echo "pull of $$model failed; retrying..."
-            sleep 3
-          done
-        done
-        wait
-    healthcheck:
-      # Healthy once every model is pulled and the API answers; consumers that
-      # depend on this service wait for the one-time download to finish.
-      test:
-        - CMD-SHELL
-        - >
-          for model in $${OLLAMA_MODELS:-$${LLM_MODEL#ollama_chat/}};
-          do ollama ls | grep -q "$$model" || exit 1; done
-      interval: 10s
-      timeout: 5s
-      retries: 360
-      start_period: 30s
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-models:/root/.ollama
+
+  ollama-gpu:
+    <<: *ollama
+    deploy:
+      replicas: ${OLLAMA_GPU:-0}
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      default:
+        aliases: [ollama]  # the same address either way: http://ollama:11434
 
 volumes:
   ollama-models:

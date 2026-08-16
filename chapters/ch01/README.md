@@ -158,6 +158,10 @@ no API key, no `.env`. The same suites can be run one at a time:
   (about 2 GB) downloads once into a volume, and the planner waits for it;
   later starts are quick. The first reply is also slower while the model loads
   into memory.
+- **Ollama is slow** — you are likely running it in Docker on the CPU. See
+  [Local models with Ollama](../../README.md#local-models-with-ollama) in the
+  repository README for the GPU options: native Ollama on Macs, `OLLAMA_GPU=1`
+  on NVIDIA machines.
 - **You changed the code but the behavior did not change** — Compose reuses
   built images. Add `--build` (`docker compose up -d --build`) to rebuild
   from your sources.

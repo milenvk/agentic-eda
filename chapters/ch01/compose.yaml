@@ -18,11 +18,16 @@ services:
     env_file:
       - path: ../../.env
         required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # host-Ollama variant works on Linux too
     depends_on:
       kafka:
         condition: service_healthy
-      # Waits for the local model only when Ollama is enabled in .env.
+      # Waits for the local model only when an Ollama flavor is enabled in .env.
       ollama:
+        condition: service_healthy
+        required: false
+      ollama-gpu:
         condition: service_healthy
         required: false
 
