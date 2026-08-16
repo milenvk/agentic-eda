@@ -119,6 +119,8 @@ class KafkaEventBroker:
             bootstrap_servers=self._bootstrap_servers,
             group_id=self._client_name,
             enable_auto_commit=False,
+            # A new consumer group starts from the beginning of the log, so a
+            # consumer born after the fact receives every prior event.
             auto_offset_reset="earliest",
             metadata_max_age_ms=5_000,  # discover topics created after startup quickly
         )

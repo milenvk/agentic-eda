@@ -107,6 +107,10 @@ one-place change and remains the adapter's business alone; agents never name top
   (`enable_auto_commit=False`). A consumer killed mid-handler never commits, so the event is
   redelivered on restart — the ch 1 durability demonstration, and the at-least-once floor
   the book teaches in ch 2.9.
+* New consumer groups start from the beginning of the log
+  (`auto_offset_reset="earliest"`): a consumer born after the fact receives every prior
+  event. Ch 1's audit consumer replays the earlier acts on its first start — the first
+  taste of the replay that event sourcing (ch 5) and time travel (ch 9) build on.
 
 == Repository Layout Conventions
 

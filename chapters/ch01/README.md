@@ -140,9 +140,13 @@ the durable audit record:
 cat data/audit.log
 ```
 
-Observe, in the watch terminal: `audit-consumer-1` records both events of the
-round trip, and the script and planner published them exactly as before —
-neither changed by a single line. (The extra envelope fields in the log — `specversion`, `time`,
+Observe, in the watch terminal: the audit consumer's first act is to receive
+*every event from the earlier acts* — requests and replies published before it
+existed. Nothing was coded for that: the events sit on an immutable, durable
+log, so a brand-new consumer simply starts reading from the beginning of
+history. Then the fresh round trip arrives and `audit-consumer-1` records it
+live — and the script and planner published exactly as before, neither changed
+by a single line. (The extra envelope fields in the log — `specversion`, `time`,
 and friends — are chapter 2's subject.)
 
 ## Shutting down
