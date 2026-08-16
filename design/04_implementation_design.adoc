@@ -126,13 +126,13 @@ one-place change and remains the adapter's business alone; agents never name top
   carry `--build`: Compose never checks the source tree on a plain `up`, while BuildKit's
   layer cache makes an unchanged rebuild cost seconds — so readers who edit code never
   chase stale images. Chapter
-  walkthroughs lead the reader step by step and never leave them guessing. The whole
-  conversation streams into one terminal: demo triggers run detached (`up -d
-  --force-recreate <script-service>`) and `docker compose logs -f <services>` follows
-  every participant, line-labeled by component. Each act gives the commands, then an
-  "Observe" that says which component prints what and what it proves. A second terminal
-  appears only when an act needs a concurrent action (a targeted kill), never for
-  watching. Demo scripts
+  walkthroughs lead the reader step by step and never leave them guessing, in a fixed
+  two-terminal model: the first terminal starts the stack and runs one persistent
+  `docker compose logs -f <services>` naming every demo participant (Compose attaches
+  containers created later, so the command never needs restarting); the second terminal
+  runs every action — demo triggers (`up -d --build --force-recreate <script-service>`),
+  kills, new consumers. Each act gives the second-terminal commands, then an "Observe"
+  that says which component prints what in the watch stream and what it proves. Demo scripts
   narrate events, not model output: every publish and receive is printed as an event card
   via `travel_agency.console` (id, type, source, attributes, payload), with long values
   truncated — the full facts are on the audit record. The ch 1 minimal Planner holds

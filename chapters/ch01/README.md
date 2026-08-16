@@ -24,16 +24,19 @@ until it is ready). Any other LiteLLM-supported provider (DeepSeek, Mistral,
 Groq, …) works the same way: its key variable plus the model string, as the
 comments in `.env.example` show.
 
-## How the demo reads
+## The demo, in two terminals
 
-Everything happens in one terminal, in `chapters/ch01`. Both sides of the
-conversation stream into it, and every line is prefixed with the component it
-came from — `demo-1` is the customer's script, `itinerary-planner-1` is the
-agent. Every event appears as a card — id, type, source, attributes, and
-payload, with long values truncated — because the events moving between
-components are the show, not the itinerary text.
+Open two terminals, both in `chapters/ch01`. The **first terminal watches**:
+it follows the whole conversation for the entire demo, and you never type in
+it again. The **second terminal acts**: sending requests, killing processes,
+starting new consumers — every command in the acts below runs there. In the
+watch stream, every line is prefixed with the component it came from
+(`demo-1` is the customer's script, `itinerary-planner-1` is the agent), and
+every event appears as a card — id, type, source, attributes, and payload,
+with long values truncated — because the events moving between components are
+the show, not the itinerary text.
 
-## Act 1 — the decoupled fix
+### Terminal 1 — start the system and watch
 
 Build and start the stack — Kafka and the Itinerary Planner Agent — in the
 background. The first run builds the images and can take several minutes;
@@ -45,19 +48,12 @@ rebuilds exactly what changed:
 docker compose up -d --build
 ```
 
-Trigger the customer's script: it publishes one trip request in the background
-and waits for the reply. The `--force-recreate` flag makes rerunning this same
-command send a fresh request every time:
+Then follow the conversation for the rest of the demo. The command names every
+component the acts involve; the ones not running yet join the stream the
+moment they start. Ctrl-C detaches without stopping anything:
 
 ```sh
-docker compose --profile demo up -d --build --force-recreate demo
-```
-
-Watch both sides of the conversation, line-labeled by component. Ctrl-C
-detaches from the stream; nothing stops:
-
-```sh
-docker compose logs -f --since 30s demo itinerary-planner
+docker compose --profile demo --profile audit logs -f demo itinerary-planner audit-consumer
 ```
 
 On a fresh broker, the first start may log a few alarming-looking client reports —
@@ -67,7 +63,17 @@ event is published to it, and a brand-new Kafka elects its group coordinator on
 first contact. Both resolve within seconds; a real failure would stop the demo,
 not precede it.
 
-Observe, in order:
+## Act 1 — the decoupled fix
+
+In the second terminal, trigger the customer's script: it publishes one trip
+request in the background and waits for the reply. The `--force-recreate` flag
+makes rerunning this same command send a fresh request every time:
+
+```sh
+docker compose --profile demo up -d --build --force-recreate demo
+```
+
+Observe in the watch terminal, in order:
 
 1. `demo-1` prints a PUBLISHED card for `booking.TripRequested`, then
    "waiting for the reply event..." — the script is free the moment it has
@@ -88,27 +94,24 @@ full.)
 
 ## Act 2 — durability
 
-The request survives the death of its consumer. The stream stays in your main
-terminal; only the kill itself needs a second one, because it must hit the
-planner and nothing else. The 45-second hold is your window: from
-`planning trip ...` you have that long to strike.
+The request survives the death of its consumer. The 45-second hold is your
+window: from `planning trip ...` you have that long to strike.
 
-In the main terminal, send a fresh request and watch the conversation:
+In the second terminal, send a fresh request:
 
 ```sh
 docker compose --profile demo up -d --build --force-recreate demo
-docker compose logs -f --since 30s demo itinerary-planner
 ```
 
-In the second terminal, while the stream shows `planning trip ...`, kill the
-planner mid-inference, then bring it back:
+When the watch terminal shows `planning trip ...`, kill the planner
+mid-inference, then bring it back:
 
 ```sh
 docker compose stop itinerary-planner
 docker compose start itinerary-planner
 ```
 
-Observe, back in the main terminal: the restarted planner prints a RECEIVED
+Observe, in the watch terminal: the restarted planner prints a RECEIVED
 card for the *same event id*. The planner never told the broker it had
 finished, so the broker still considered the event outstanding and delivered
 it again. The demo, untouched throughout, gets its reply. The request outlived
@@ -116,18 +119,18 @@ the process that accepted it.
 
 ## Act 3 — a second consumer, zero publisher changes
 
-Start the audit consumer next to the running stack. No other service is
-touched, rebuilt, or restarted:
+In the second terminal, start the audit consumer next to the running stack.
+No other service is touched, rebuilt, or restarted — and notice it joins the
+watch stream the moment it starts:
 
 ```sh
 docker compose --profile audit up -d --build audit-consumer
 ```
 
-Send one more request, and this time watch three components:
+Send one more request:
 
 ```sh
 docker compose --profile demo up -d --build --force-recreate demo
-docker compose logs -f --since 30s demo itinerary-planner audit-consumer
 ```
 
 Afterwards, the full round trip — request and reply, complete payloads — is on
@@ -137,9 +140,9 @@ the durable audit record:
 cat data/audit.log
 ```
 
-Observe: `audit-consumer-1` records both events of the round trip, and the
-script and planner published them exactly as before — neither changed by a
-single line. (The extra envelope fields in the log — `specversion`, `time`,
+Observe, in the watch terminal: `audit-consumer-1` records both events of the
+round trip, and the script and planner published them exactly as before —
+neither changed by a single line. (The extra envelope fields in the log — `specversion`, `time`,
 and friends — are chapter 2's subject.)
 
 ## Shutting down

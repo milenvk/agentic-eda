@@ -59,7 +59,7 @@ async def _hold_until_planning_time(started: float) -> None:
     remaining = planning_seconds - (time.monotonic() - started)
     if remaining > 0:
         log.info(
-            "reasoning finished early; holding the reply until the %.0fs mark",
+            "reasoning finished early; holding the reply to simulate %.0fs latency",
             planning_seconds,
         )
         await asyncio.sleep(remaining)
