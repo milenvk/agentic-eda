@@ -122,7 +122,10 @@ one-place change and remains the adapter's business alone; agents never name top
   blocks in READMEs contain commands only — no `#` comments, because zsh, the macOS
   default shell, rejects them when a block is pasted interactively. Each block is
   introduced by a prose sentence saying what the commands do, and how long they take when
-  that is not obvious (first builds, model downloads). Chapter
+  that is not obvious (first builds, model downloads). Documented compose commands always
+  carry `--build`: Compose never checks the source tree on a plain `up`, while BuildKit's
+  layer cache makes an unchanged rebuild cost seconds — so readers who edit code never
+  chase stale images. Chapter
   walkthroughs lead the reader step by step and never leave them guessing. The whole
   conversation streams into one terminal: demo triggers run detached (`up -d
   --force-recreate <script-service>`) and `docker compose logs -f <services>` follows

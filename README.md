@@ -24,7 +24,7 @@ Working in a chapter's directory brings up exactly that chapter's stack:
 
 ```sh
 cd chapters/ch01
-docker compose up -d
+docker compose up -d --build
 ```
 
 **Tags pin the book.** `main` moves as chapters are written and fixes land; tags don't. Each

@@ -37,10 +37,12 @@ components are the show, not the itinerary text.
 
 Build and start the stack — Kafka and the Itinerary Planner Agent — in the
 background. The first run builds the images and can take several minutes;
-later runs start in seconds:
+later runs reuse the build cache and start in seconds. `--build` keeps the
+images in sync with the source, so if you edit the code, the next start
+rebuilds exactly what changed:
 
 ```sh
-docker compose up -d
+docker compose up -d --build
 ```
 
 Trigger the customer's script: it publishes one trip request in the background
@@ -48,7 +50,7 @@ and waits for the reply. The `--force-recreate` flag makes rerunning this same
 command send a fresh request every time:
 
 ```sh
-docker compose --profile demo up -d --force-recreate demo
+docker compose --profile demo up -d --build --force-recreate demo
 ```
 
 Watch both sides of the conversation, line-labeled by component. Ctrl-C
@@ -94,7 +96,7 @@ planner and nothing else. The 45-second hold is your window: from
 In the main terminal, send a fresh request and watch the conversation:
 
 ```sh
-docker compose --profile demo up -d --force-recreate demo
+docker compose --profile demo up -d --build --force-recreate demo
 docker compose logs -f --since 30s demo itinerary-planner
 ```
 
@@ -118,13 +120,13 @@ Start the audit consumer next to the running stack. No other service is
 touched, rebuilt, or restarted:
 
 ```sh
-docker compose --profile audit up -d
+docker compose --profile audit up -d --build audit-consumer
 ```
 
 Send one more request, and this time watch three components:
 
 ```sh
-docker compose --profile demo up -d --force-recreate demo
+docker compose --profile demo up -d --build --force-recreate demo
 docker compose logs -f --since 30s demo itinerary-planner audit-consumer
 ```
 
@@ -177,9 +179,6 @@ The same suites can be run one at a time:
   [Local models with Ollama](../../README.md#local-models-with-ollama) in the
   repository README for the GPU options: native Ollama on Macs, `OLLAMA_GPU=1`
   on NVIDIA machines.
-- **You changed the code but the behavior did not change** — Compose reuses
-  built images. Add `--build` (`docker compose up -d --build`) to rebuild
-  from your sources.
 - **45 seconds per request is too slow for you** — the planner holds every
   reply to the chapter's 45-second inference time so the acts are easy to
   follow. Set `PLANNING_SECONDS=0` in `.env` to remove the hold (Act 2's kill
