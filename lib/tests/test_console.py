@@ -54,3 +54,14 @@ def test_no_color_codes_when_output_is_not_a_terminal():
 def test_color_codes_when_the_terminal_supports_them(monkeypatch):
     monkeypatch.setattr(console, "_use_color", lambda: True)
     assert "\033[1;32m" in format_event("PUBLISHED", make_event())
+
+
+def test_force_color_overrides_the_missing_terminal(monkeypatch):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    assert "\033[1;32m" in format_event("PUBLISHED", make_event())
+
+
+def test_no_color_wins_over_force_color(monkeypatch):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert "\033" not in format_event("PUBLISHED", make_event())

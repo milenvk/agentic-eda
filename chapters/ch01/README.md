@@ -25,54 +25,45 @@ until it is ready). Any other LiteLLM-supported provider (DeepSeek, Mistral,
 Groq, …) works the same way: its key variable plus the model string, as the
 comments in `.env.example` show.
 
-## The demo, in two terminals
+## How the demo reads
 
-Open two terminals, both in `chapters/ch01`. In the **first terminal** you play
-the customer; the **second terminal** shows the Itinerary Planner Agent's side
-of the same conversation. Every event appears as a card — id, type, source,
-attributes, and payload, with long values truncated — because the events moving
-between components are the show, not the itinerary text.
+Everything happens in one terminal, in `chapters/ch01`. Both sides of the
+conversation stream into it, and every line is prefixed with the component it
+came from — `demo-1` is the customer's script, `itinerary-planner-1` is the
+agent. Every event appears as a card — id, type, source, attributes, and
+payload, with long values truncated — because the events moving between
+components are the show, not the itinerary text.
 
 ## Act 1 — the decoupled fix
-
-### 1. Start the system (first terminal)
 
 ```sh
 # Build and start the stack (Kafka + the Itinerary Planner Agent) in the
 # background. The first run builds the images and can take several minutes;
 # later runs start in seconds.
 docker compose up -d
+
+# Trigger the customer's script in the background: it publishes one trip
+# request and waits for the reply. (--force-recreate makes rerunning this
+# command send a fresh request every time.)
+docker compose --profile demo up -d --force-recreate demo
+
+# Watch both sides of the conversation, line-labeled by component.
+# Ctrl-C detaches from the stream; nothing stops.
+docker compose logs -f --since 30s demo itinerary-planner
 ```
 
-### 2. Watch the planner (second terminal)
+Observe, in order:
 
-```sh
-# Follow the planner's log for the whole demo: it prints a RECEIVED card for
-# every request it consumes and a PUBLISHED card for every reply it publishes.
-docker compose logs -f itinerary-planner
-```
-
-### 3. Request a trip (first terminal)
-
-```sh
-# Publish a trip request, then wait for the itinerary to arrive as an event.
-docker compose run --rm demo
-```
-
-### 4. Observe
-
-In order:
-
-1. **First terminal:** a PUBLISHED card for `booking.TripRequested`, then
+1. `demo-1` prints a PUBLISHED card for `booking.TripRequested`, then
    "waiting for the reply event..." — the script is free the moment it has
    published.
-2. **Second terminal:** a RECEIVED card with the same event id, then
-   `planning trip ...` while the model reasons (30–60 seconds; the first
-   terminal prints a heartbeat while you wait).
-3. **Second terminal:** a PUBLISHED card for `itinerary.ItineraryProposed`;
-   its `request_id` is the request's event id.
-4. **First terminal:** the same reply arrives as a RECEIVED card, matched by
-   that `request_id`.
+2. `itinerary-planner-1` prints a RECEIVED card with the same event id, then
+   `planning trip ...` while the model reasons (30–60 seconds; `demo-1`
+   prints a heartbeat meanwhile).
+3. `itinerary-planner-1` prints a PUBLISHED card for
+   `itinerary.ItineraryProposed`; its `request_id` is the request's event id.
+4. `demo-1` receives that same reply as a RECEIVED card, matched by
+   `request_id`.
 
 The model spent the whole time reasoning and nothing waited on it: the
 customer's side was free after one publish, and the answer came back as an
@@ -81,62 +72,51 @@ records every payload in full.)
 
 ## Act 2 — durability
 
-The request survives the death of its consumer. The first two terminals keep
-their roles; the kill needs a third.
-
-### 1. Request a trip (first terminal)
+The request survives the death of its consumer. The stream stays in your main
+terminal; only the kill itself needs a second one, because it must hit the
+planner and nothing else.
 
 ```sh
-# Publish another trip request and wait for the reply.
-docker compose run --rm demo
+# Main terminal: send a fresh request and watch the conversation.
+docker compose --profile demo up -d --force-recreate demo
+docker compose logs -f --since 30s demo itinerary-planner
 ```
 
-### 2. Kill the planner mid-inference (third terminal)
-
 ```sh
-# Run this while the second terminal shows "planning trip ...".
+# Second terminal, while the stream shows "planning trip ...": kill the
+# planner mid-inference...
 docker compose stop itinerary-planner
 
-# Then bring the planner back.
+# ...and bring it back.
 docker compose start itinerary-planner
 ```
 
-### 3. Observe
-
-In the second terminal, the restarted planner prints a RECEIVED card for the
-*same event id*: the planner never told the broker it had finished, so the
-broker still considered the event outstanding and delivered it again. The demo
-in the first terminal, untouched throughout, gets its reply. The request
-outlived the process that accepted it.
+Observe, back in the main terminal: the restarted planner prints a RECEIVED
+card for the *same event id*. The planner never told the broker it had
+finished, so the broker still considered the event outstanding and delivered
+it again. The demo, untouched throughout, gets its reply. The request outlived
+the process that accepted it.
 
 ## Act 3 — a second consumer, zero publisher changes
 
-### 1. Start the audit consumer (first terminal)
-
 ```sh
-# Joins the running stack; no other service is touched, rebuilt, or restarted.
+# Start the audit consumer next to the running stack. No other service is
+# touched, rebuilt, or restarted.
 docker compose --profile audit up -d
-```
 
-### 2. Request a trip (first terminal)
+# Send one more request, and this time watch three components.
+docker compose --profile demo up -d --force-recreate demo
+docker compose logs -f --since 30s demo itinerary-planner audit-consumer
 
-```sh
-# Publish one more trip request and wait for the reply.
-docker compose run --rm demo
-```
-
-### 3. Observe
-
-```sh
-# The full round trip — request and reply, complete payloads — is now on the
-# durable audit record.
+# Afterwards: the full round trip — request and reply, complete payloads —
+# is on the durable audit record.
 cat data/audit.log
 ```
 
-The audit consumer subscribes to the events the script and planner already
-publish, and neither publisher changed by a single line. (The extra envelope
-fields in the log — `specversion`, `time`, and friends — are chapter 2's
-subject.)
+Observe: `audit-consumer-1` records both events of the round trip, and the
+script and planner published them exactly as before — neither changed by a
+single line. (The extra envelope fields in the log — `specversion`, `time`,
+and friends — are chapter 2's subject.)
 
 ## Watching in a browser (optional)
 
@@ -151,9 +131,9 @@ The Front Desk streams every event live while you run the acts.
 
 ```sh
 # Stop and remove all of the chapter's containers, including the optional
-# audit and ui ones. Add --volumes to also discard Kafka's stored events
-# and Ollama's downloaded models.
-docker compose --profile audit --profile ui down
+# profile ones. Add --volumes to also discard Kafka's stored events and
+# Ollama's downloaded models.
+docker compose --profile demo --profile audit --profile ui down
 ```
 
 ## Tests
@@ -169,8 +149,9 @@ no API key, no `.env`. The same suites can be run one at a time:
 
 ## Troubleshooting
 
-- **The demo hangs forever in Act 1** — check the planner's log (the second
-  terminal): an invalid or missing API key shows up there, not in the demo.
+- **The demo hangs forever in Act 1** — look at the `itinerary-planner-1`
+  lines in the stream: an invalid or missing API key shows up there, not in
+  the demo.
 - **`kafka` is unhealthy on first start** — give it a few seconds; the
   healthcheck retries for a minute before anything else starts.
 - **The first `docker compose up` with Ollama takes minutes** — the model
@@ -178,5 +159,5 @@ no API key, no `.env`. The same suites can be run one at a time:
   later starts are quick. The first reply is also slower while the model loads
   into memory.
 - **You changed the code but the behavior did not change** — Compose reuses
-  built images. Add `--build` (`docker compose up -d --build`,
-  `docker compose run --build --rm demo`) to rebuild from your sources.
+  built images. Add `--build` (`docker compose up -d --build`) to rebuild
+  from your sources.

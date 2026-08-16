@@ -16,7 +16,13 @@ _RULE = "─" * 72
 
 
 def _use_color() -> bool:
-    return sys.stdout.isatty() and "NO_COLOR" not in os.environ
+    # Containers logging through `docker compose logs` have no TTY, but their
+    # bytes reach a terminal — FORCE_COLOR (set in the compose files) says so.
+    if "NO_COLOR" in os.environ:
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    return sys.stdout.isatty()
 
 
 def _paint(text: str, code: str) -> str:

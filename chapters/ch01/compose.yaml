@@ -14,6 +14,7 @@ services:
       dockerfile: components/itinerary_planner_minimal/Dockerfile
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      FORCE_COLOR: "1"  # the event cards keep their colors in `docker compose logs`
     env_file:
       - path: ../../.env
         required: false
@@ -34,6 +35,7 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       AUDIT_LOG: /data/audit.log
+      FORCE_COLOR: "1"
     volumes:
       - ./data:/data
     depends_on:
@@ -54,7 +56,8 @@ services:
       kafka:
         condition: service_healthy
 
-  # The customer's seat: `docker compose run --rm demo`
+  # The customer's seat, triggered per act:
+  #   docker compose --profile demo up -d --force-recreate demo
   demo:
     profiles: [demo]
     build:
@@ -62,6 +65,7 @@ services:
       dockerfile: docker/python.Dockerfile
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      FORCE_COLOR: "1"
     volumes:
       - .:/chapter
     working_dir: /chapter
