@@ -23,6 +23,7 @@ def llm(monkeypatch):
 
     monkeypatch.setattr(agent.litellm, "acompletion", fake_acompletion)
     monkeypatch.setenv("LLM_MODEL", "test-model")
+    monkeypatch.setenv("PLANNING_SECONDS", "0")
     return calls
 
 
@@ -50,3 +51,30 @@ async def test_reasons_over_the_request_with_the_configured_model(broker, llm):
     (call,) = llm
     assert call["model"] == "test-model"
     assert "Lisbon" in call["messages"][0]["content"]
+
+
+async def test_a_fast_model_is_held_to_the_45_second_mark(broker, llm, monkeypatch):
+    monkeypatch.setenv("PLANNING_SECONDS", "45")
+    naps = []
+
+    async def fake_sleep(seconds):
+        naps.append(seconds)
+
+    monkeypatch.setattr(agent.asyncio, "sleep", fake_sleep)
+    await agent.plan(broker, trip_requested())
+
+    (nap,) = naps
+    assert 40 < nap <= 45  # the instant fake inference leaves nearly the full hold
+    assert broker.published  # the reply still goes out, after the hold
+
+
+async def test_no_hold_when_planning_seconds_is_zero(broker, llm, monkeypatch):
+    naps = []
+
+    async def fake_sleep(seconds):
+        naps.append(seconds)
+
+    monkeypatch.setattr(agent.asyncio, "sleep", fake_sleep)
+    await agent.plan(broker, trip_requested())
+
+    assert naps == []

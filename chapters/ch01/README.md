@@ -58,23 +58,25 @@ Observe, in order:
    "waiting for the reply event..." — the script is free the moment it has
    published.
 2. `itinerary-planner-1` prints a RECEIVED card with the same event id, then
-   `planning trip ...` while the model reasons (30–60 seconds; `demo-1`
-   prints a heartbeat meanwhile).
+   `planning trip ...`. Every request takes 45 seconds — the chapter's
+   inference time; a faster model is held to the same mark so the demo's pace
+   never depends on your hardware or choice of model (`demo-1` prints a heartbeat meanwhile).
 3. `itinerary-planner-1` prints a PUBLISHED card for
    `itinerary.ItineraryProposed`; its `request_id` is the request's event id.
 4. `demo-1` receives that same reply as a RECEIVED card, matched by
    `request_id`, and prints a green ✔ SUCCESS.
 
-The model spent the whole time reasoning and nothing waited on it: the
-customer's side was free after one publish, and the answer came back as an
-event. That is the chapter's argument, running. (Act 3's audit consumer
-records every payload in full.)
+The planner took its 45 seconds and nothing waited on it: the customer's side
+was free after one publish, and the answer came back as an event. That is the
+chapter's argument, running. (Act 3's audit consumer records every payload in
+full.)
 
 ## Act 2 — durability
 
 The request survives the death of its consumer. The stream stays in your main
 terminal; only the kill itself needs a second one, because it must hit the
-planner and nothing else.
+planner and nothing else. The 45-second hold is your window: from
+`planning trip ...` you have that long to strike.
 
 ```sh
 # Main terminal: send a fresh request and watch the conversation.
@@ -165,3 +167,7 @@ no API key, no `.env`. The same suites can be run one at a time:
 - **You changed the code but the behavior did not change** — Compose reuses
   built images. Add `--build` (`docker compose up -d --build`) to rebuild
   from your sources.
+- **45 seconds per request is too slow for you** — the planner holds every
+  reply to the chapter's 45-second inference time so the acts are easy to
+  follow. Set `PLANNING_SECONDS=0` in `.env` to remove the hold (Act 2's kill
+  window shrinks to your model's real speed).

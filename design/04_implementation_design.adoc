@@ -130,7 +130,10 @@ one-place change and remains the adapter's business alone; agents never name top
   watching. Demo scripts
   narrate events, not model output: every publish and receive is printed as an event card
   via `travel_agency.console` (id, type, source, attributes, payload), with long values
-  truncated — the full facts are on the audit record. Components get the same narration
+  truncated — the full facts are on the audit record. The ch 1 minimal Planner holds
+  every reply until the 45-second mark (`PLANNING_SECONDS`; the chapter's stated
+  inference time), so the durability act's kill window does not depend on the reader's
+  model speed. Components get the same narration
   for free: the Kafka adapter logs a card for every event it publishes or receives (the
   `EventBroker` logger, INFO), so `docker compose logs <component>` shows that
   component's side of the conversation.
