@@ -20,10 +20,11 @@ Everything lives on `main`, organized so the whole book's code is visible at a g
   demonstrates and how to run it, the Docker Compose files that assemble exactly that
   chapter's components, and the chapter's demo scripts.
 
-```
+Working in a chapter's directory brings up exactly that chapter's stack:
+
+```sh
 cd chapters/ch01
-docker compose up          # that chapter's stack
-docker compose run --rm demo
+docker compose up -d
 ```
 
 **Tags pin the book.** `main` moves as chapters are written and fixes land; tags don't. Each
@@ -63,15 +64,14 @@ volume. It is also the slowest option: on macOS in particular, Docker cannot use
 so containerized Ollama always runs on the CPU there.
 
 **On a modern Mac, with the Apple GPU (recommended on Apple Silicon).** Run Ollama natively
-on the host — it uses the GPU through Metal automatically — and let the containers call it:
+on the host — it uses the GPU through Metal automatically — and let the containers call it.
+Install and start Ollama, then download the model once (or install the
+[desktop app](https://ollama.com) instead of using brew — it runs the same server from the
+menu bar):
 
 ```sh
-# Install and start Ollama on the host. (Or download the desktop app from
-# https://ollama.com — it runs the same server from the menu bar.)
 brew install ollama
 brew services start ollama
-
-# Download the model once.
 ollama pull llama3.2
 ```
 
@@ -85,18 +85,16 @@ set `OLLAMA_GPU=1` in place of `OLLAMA_ENABLED=1` in `.env` once the runtime is 
   is built in, nothing more to set up.
 - *Linux:* install the NVIDIA driver and the
   [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html),
-  then register the runtime with Docker:
+  then register the runtime with Docker and restart the daemon:
 
   ```sh
-  # Wire the NVIDIA runtime into Docker and restart the daemon.
   sudo nvidia-ctk runtime configure --runtime=docker
   sudo systemctl restart docker
   ```
 
-- Verify on either system:
+- Verify on either system — this prints your GPU's name if containers can reach it:
 
   ```sh
-  # Prints your GPU's name if containers can reach it.
   docker run --rm --gpus all ubuntu nvidia-smi
   ```
 

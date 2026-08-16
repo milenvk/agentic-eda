@@ -118,9 +118,11 @@ one-place change and remains the adapter's business alone; agents never name top
   A component's image carries only its own dependencies — one framework's agent never drags
   another's.
 * `chapters/chNN/` — the chapter's README (what is demonstrated, how to run it), its
-  `compose.yaml` entry point, its demo scripts, chapter-level tests, and `test.sh`. In
-  README command blocks, every command carries a comment saying what it does — and how
-  long it takes, when that is not obvious (first builds, model downloads). Chapter
+  `compose.yaml` entry point, its demo scripts, chapter-level tests, and `test.sh`. Shell
+  blocks in READMEs contain commands only — no `#` comments, because zsh, the macOS
+  default shell, rejects them when a block is pasted interactively. Each block is
+  introduced by a prose sentence saying what the commands do, and how long they take when
+  that is not obvious (first builds, model downloads). Chapter
   walkthroughs lead the reader step by step and never leave them guessing. The whole
   conversation streams into one terminal: demo triggers run detached (`up -d
   --force-recreate <script-service>`) and `docker compose logs -f <services>` follows

@@ -35,19 +35,26 @@ components are the show, not the itinerary text.
 
 ## Act 1 — the decoupled fix
 
+Build and start the stack — Kafka and the Itinerary Planner Agent — in the
+background. The first run builds the images and can take several minutes;
+later runs start in seconds:
+
 ```sh
-# Build and start the stack (Kafka + the Itinerary Planner Agent) in the
-# background. The first run builds the images and can take several minutes;
-# later runs start in seconds.
 docker compose up -d
+```
 
-# Trigger the customer's script in the background: it publishes one trip
-# request and waits for the reply. (--force-recreate makes rerunning this
-# command send a fresh request every time.)
+Trigger the customer's script: it publishes one trip request in the background
+and waits for the reply. The `--force-recreate` flag makes rerunning this same
+command send a fresh request every time:
+
+```sh
 docker compose --profile demo up -d --force-recreate demo
+```
 
-# Watch both sides of the conversation, line-labeled by component.
-# Ctrl-C detaches from the stream; nothing stops.
+Watch both sides of the conversation, line-labeled by component. Ctrl-C
+detaches from the stream; nothing stops:
+
+```sh
 docker compose logs -f --since 30s demo itinerary-planner
 ```
 
@@ -84,18 +91,18 @@ terminal; only the kill itself needs a second one, because it must hit the
 planner and nothing else. The 45-second hold is your window: from
 `planning trip ...` you have that long to strike.
 
+In the main terminal, send a fresh request and watch the conversation:
+
 ```sh
-# Main terminal: send a fresh request and watch the conversation.
 docker compose --profile demo up -d --force-recreate demo
 docker compose logs -f --since 30s demo itinerary-planner
 ```
 
-```sh
-# Second terminal, while the stream shows "planning trip ...": kill the
-# planner mid-inference...
-docker compose stop itinerary-planner
+In the second terminal, while the stream shows `planning trip ...`, kill the
+planner mid-inference, then bring it back:
 
-# ...and bring it back.
+```sh
+docker compose stop itinerary-planner
 docker compose start itinerary-planner
 ```
 
@@ -107,17 +114,24 @@ the process that accepted it.
 
 ## Act 3 — a second consumer, zero publisher changes
 
-```sh
-# Start the audit consumer next to the running stack. No other service is
-# touched, rebuilt, or restarted.
-docker compose --profile audit up -d
+Start the audit consumer next to the running stack. No other service is
+touched, rebuilt, or restarted:
 
-# Send one more request, and this time watch three components.
+```sh
+docker compose --profile audit up -d
+```
+
+Send one more request, and this time watch three components:
+
+```sh
 docker compose --profile demo up -d --force-recreate demo
 docker compose logs -f --since 30s demo itinerary-planner audit-consumer
+```
 
-# Afterwards: the full round trip — request and reply, complete payloads —
-# is on the durable audit record.
+Afterwards, the full round trip — request and reply, complete payloads — is on
+the durable audit record:
+
+```sh
 cat data/audit.log
 ```
 
@@ -128,22 +142,24 @@ and friends — are chapter 2's subject.)
 
 ## Shutting down
 
+Stop and remove all of the chapter's containers, including the optional
+profile ones. Add `--volumes` to also discard Kafka's stored events and
+Ollama's downloaded models:
+
 ```sh
-# Stop and remove all of the chapter's containers, including the optional
-# profile ones. Add --volumes to also discard Kafka's stored events and
-# Ollama's downloaded models.
 docker compose --profile demo --profile audit down
 ```
 
 ## Tests
 
+Run every chapter 1 test suite, each inside its component's own image — no
+Kafka, no network, no API key, no `.env`:
+
 ```sh
-# Run every chapter 1 test suite, each inside its component's own image.
 ./test.sh
 ```
 
-Runs every suite, each inside its component's own image — no Kafka, no network,
-no API key, no `.env`. The same suites can be run one at a time:
+The same suites can be run one at a time:
 `docker compose -f compose.tests.yaml run --build --rm tests-itinerary-planner`, etc.
 
 ## Troubleshooting
