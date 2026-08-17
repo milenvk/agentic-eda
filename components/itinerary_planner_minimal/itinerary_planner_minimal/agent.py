@@ -56,10 +56,12 @@ async def _hold_until_planning_time(started: float) -> None:
     anything, so the reply is held until the mark. PLANNING_SECONDS in .env
     changes it; 0 removes the hold."""
     planning_seconds = float(os.environ.get("PLANNING_SECONDS", "45"))
-    remaining = planning_seconds - (time.monotonic() - started)
+    elapsed = time.monotonic() - started
+    remaining = planning_seconds - elapsed
     if remaining > 0:
         log.info(
-            "reasoning finished early; holding the reply to simulate %.0fs latency",
+            "reasoning finished in %.1fs; holding the reply to simulate %.0fs latency",
+            elapsed,
             planning_seconds,
         )
         await asyncio.sleep(remaining)

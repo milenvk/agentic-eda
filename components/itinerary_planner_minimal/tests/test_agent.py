@@ -53,7 +53,9 @@ async def test_reasons_over_the_request_with_the_configured_model(broker, llm):
     assert "Lisbon" in call["messages"][0]["content"]
 
 
-async def test_a_fast_model_is_held_to_the_45_second_mark(broker, llm, monkeypatch):
+async def test_a_fast_model_is_held_to_the_45_second_mark(broker, llm, monkeypatch, caplog):
+    import logging
+
     monkeypatch.setenv("PLANNING_SECONDS", "45")
     naps = []
 
@@ -61,11 +63,13 @@ async def test_a_fast_model_is_held_to_the_45_second_mark(broker, llm, monkeypat
         naps.append(seconds)
 
     monkeypatch.setattr(agent.asyncio, "sleep", fake_sleep)
-    await agent.plan(broker, trip_requested())
+    with caplog.at_level(logging.INFO, logger=agent.SOURCE):
+        await agent.plan(broker, trip_requested())
 
     (nap,) = naps
     assert 40 < nap <= 45  # the instant fake inference leaves nearly the full hold
     assert broker.published  # the reply still goes out, after the hold
+    assert "reasoning finished in" in caplog.text  # the real inference time is reported
 
 
 async def test_no_hold_when_planning_seconds_is_zero(broker, llm, monkeypatch):
