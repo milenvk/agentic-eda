@@ -18,12 +18,14 @@ SOURCE = "RequestTripScript"
 # The demo's own output is the show; keep client libraries to real errors.
 console.quiet_client_logs()
 
-# The running example from chapter 1: the Lisbon trip for two.
+# The running example from chapter 1: the request the opening failure loses.
 TRIP = {
     "origin": "New York (JFK)",
     "destination": "Lisbon",
     "travelers": 2,
-    "notes": "Ten days in June, with a three-day side trip to Madrid.",
+    "duration": "one week",
+    "departing": "in two weeks",
+    "notes": "Three days in Madrid on the way out.",
 }
 
 

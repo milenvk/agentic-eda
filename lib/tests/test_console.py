@@ -8,7 +8,7 @@ from travel_agency.console import format_event
 def make_event(**overrides) -> Event:
     fields = dict(
         id="event-1",
-        type="com.travelagency.booking.TripRequested",
+        type="booking.TripRequested",
         source="RequestTripScript",
         payload={"destination": "Lisbon", "travelers": 2},
         attributes={"time": "2026-08-16T00:00:00+00:00"},
@@ -20,7 +20,7 @@ def make_event(**overrides) -> Event:
 def test_the_card_shows_the_event_not_the_payload_prose():
     card = format_event("PUBLISHED", make_event())
     assert "PUBLISHED" in card
-    assert "com.travelagency.booking.TripRequested" in card
+    assert "booking.TripRequested" in card
     assert "event-1" in card
     assert "RequestTripScript" in card
     assert "2026-08-16T00:00:00+00:00" in card

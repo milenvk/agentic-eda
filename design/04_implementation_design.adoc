@@ -18,7 +18,7 @@ internals may mature chapter by chapter; these signatures do not.
 @dataclass(frozen=True)
 class Event:
     id: str                    # UUID, globally unique across the whole system
-    type: str                  # full domain-prefixed name, e.g. "com.travelagency.booking.TripRequested"
+    type: str                  # domain-prefixed name, e.g. "booking.TripRequested"
     source: str                # who published it
     payload: dict              # the business fact (CloudEvents `data`)
     attributes: dict[str, str] # every CloudEvents attribute not promoted to a root field
@@ -77,10 +77,11 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
 
 == Event Type Naming
 
-* Code always carries the full reverse-DNS type: `com.travelagency.<domain>.<Name>`, where
-  `<domain>` is the bounded context (the catalog groups in
-  `02_workflows_and_events.adoc`: booking, itinerary, disruption, approval, payment,
-  communication, content, system).
+* An event type is `<domain>.<Name>`, where `<domain>` is the bounded context (the catalog
+  groups in `02_workflows_and_events.adoc`: booking, itinerary, disruption, approval,
+  payment, communication, content, system). There is no organization segment: the domain is
+  what a reader and a subscriber need, and a reverse-DNS prefix adds length without adding
+  meaning inside one system.
 * Every type is declared exactly once, as a constant in
   `lib/travel_agency/event_types.py`, grown additively by later chapters. Components import
   the constant, never retype the string.

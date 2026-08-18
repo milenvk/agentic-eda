@@ -72,7 +72,7 @@ def fake_kafka(monkeypatch):
 def make_event(**overrides) -> Event:
     fields = dict(
         id="event-1",
-        type="com.travelagency.booking.TripRequested",
+        type="booking.TripRequested",
         source="test",
         payload={"destination": "Lisbon"},
         attributes={"time": "2026-08-16T00:00:00+00:00", "subject": "trip"},
@@ -82,8 +82,8 @@ def make_event(**overrides) -> Event:
 
 
 def test_topic_mapping_is_identity():
-    assert topic_for("com.travelagency.booking.TripRequested") == (
-        "com.travelagency.booking.TripRequested"
+    assert topic_for("booking.TripRequested") == (
+        "booking.TripRequested"
     )
 
 
@@ -96,7 +96,7 @@ def test_envelope_is_cloudevents_structured_json():
     envelope = json.loads(encode(make_event()))
     assert envelope["specversion"] == "1.0"
     assert envelope["id"] == "event-1"
-    assert envelope["type"] == "com.travelagency.booking.TripRequested"
+    assert envelope["type"] == "booking.TripRequested"
     assert envelope["source"] == "test"
     assert envelope["data"] == {"destination": "Lisbon"}
     # attributes sit at the top level of the envelope, per the structured format
@@ -156,7 +156,7 @@ async def test_commit_happens_only_after_the_handler_finishes(fake_kafka):
     async def handler(event: Event) -> None:
         order.append(f"handled {event.id}")
 
-    await broker.subscribe("com.travelagency.booking.TripRequested", handler)
+    await broker.subscribe("booking.TripRequested", handler)
 
     message = SimpleNamespace(value=encode(make_event()))
     consumer_config = {"_messages": [message]}
@@ -187,7 +187,7 @@ async def test_both_sides_of_the_conversation_are_logged(fake_kafka, caplog):
     async def handler(event: Event) -> None:
         pass
 
-    await broker.subscribe("com.travelagency.booking.TripRequested", handler)
+    await broker.subscribe("booking.TripRequested", handler)
     message = SimpleNamespace(value=encode(make_event()))
     original_init = FakeConsumer.__init__
 
@@ -206,7 +206,7 @@ async def test_no_commit_when_the_handler_fails(fake_kafka):
     async def failing_handler(event: Event) -> None:
         raise RuntimeError("killed mid-inference")
 
-    await broker.subscribe("com.travelagency.booking.TripRequested", failing_handler)
+    await broker.subscribe("booking.TripRequested", failing_handler)
 
     message = SimpleNamespace(value=encode(make_event()))
     original_init = FakeConsumer.__init__

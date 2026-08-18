@@ -5,7 +5,7 @@ design/02_workflows_and_events.adoc is the authority on names and ownership.
 """
 
 # booking — the front door and the booking lifecycle
-TRIP_REQUESTED = "com.travelagency.booking.TripRequested"
+TRIP_REQUESTED = "booking.TripRequested"
 
 # itinerary — planning and assembly
-ITINERARY_PROPOSED = "com.travelagency.itinerary.ItineraryProposed"
+ITINERARY_PROPOSED = "itinerary.ItineraryProposed"

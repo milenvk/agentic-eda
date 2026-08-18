@@ -179,9 +179,9 @@ Conventions:
 
 * Names are **PascalCase past-tense business facts** (`FlightBooked`), never commands.
 * On the wire every event is a CloudEvent; `type` is
-  `com.travelagency.<domain>.<Name>` (e.g. `com.travelagency.booking.TripRequested`), where
-  `<domain>` is the bounded context — the catalog's group headers below; prose uses
-  the bare name. Payload schemas are Pydantic models (ch 2.5); this catalog fixes names and
+  `<domain>.<Name>` (e.g. `booking.TripRequested`), where
+  `<domain>` is the bounded context, the catalog's group headers below. The book's prose uses
+  the same qualified form. Payload schemas are Pydantic models (ch 2.5); this catalog fixes names and
   ownership, not field lists — full contract detail would be invalidated by chapter-level
   discoveries.
 * Every event carries `correlation_id` (from ch 2) and `context_path` (from ch 6) as

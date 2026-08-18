@@ -27,6 +27,9 @@ def test_ignores_events_that_reference_no_request():
     assert not is_reply_to("req-1", stray)
 
 
-def test_the_running_example_is_the_lisbon_trip():
+def test_the_running_example_is_the_trip_chapter_1_opens_with():
+    assert TRIP["origin"] == "New York (JFK)"
     assert TRIP["destination"] == "Lisbon"
     assert TRIP["travelers"] == 2
+    assert TRIP["duration"] == "one week"
+    assert "Madrid" in TRIP["notes"]
