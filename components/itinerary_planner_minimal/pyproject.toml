@@ -9,13 +9,13 @@ description = "The Itinerary Planner Agent in its chapter 1 form: a loop that ca
 requires-python = ">=3.13"
 # The travel-agency kernel (lib/) is installed alongside this package; see Dockerfile.
 dependencies = [
-    "litellm==1.61.8",
+    "litellm==1.97.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==8.3.4",
-    "pytest-asyncio==0.25.2",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
 ]
 
 [tool.hatch.build.targets.wheel]

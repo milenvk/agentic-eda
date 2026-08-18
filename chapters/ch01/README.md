@@ -78,11 +78,11 @@ docker compose --profile demo --profile audit logs -f demo itinerary-planner aud
 ```
 
 On a fresh broker, the first start may log a few alarming-looking client
-reports, `Topic ... not found in cluster metadata` and `Group Coordinator
-Request failed`, before the stack settles. They are routine: a topic exists
-only once the first event is published to it, and a brand-new Kafka elects its
-group coordinator on first contact. Both resolve within seconds; a real
-failure would stop the demo, not precede it.
+reports before the stack settles, such as `Topic ... not found in cluster
+metadata` and `Group Coordinator Request failed`. They are routine: a topic
+exists only once the first event is published to it, and a brand-new Kafka
+elects its group coordinator on first contact. They resolve within seconds;
+a real failure would stop the demo, not precede it.
 
 ## Act 1: the decoupled fix
 

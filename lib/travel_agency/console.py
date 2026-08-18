@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import sys
-import warnings
 
 from .broker import Event
 
@@ -74,17 +73,14 @@ def success(text: str) -> None:
 def quiet_client_logs() -> None:
     """Reduce client-library logging to errors and real problems.
 
-    The Kafka client, LiteLLM, and its HTTP client all log routine chatter;
-    LiteLLM's response parsing also trips a cosmetic pydantic warning with
-    some providers (Ollama among them). What stays visible at ERROR includes
-    Kafka's routine fresh-start reports (an unknown topic before the first
-    event is published to it, coordinator election on first contact) — the
-    demos explain those rather than hide them.
+    The Kafka client, LiteLLM, and its HTTP client all log routine chatter.
+    What stays visible at ERROR includes Kafka's routine fresh-start reports
+    (an unknown topic before the first event is published to it, coordinator
+    election on first contact): the demos explain those rather than hide them.
     """
     logging.getLogger("aiokafka").setLevel(logging.ERROR)
     logging.getLogger("LiteLLM").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
-    warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 
 
 def configure_logging() -> None:

@@ -1,5 +1,5 @@
 # Build with the repository root as context, so the shared kernel can be copied in.
-FROM python:3.13-slim
+FROM python:3.14-slim
 WORKDIR /app
 COPY lib lib
 COPY components/audit_consumer component
