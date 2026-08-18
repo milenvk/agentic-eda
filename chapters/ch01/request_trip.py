@@ -6,12 +6,11 @@ script stands in for it.
 """
 
 import asyncio
-import os
 
 from travel_agency import console
 from travel_agency.broker import Event
+from travel_agency.connect import event_broker
 from travel_agency.event_types import ITINERARY_PROPOSED, TRIP_REQUESTED
-from travel_agency.kafka_broker import KafkaEventBroker
 
 SOURCE = "RequestTripScript"
 
@@ -35,9 +34,7 @@ def is_reply_to(request_id: str, event: Event) -> bool:
 
 
 async def main() -> None:
-    async with KafkaEventBroker(
-        os.environ["KAFKA_BOOTSTRAP_SERVERS"], client_name=SOURCE
-    ) as broker:
+    async with event_broker(SOURCE) as broker:
         request_id = await broker.publish(TRIP_REQUESTED, SOURCE, TRIP)
         console.show("PUBLISHED", Event(request_id, TRIP_REQUESTED, SOURCE, TRIP))
         print("\nNothing is blocked; waiting for the reply event...\n", flush=True)

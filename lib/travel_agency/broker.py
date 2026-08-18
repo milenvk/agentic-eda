@@ -47,3 +47,17 @@ class EventBroker(Protocol):
     ) -> None:
         """Call ``handler`` for every event of the given type."""
         ...
+
+
+class EventBrokerConnection(EventBroker, Protocol):
+    """An open broker: everything above, plus the loop that delivers events.
+
+    Agents and handlers depend on ``EventBroker``, because publishing and
+    subscribing is all their business logic ever does. Only a component's entry
+    point needs this wider surface, to hand control to the broker once its
+    subscriptions are registered. ``connect.event_broker`` opens and closes it.
+    """
+
+    async def run(self) -> None:
+        """Deliver subscribed events until cancelled."""
+        ...

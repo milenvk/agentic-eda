@@ -47,6 +47,19 @@ with the right methods qualifies (the Kafka adapter, the ch 2 `InMemoryBroker`, 
 double). This is the ports-and-adapters dependency direction expressed in Python's own
 idiom: agents depend on the port, adapters depend on nothing from the agents' world.
 
+=== Opening a broker
+
+`connect.event_broker(client_name)` is an async context manager and the only place any
+component names an implementation. Entry points call it; none of them imports an adapter,
+reads a broker address, or closes a connection. A second broker, or a test double, is a
+change to that one function.
+
+It yields an `EventBrokerConnection`: the frozen `EventBroker` surface plus `run()`, the
+delivery loop a process hands control to after subscribing. The split is the dependency
+rule made visible. Business logic type-hints `EventBroker`, because publishing and
+subscribing is all it ever does; only the entry point needs the loop. Lifecycle stays off
+both surfaces, because the factory owns it.
+
 === Minting rules
 
 `publish` completes whatever the caller omits, so every event is spec-complete no matter how
