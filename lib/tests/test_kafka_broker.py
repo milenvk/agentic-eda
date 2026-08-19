@@ -4,6 +4,7 @@ aiokafka is replaced with fakes — no broker, no network.
 """
 
 import json
+import logging
 import uuid
 from types import SimpleNamespace
 
@@ -42,9 +43,14 @@ class FakeConsumer:
     def __init__(self, *topics: str, **config: object) -> None:
         self.topics = topics
         self.config = config
+        self.listener = None
         self.messages: list[SimpleNamespace] = list(config.pop("_messages", []))
         self.calls: list[str] = []
         FakeConsumer.last = self
+
+    def subscribe(self, topics=(), listener=None) -> None:
+        self.topics = tuple(topics)
+        self.listener = listener
 
     async def start(self) -> None:
         self.calls.append("start")
@@ -52,7 +58,7 @@ class FakeConsumer:
     async def stop(self) -> None:
         self.calls.append("stop")
 
-    async def commit(self) -> None:
+    async def commit(self, offsets=None) -> None:
         self.calls.append("commit")
 
     def __aiter__(self):
@@ -147,6 +153,57 @@ async def test_consumer_group_is_the_client_name_with_manual_commit(fake_kafka):
     assert set(consumer.topics) == {"A", "B"}
     assert consumer.config["group_id"] == "AuditConsumer"
     assert consumer.config["enable_auto_commit"] is False
+
+
+async def test_a_subscriber_starts_at_the_tail_by_default(fake_kafka):
+    """A late subscriber receives what follows it and nothing earlier.
+
+    Brokers without a durable log cannot hand history to a subscriber that
+    arrives after the fact, so the default promises only what all of them do.
+    """
+    broker = KafkaEventBroker("kafka:9092", client_name="AuditConsumer")
+
+    async def handler(event: Event) -> None:
+        pass
+
+    await broker.subscribe("A", handler)
+    await broker.run()
+
+    assert FakeConsumer.last.config["auto_offset_reset"] == "latest"
+
+
+async def test_a_component_can_ask_for_the_history_the_broker_still_holds(fake_kafka):
+    """The patterns that need history say so. Replay becomes a decision visible
+    in the component's own code instead of a broker setting it never mentions."""
+    broker = KafkaEventBroker("kafka:9092", client_name="Observer", start="beginning")
+
+    async def handler(event: Event) -> None:
+        pass
+
+    await broker.subscribe("A", handler)
+    await broker.run()
+
+    assert FakeConsumer.last.config["auto_offset_reset"] == "earliest"
+
+
+def test_an_unknown_starting_point_is_refused():
+    """Silently falling back to the default would hide the one thing the caller
+    was explicit about."""
+    with pytest.raises(ValueError, match="beginning"):
+        KafkaEventBroker("kafka:9092", client_name="Observer", start="earliest")
+
+
+async def test_a_subscriber_announces_itself_once_it_is_listening(caplog):
+    """A subscriber receives only what follows it, so anything about to publish
+    needs to know when it is listening. Assignment is that moment, and the demo's
+    third act tells the reader to wait for this line."""
+    consumer = FakeConsumer()
+    listener = kafka_broker._AnnounceSubscription(consumer, "AuditConsumer")
+
+    with caplog.at_level(logging.INFO, logger="EventBroker"):
+        await listener.on_partitions_assigned(["partition-0"])
+
+    assert "AuditConsumer is subscribed and waiting for events" in caplog.text
 
 
 async def test_commit_happens_only_after_the_handler_finishes(fake_kafka):

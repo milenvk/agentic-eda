@@ -149,6 +149,10 @@ stream the moment it starts:
 docker compose --profile audit up -d --build audit-consumer
 ```
 
+Wait for the watch terminal to show `AuditConsumer is subscribed and waiting
+for events`. In this demo a subscriber receives only what is published after it subscribes,
+so a request sent before that line appears never reaches it.
+
 Send one more request:
 
 ```sh
@@ -162,14 +166,18 @@ the durable audit record:
 cat data/audit.log
 ```
 
-Observe, in the watch terminal: the audit consumer's first act is to receive
-*every event from the earlier acts*: requests and replies published before it
-existed. Nothing was coded for that: the events sit on an immutable, durable
-log, so a brand-new consumer simply starts reading from the beginning of
-history. Then the fresh round trip arrives and `audit-consumer-1` records it
-live. The script and planner published exactly as before; neither changed by
-a single line. (The extra envelope fields in the log, `specversion`, `time`,
-and friends, are chapter 2's subject.)
+Observe, in the watch terminal: `audit-consumer-1` records the new round trip
+live, both the request and the reply. It shows nothing from acts 1 and 2. A
+subscriber receives what is published after it subscribes and nothing earlier,
+which is the one delivery promise every broker can keep: Kafka could hand it
+the whole log, but other brokers have no log to hand over, and the
+agents are written against the interface rather than against Kafka. Replay of
+past events is a deliberate operation, which is still available with an option on creation of the broker.
+
+What matters here is the publisher's side. The script and planner published
+exactly as before; neither changed by a single line, and neither knows the
+audit consumer exists. (The extra envelope fields in the log, `specversion`,
+`time`, and friends, are chapter 2's subject.)
 
 ## Shutting down
 

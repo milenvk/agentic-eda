@@ -49,8 +49,8 @@ idiom: agents depend on the port, adapters depend on nothing from the agents' wo
 
 === Opening a broker
 
-`connect.event_broker(client_name)` is an async context manager and the only place any
-component names an implementation. Entry points call it; none of them imports an adapter,
+`connect.event_broker(client_name, start="now")` is an async context manager and the only
+place any component names an implementation. Entry points call it; none of them imports an adapter,
 reads a broker address, or closes a connection. A second broker, or a test double, is a
 change to that one function.
 
@@ -121,10 +121,33 @@ one-place change and remains the adapter's business alone; agents never name top
   (`enable_auto_commit=False`). A consumer killed mid-handler never commits, so the event is
   redelivered on restart — the ch 1 durability demonstration, and the at-least-once floor
   the book teaches in ch 2.9.
-* New consumer groups start from the beginning of the log
-  (`auto_offset_reset="earliest"`): a consumer born after the fact receives every prior
-  event. Ch 1's audit consumer replays the earlier acts on its first start — the first
-  taste of the replay that event sourcing (ch 5) and time travel (ch 9) build on.
+* `event_broker(client_name, start=...)` chooses where a component reads from the first
+  time it subscribes, and `start` has exactly two values.
++
+--
+`"now"` (the default) delivers what is published from that moment onward. It is the one
+promise every broker can keep, so a component that says nothing about history behaves
+identically on Kafka, Eventarc and RabbitMQ.
+
+`"beginning"` asks for the history the broker still holds, which only a log-backed broker
+can serve. An adapter that cannot replay must raise rather than quietly starting from now:
+silently downgrading the one thing the caller was explicit about is the failure mode this
+option exists to prevent. "Beginning" means the start of the *retained* log, not the start
+of time, and Kafka's `log.retention.hours` defaults to 168.
+
+The option is on the connection because a component is one consumer group, and Kafka fixes
+the starting position per consumer. It has no effect once a group has read anything, since
+from then on the component resumes from its own committed position.
+--
+* Ch 1 uses the default throughout, so the audit consumer sees only what follows it. The
+  patterns that need history ask for it in their own code: event sourcing (ch 5) and time
+  travel (ch 9).
+* One Kafka detail the port does not hide: redelivery of an unacknowledged event depends
+  on the group having committed at least once. A group killed before its first commit has
+  no committed offset, so it resets by `start` and the in-flight event is skipped. Every
+  event after that is redelivered as promised. Ch 1's demo is unaffected because act 1
+  completes a round trip before act 2 kills anything, and a queue-backed adapter has no
+  equivalent gap, since its queue exists from the moment of binding.
 
 == Repository Layout Conventions
 

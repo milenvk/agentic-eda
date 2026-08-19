@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka.abc import ConsumerRebalanceListener
 
 from .broker import Event, EventHandler
 from .console import format_event
@@ -55,17 +56,54 @@ def decode(raw: bytes) -> Event:
     )
 
 
+class _AnnounceSubscription(ConsumerRebalanceListener):
+    """Announce that a component is listening, once its partitions are assigned.
+
+    Nothing else can tell a reader when a subscriber is live, and a subscriber
+    receives only what is published after it subscribes.
+    """
+
+    def __init__(self, consumer: AIOKafkaConsumer, client_name: str = "") -> None:
+        self._consumer = consumer
+        self._client_name = client_name
+
+    async def on_partitions_revoked(self, revoked) -> None:
+        pass
+
+    async def on_partitions_assigned(self, assigned) -> None:
+        # A subscriber receives only what follows it, so the moment it is listening
+        # is the moment that matters to anyone about to publish.
+        log.info("%s is subscribed and waiting for events", self._client_name)
+
+
+# Where a component that has never subscribed before begins reading. "now" is the
+# default because it is the one promise every broker can keep; "beginning" asks for
+# history, which only a log-backed broker can serve.
+_START_POSITIONS = {"now": "latest", "beginning": "earliest"}
+
+
 class KafkaEventBroker:
     """Satisfies the EventBroker port against a Kafka cluster.
 
     ``client_name`` identifies the component and becomes its consumer group:
     distinct components each receive every event, while replicas sharing a name
     compete for them.
+
+    ``start`` chooses where a brand-new consumer group begins. It has no effect
+    once the group has read anything, because from then on the component resumes
+    from its own committed position.
     """
 
-    def __init__(self, bootstrap_servers: str, client_name: str) -> None:
+    def __init__(
+        self, bootstrap_servers: str, client_name: str, start: str = "now"
+    ) -> None:
+        if start not in _START_POSITIONS:
+            raise ValueError(
+                f"start must be one of {sorted(_START_POSITIONS)}, not {start!r}"
+            )
         self._bootstrap_servers = bootstrap_servers
         self._client_name = client_name
+        self._start = start
         self._producer: AIOKafkaProducer | None = None
         self._handlers: dict[str, list[EventHandler]] = {}
 
@@ -115,14 +153,15 @@ class KafkaEventBroker:
         delivers it again on restart.
         """
         consumer = AIOKafkaConsumer(
-            *(topic_for(event_type) for event_type in self._handlers),
             bootstrap_servers=self._bootstrap_servers,
             group_id=self._client_name,
             enable_auto_commit=False,
-            # A new consumer group starts from the beginning of the log, so a
-            # consumer born after the fact receives every prior event.
-            auto_offset_reset="earliest",
+            auto_offset_reset=_START_POSITIONS[self._start],
             metadata_max_age_ms=5_000,  # discover topics created after startup quickly
+        )
+        consumer.subscribe(
+            topics=[topic_for(event_type) for event_type in self._handlers],
+            listener=_AnnounceSubscription(consumer, self._client_name),
         )
         await consumer.start()
         try:
