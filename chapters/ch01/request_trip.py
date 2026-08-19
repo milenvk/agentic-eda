@@ -61,7 +61,7 @@ async def main() -> None:
                 await asyncio.wait_for(received.wait(), timeout=15)
                 break
             except TimeoutError:
-                print("Still waiting; the planner is reasoning...", flush=True)
+                print("Haven't received the itinerary yet...", flush=True)
         consuming.cancel()
 
 
