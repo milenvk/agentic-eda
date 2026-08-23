@@ -35,34 +35,41 @@ carries the narrative.
 
 | 2
 | Component
+| W1 hardening: the ch 1 round trip contracted and correlated
+| CloudEvents + Pydantic contract models, validating boundary at the container,
+  `correlationid` + `causationid` extension attributes, InMemoryBroker, first mock test
+| Agent typology, boundaries, single writer, agent container (pull/push), data contracts,
+  correlation and causation, at-least-once floor
+
+| 3
+| Component
 | W1 slice 2: planning against real availability; support AaaS wired
 | ADK Planner replacing the ch 1 minimal Planner on the same subscription (A2A edge), Booking
   Agent (chat intake), Front Desk UI shell (chat + live event view), Research Agent
   (LlamaIndex, MCP edge), Airline Booking System sim (the external booking system, REST),
-  Support AaaS sim, InMemoryBroker, CloudEvents + Pydantic contracts, correlation IDs, first
-  mock test, `adk web` as the Planner's dev UI
-| Agent typology, boundaries, universal integration, edge prompting, data contracts
+  Support AaaS sim, `adk web` as the Planner's dev UI
+| Universal integration, protocol vocabulary, edge prompting, zero-trust seed
 
-| 3
+| 4
 | Workflow
 | W2 complete: email triage
 | Email replay script + seeded dataset, Semantic Router, Token Defense Filter, `InboxStore`
 | Reflex agents, semantic routing, semantic windowing, filters/payload mediation,
   out-of-sequence handling, broadcast vs competing consumers
 
-| 4
+| 5
 | Component
 | W3 complete; S1 variants
 | `BlobStore` (MinIO), claim-check flow, Observer A/B (summarizing vs experiential)
 | Claim check, context bottleneck, memory strategies
 
-| 5
+| 6
 | Component
 | S1 complete
 | Observer/Reflector Agent, `SemanticViewStore`, stateless hydration
 | Event sourcing, Agentic CQRS, materialized semantic views, Tier 1+2 hydration
 
-| 6
+| 7
 | Workflow
 | W1 slice 3: multi-item parallel trip, booked without approval
 | Coordinator, Airline Agent (py), Hotel Agent (CrewAI), Rental Car Agent,
@@ -70,7 +77,7 @@ carries the narrative.
 | Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical
   context, communication topologies
 
-| 7
+| 8
 | Workflow
 | W4 complete; W1 slice 4 (customer acceptance, policy check, `TripConfirmed`); **B2B pivot**
 | `WorkflowStateStore`, outbox relay, `EventScheduler` (APScheduler+PG), Policy Gate,
@@ -78,14 +85,14 @@ carries the narrative.
 | Durable state machines, agentic outbox, human-in-the-loop, semantic checkpointing,
   macro-timeouts, ABA
 
-| 8
+| 9
 | Workflow
 | W5 complete
 | Cleanup Agent (LangGraph), deterministic compensation code, livelock breaker, sold-out and
   negotiation auto-responder injection in the Hotel Booking System sim, deadlock demo
 | Sagas, semantic rollback, livelock circuit breaker, deadlock resolution
 
-| 9
+| 10
 | Layer (with W6 demos)
 | W6 complete; W1 payment step added, idempotent
 | DLQ wiring, `IdempotencyStore`, Payment sim (Stripe-like), idempotent payment step,
@@ -93,32 +100,32 @@ carries the narrative.
 | At-least-once reality, deterministic idempotency, internal checkpointing, DLQ, time travel,
   cross-framework replay
 
-| 10
+| 11
 | Layer
 | cost governance across W1/W5 traffic
 | Token budget guard, economic circuit breaker, LiteLLM fallback chain (cloud → Ollama)
 | Token backpressure, economic circuit breaking, model fallbacks
 
-| 11
+| 12
 | Layer
 | all workflows under test
 | Offline semantic test harness, LLM mock fixtures, LLM-as-judge scripts, shadow consumer
 | Deterministic testing of non-deterministic agents, semantic regression, shadow processing
 
-| 12
+| 13
 | Layer
 | security across W1/W2/W4
 | Guardrail Worker, quarantine DLQ, Egress DLP Interceptor, Policy Gate hardening, contextual
   data segregation, red-team script
 | Zero trust, asynchronous prompt injection defense, confused deputy, egress DLP
 
-| 13
+| 14
 | Layer
 | observability across W1 end-to-end
 | OTel instrumentation, Jaeger in compose, V1→V2 Translator
 | Semantic observability, schema evolution
 
-| 14
+| 15
 | Layer
 | all workflows on cloud adapters, under load
 | Broker/scheduler/store cloud adapters (GCP primary via Eventarc Advanced — a single

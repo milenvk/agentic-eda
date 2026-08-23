@@ -36,7 +36,7 @@ class EventBroker(Protocol):
 * `publish` returns the event's id, whether passed or minted.
 * `handler` is an async callable receiving an `Event`.
 * Deferred capabilities carried by the frozen surface: `attributes` is exercised from ch 2
-  (CloudEvents), `mode="competing"` and the `"*"` subscribe-all sentinel from ch 3. Ch 1
+  (CloudEvents), `mode="competing"` and the `"*"` subscribe-all sentinel from ch 4. Ch 1
   code uses none of them.
 
 === Ports are `typing.Protocol` (PEP 544)
@@ -76,7 +76,7 @@ little is passed:
 
 `Event.attributes` holds every CloudEvents attribute that is not a root field: the optional
 standard attributes (`datacontenttype`, `subject`, `dataschema`, `time`) and all extension
-attributes (`correlationid` from ch 2, `contextpath` from ch 6). Root fields are exactly the
+attributes (`correlationid` and `causationid` from ch 2, `contextpath` from ch 7). Root fields are exactly the
 required core attributes (`id`, `type`, `source`) plus `payload` as `data`.
 
 == Wire Format
@@ -100,7 +100,7 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
   the constant, never retype the string.
 * The producer is **never** part of the type. Its identity is carried by the CloudEvents
   `source` attribute; the Single Writer Principle assigns one producer per type, and the book
-  replaces producers behind stable events (ch 2, ch 9), which producer-named types would
+  replaces producers behind stable events (ch 3, ch 10), which producer-named types would
   break.
 * Quoting registers: code uses the full string; repository documentation (chapter READMEs,
   design docs where disambiguation helps) quotes domain-qualified — `booking.TripRequested`;
@@ -120,7 +120,7 @@ one-place change and remains the adapter's business alone; agents never name top
 * Offsets are committed manually, **only after the handler returns**
   (`enable_auto_commit=False`). A consumer killed mid-handler never commits, so the event is
   redelivered on restart — the ch 1 durability demonstration, and the at-least-once floor
-  the book teaches in ch 2.9.
+  the book teaches in ch 2.7.
 * `event_broker(client_name, start=...)` chooses where a component reads from the first
   time it subscribes, and `start` has exactly two values.
 +
@@ -140,8 +140,8 @@ the starting position per consumer. It has no effect once a group has read anyth
 from then on the component resumes from its own committed position.
 --
 * Ch 1 uses the default throughout, so the audit consumer sees only what follows it. The
-  patterns that need history ask for it in their own code: event sourcing (ch 5) and time
-  travel (ch 9).
+  patterns that need history ask for it in their own code: event sourcing (ch 6) and time
+  travel (ch 10).
 * One Kafka detail the port does not hide: redelivery of an unacknowledged event depends
   on the group having committed at least once. A group killed before its first commit has
   no committed offset, so it resets by `start` and the in-flight event is skipped. Every
@@ -229,8 +229,8 @@ from then on the component resumes from its own committed position.
   `extra_hosts: host.docker.internal:host-gateway` so that variant works on Linux too.
   Reader-facing setup for all three variants lives in one place: the root README's
   "Local models with Ollama" section; chapter READMEs and `.env.example` point there.
-* **Chapter-mandated local models** (the ch 3 Semantic Router's embeddings, ch 12's
-  Llama Guard, the ch 10 fallback chain) never read the general `LLM_MODEL`. The chapter
+* **Chapter-mandated local models** (the ch 4 Semantic Router's embeddings, ch 13's
+  Llama Guard, the ch 11 fallback chain) never read the general `LLM_MODEL`. The chapter
   pins the component's model in its own compose files and forces the service on by
   including `compose/ollama.yaml` with an env-file list —
   `env_file: [../../.env, ollama-required.env]` — where the committed second file

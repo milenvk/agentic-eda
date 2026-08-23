@@ -16,7 +16,7 @@ decisions, settled in the design interviews of 2026-08-09:
   implementation needs it to teach its pattern. The book serves pedagogy for a 300–400 page
   journey, not an industry-complete enterprise application.
 * **Business model:** a digital-first B2C travel agency that lands a corporate (B2B) client
-  mid-book, as Chapter 7 already implies.
+  mid-book, as Chapter 8 already implies.
 * **Research-grounded texture:** the business realism from the author's travel-industry
   research (NDC offers, fare conditions, mid/back-office operations) survives as naming, seeded
   data, and sidebar material — never as components the reader must hold in their head. See
@@ -66,21 +66,21 @@ The business evolves in four phases that track the book's parts:
 | Phase | Book part | Business capability added
 
 | Consumer booking core
-| Part 1 (ch 1–5)
+| Part 1 (ch 1–6)
 | Take a trip request, plan it, book it, support the customer, remember everything that
   happened.
 
 | Richer products + first B2B client
-| Part 2 (ch 6–8)
+| Part 2 (ch 7–9)
 | Multi-city trips searched in parallel; a corporate client with travel policies and manager
   approvals; disruption handling with real compensation.
 
 | Operational hardening
-| Part 3 (ch 9–12)
+| Part 3 (ch 10–13)
 | Payments that survive retries, cost governance, testing, security.
 
 | Production
-| Part 4 (ch 13–14)
+| Part 4 (ch 14–15)
 | Observability, schema evolution, and migration to managed cloud services.
 |===
 
@@ -162,21 +162,22 @@ Identity conventions, in the order the book introduces them:
   (ch 2.5).
 * **Causation** — a reply carries the globally unique id of the event it answers: ch 1's
   `ItineraryProposed` holds the `TripRequested` id as a `request_id` payload field, and the
-  demo script matches on it. Whether it is promoted to a `causationid` extension attribute
-  is parked for ch 2.5 planning — ch 13's `traceparent` carries parent identity anyway.
-* **`correlation_id`** — the execution-thread key (established in ch 2.8), minted at the
+  demo script matches on it. Ch 2.6 promotes it to a `causationid` extension attribute
+  (settled at ch 2 planning: one attribute, since ids are globally unique); ch 14's
+  `traceparent` carries parent identity for observability, not business causation.
+* **`correlation_id`** — the execution-thread key (established in ch 2.6), minted at the
   first request and copied to every event of the execution; it replaces the synchronous
   call stack. Causation is a link, correlation a label: following causation walks the
   thread hop by hop, filtering on correlation returns it whole.
-* **`context_path`** (from ch 6.6) — hierarchical context scoping, e.g.
+* **`context_path`** (from ch 7.6) — hierarchical context scoping, e.g.
   `/trips/{correlation_id}/paris/hotel`.
 * **Order id** — a business fact, not a scoping mechanism: created and returned to the
-  customer only when an order comes into existence (the booking chapters, ch 6–7), expected
+  customer only when an order comes into existence (the booking chapters, ch 7–8), expected
   as a CloudEvents extension attribute; the minting owner and its exact relationship to
   `correlation_id` are decided at that chapter's planning. Scoping stays correlation's job —
   sub-workflows may run before any order exists or never concern one. There is still no
   order aggregate or Order Service: the trip *is* the correlated event stream, read through
-  semantic views (ch 5) and workflow state (ch 7).
+  semantic views (ch 6) and workflow state (ch 8).
 
 === Realism rule: what is an agent and what is not
 
@@ -195,10 +196,10 @@ The researched industry realism stays in the book as prose, not code:
 * **NDC offers and fare conditions** — the Airline Booking System sim's flight offers carry
   change/refund-penalty fields the airline and hotel agents reason over; a sidebar can name NDC
   as the real-world shape.
-* **IATA ONE Order** — a sidebar candidate where event sourcing is taught (ch 5): the industry
+* **IATA ONE Order** — a sidebar candidate where event sourcing is taught (ch 6): the industry
   is converging on exactly the "single record of the trip" the event log provides.
 * **Treasury, VCCs, ticketing deadlines, commission reconciliation, duty of care** — mid/back
-  office operations the prose can gesture at (e.g., in ch 1.4's scenarios or a ch 7/ch 8
+  office operations the prose can gesture at (e.g., in ch 1.4's scenarios or a ch 8/ch 9
   sidebar) as further applications of the same patterns, without building them.
 
 == Component Inventory
@@ -218,7 +219,7 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Booking Agent
 | Tool-Using
 | py
-| 2
+| 3
 | Customer-facing intake: accepts trip requests (UI/chat), publishes `TripRequested`, relays
   proposals, confirmations, and questions back to the customer. Debuts when this language
   work arrives; in ch 1 the demo script publishes `TripRequested` directly as the front
@@ -227,24 +228,24 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Itinerary Planner Agent
 | Tool-Using
 | ADK (A2A edge)
-| 1 (plain), replaced 2
+| 1 (plain), replaced 3
 | Turns a request into a proposed itinerary: queries availability on the Airline Booking
   System sim, reasons over fare conditions and preferences, publishes `ItineraryProposed`.
-  Developed and debugged through ADK's `adk web` dev UI (ch 2). The ch 2 ADK Planner is a
+  Developed and debugged through ADK's `adk web` dev UI (ch 3). The ch 3 ADK Planner is a
   new component on the same subscription; the ch 1 minimal Planner (a plain loop over
   LiteLLM) stays in the tree.
 
 | Destination Research Agent
 | Tool-Using
 | LlamaIndex (MCP edge)
-| 2
-| Destination knowledge: indexes brochures (claim-checked PDFs from ch 4), answers planning
+| 3
+| Destination knowledge: indexes brochures (claim-checked PDFs from ch 5), answers planning
   queries over them.
 
 | Semantic Router
 | Reflex
 | py + local embeddings/Ollama
-| 3
+| 4
 | Classifies inbound email into typed business events; drops spam before it costs tokens.
   Consumes bursts in time-windowed micro-batches assessed in one bulk call (semantic
   windowing), and on republish strips raw email down to the fields downstream agents need
@@ -253,17 +254,17 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Trip Coordinator Agent
 | Tool-Using
 | py
-| 6
+| 7
 | Orchestrates multi-item trips by publishing events, never commands: scatter-gather via
   `FlightSearchRequested`/`HotelSearchRequested`, gathers through the `BarrierStore`, publishes
-  `ItineraryAssembled`. From ch 7 it owns the durable trip workflow — macro-state in the
+  `ItineraryAssembled`. From ch 8 it owns the durable trip workflow — macro-state in the
   `WorkflowStateStore`, the outbox, scheduled timeouts — and executes the deterministic booking
-  and payment steps (idempotent from ch 9).
+  and payment steps (idempotent from ch 10).
 
 | Airline Agent
 | Tool-Using
 | py
-| 6
+| 7
 | Owns the airline side of the trip: sources flight offers from the Airline Booking System
   sim, interprets fare conditions into structured proposals, and proposes arrival times
   (`ActionProposed`).
@@ -271,39 +272,39 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Hotel Agent
 | Tool-Using
 | CrewAI
-| 6
+| 7
 | Owns the hotel side of the trip: sources offers from the Hotel Booking System sim (a
   compact crew and the CrewAI showcase; its offers stay typed through CrewAI's Pydantic
   structured outputs), proposes check-in times, and negotiates rebooking with the hotel
-  vendor after disruptions (ch 8). Crashed by the ch 9 poison pill and replaced
+  vendor after disruptions (ch 9). Crashed by the ch 10 poison pill and replaced
   cross-framework.
 
 | Rental Car Agent
 | Tool-Using
 | py
-| 6
+| 7
 | Pure choreography demo: reacts to `FlightBooked` with a rental car booking; nobody
   orchestrates it.
 
 | Arbiter Agent
 | Reflex
 | py
-| 6
+| 7
 | Resolves conflicting `ActionProposed` events (arrival vs check-in times) and issues
   `ActionCommitted`.
 
 | Observer/Reflector Agent
 | Ambient
 | py
-| A/B in 4, built 5
+| A/B in 5, built 6
 | Agentic CQRS projector: prunes and summarizes the log into Materialized Semantic Views
-  (`TripView`) through the `SemanticViewStore`. The ch 4 A/B compares its summarization and
+  (`TripView`) through the `SemanticViewStore`. The ch 5 A/B compares its summarization and
   experiential variants. Runs beside the ch 1 audit consumer, which it does not replace.
 
 | Cleanup Agent
 | Reflective
 | LangGraph
-| 8
+| 9
 | Semantic rollback: catches the failure event, plans compensations as an internal LangGraph
   graph (checkpoints stay inside its boundary), drafts `CancellationDrafted`; deterministic
   compensation code performs the actual mutations.
@@ -311,13 +312,13 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Guardrail Worker
 | Reflex
 | py + Llama Guard (Ollama)
-| 12
+| 13
 | Zero-trust interceptor: consumes sensitive topics, republishes verified events to trusted
   topics, quarantines the rest.
 |===
 
-Framework debut order across the book: **ADK + LlamaIndex in ch 2 → CrewAI in ch 6 →
-LangGraph in ch 8**, with ch 9's cross-framework replay replacing the crashed CrewAI Hotel
+Framework debut order across the book: **ADK + LlamaIndex in ch 3 → CrewAI in ch 7 →
+LangGraph in ch 9**, with ch 10's cross-framework replay replacing the crashed CrewAI Hotel
 Agent with a LangGraph-built replacement (both frameworks already taught by then).
 
 === Deterministic components
@@ -327,26 +328,26 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
 | Component | Chapter | Responsibility
 
 | Policy Gate
-| 7, hardened 12
+| 8, hardened 13
 | Deterministic corporate-policy engine: validates itineraries against the B2B client's rules
-  (e.g., flights over $1000 need approval), publishes `PolicyViolationDetected`; in ch 12 it is
+  (e.g., flights over $1000 need approval), publishes `PolicyViolationDetected`; in ch 13 it is
   the deterministic security gate that no injected prompt can talk its way past.
 
 | Egress DLP Interceptor
-| 12
+| 13
 | Aspect-oriented scrubber on outbound topics; strips PII before events leave for the external
   support vendor.
 
 | Audit Consumer
 | 1
 | Appends every event to a durable audit record. Permanent: auditing is deterministic work,
-  so it never becomes an agent and is never replaced; the Observer Agent (ch 5) is a separate
+  so it never becomes an agent and is never replaced; the Observer Agent (ch 6) is a separate
   component applying the same listen-to-everything pattern with reasoning.
 
 | Web/Chat UI shell ("Front Desk")
-| 2, approval console 7
+| 3, approval console 8
 | One small FastAPI app, arriving with the Booking Agent: chat intake (publishes to the
-  Booking Agent) and a live event-stream view; the ch 7 manager approval console. Out of
+  Booking Agent) and a live event-stream view; the ch 8 manager approval console. Out of
   the book's page budget by design. Chapter 1 needs no UI — the demo's labeled log stream
   is the whole show.
 |===
@@ -358,29 +359,29 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
 | Simulator | Chapter | Behavior
 
 | Airline Booking System sim
-| 2
+| 3
 | REST flight supplier: offer search with seeded prices and fare conditions (change/refund
-  penalties), booking, cancellation, scriptable slow-vendor mode. This *is* ch 2's external
+  penalties), booking, cancellation, scriptable slow-vendor mode. This *is* ch 3's external
   booking system.
 
 | Hotel Booking System sim
-| 6
+| 7
 | REST hotel supplier: availability, booking, cancellation. Scriptable failure modes: sold-out
-  (the ch 8 saga trigger) and a canned negotiation auto-responder (the ch 8 livelock
+  (the ch 9 saga trigger) and a canned negotiation auto-responder (the ch 9 livelock
   counterparty).
 
 | Payment sim
-| 9
-| Stripe-like charge API honoring **idempotency keys** — the external side-effect the ch 9
+| 10
+| Stripe-like charge API honoring **idempotency keys** — the external side-effect the ch 10
   idempotency lesson protects.
 
 | Support Desk AaaS sim
-| 2
+| 3
 | An external "agent as a service" answering support requests; integrated via Deterministic
-  Edge Prompting, PII-scrubbed by the ch 12 egress interceptor. Deliberately *not* our code.
+  Edge Prompting, PII-scrubbed by the ch 13 egress interceptor. Deliberately *not* our code.
 |===
 
-Inbound email (ch 3) is a replay script over a seeded dataset (real requests, vendor updates,
+Inbound email (ch 4) is a replay script over a seeded dataset (real requests, vendor updates,
 spam) publishing `EmailReceived` — a script, not a service.
 
 === Ports and infrastructure
@@ -395,7 +396,7 @@ offers subscribe-all (or an event-type prefix) — the intersection floor across
 never arbitrary regex. The Kafka adapter implements it with a regex topic subscription over
 the application's namespace, picking up newly created topics on the periodic metadata
 refresh; an adapter whose backend has no native patterns emulates the promise from its own
-event-type→topic registry; on GCP (ch 14) the mechanism moves into infrastructure — an
+event-type→topic registry; on GCP (ch 15) the mechanism moves into infrastructure — an
 Eventarc Advanced enrollment feeds a pipeline that pushes to the consumer's ingestion
 endpoint, so the consumer does not subscribe at all. Consumers therefore come in both
 invocation models the container supports (ch 2.4): a pull loop, or a push endpoint the
@@ -417,14 +418,14 @@ abstraction. Concretely:
 * **LlamaIndex, LangGraph, and CrewAI agents** either use their LiteLLM integrations or
   point their OpenAI-compatible client at a LiteLLM endpoint — CrewAI's own LLM class is built
   on LiteLLM — so either way the model choice stays in config.
-* **Chapter 10** divides cleanly: mechanical provider fallback on outage is LiteLLM
+* **Chapter 11** divides cleanly: mechanical provider fallback on outage is LiteLLM
   configuration; the *economic circuit breaker* (token budget per `correlation_id`, spanning
   agents and frameworks) remains the book's own pattern on the `WorkflowStateStore`, because no
   gateway can know workflow identity across a polyglot swarm.
-* **Chapter 14**'s swap to Vertex AI / Bedrock becomes a one-line model-string change — a
+* **Chapter 15**'s swap to Vertex AI / Bedrock becomes a one-line model-string change — a
   cleaner zero-lock-in proof than a custom adapter.
 
 Infrastructure: Kafka (KRaft, single container) + Kafka Connect HTTP sink for push, PostgreSQL,
 MinIO, Redis (alternative broker adapter), Ollama, LiteLLM (SDK in-process), APScheduler relay
 process, OTel + Jaeger, Docker Compose (each chapter branch's compose file *is* that chapter's
-stack; profiles only for optional pieces like the UI shell), Terraform (ch 14).
+stack; profiles only for optional pieces like the UI shell), Terraform (ch 15).

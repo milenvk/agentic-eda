@@ -39,8 +39,8 @@ it.
 
 *Built in:* ch 1 (steps 1–2 decoupled as a round trip — the demo script publishes
 `TripRequested` and receives `ItineraryProposed`, matching on the request event's id; audit
-consumer), ch 2 (planning against the airline booking system, CloudEvents, correlation IDs),
-ch 6 (step 3, step 5 without approval), ch 7 (steps 4 and 7), ch 9 (step 6 made idempotent).
+consumer), ch 2 (CloudEvents contracts, correlation and causation), ch 3 (planning against the
+airline booking system), ch 7 (step 3, step 5 without approval), ch 8 (steps 4 and 7), ch 10 (step 6 made idempotent).
 
 [source,mermaid]
 ----
@@ -85,7 +85,7 @@ update (a hotel confirmation arriving before its prerequisite flight confirmatio
 the `InboxStore` until the prerequisite arrives. Support requests flow on to the external
 Support Desk AaaS sim via Deterministic Edge Prompting (`SupportTicketResolved` comes back).
 
-*Built in:* ch 3 (support integration itself from ch 2).
+*Built in:* ch 4 (support integration itself from ch 3).
 
 === W3 — Destination Research and Content Ingestion
 
@@ -93,7 +93,7 @@ Support Desk AaaS sim via Deterministic Edge Prompting (`SupportTicketResolved` 
 carrying only the claim reference → Destination Research Agent (LlamaIndex) indexes it →
 planning queries answer from indexed knowledge.
 
-*Built in:* ch 4 (claim check); the agent itself from ch 2.
+*Built in:* ch 5 (claim check); the agent itself from ch 3.
 
 === W4 — B2B Policy and Approval
 
@@ -102,10 +102,10 @@ the Coordinator saves `WAITING_FOR_APPROVAL` and emits `ApprovalRequested` **ato
 Agentic Outbox**, carrying the semantic checkpoint (reasoning snapshot) → the manager decides in
 the approval console → `ApprovalGranted` / `ApprovalRejected`; or the `EventScheduler` fires
 `ApprovalTimedOut` after 48 h → escalation. A stale approval arriving after the timeout is the
-ABA demonstration. Ch 12 hardens the same gate against injected prompts and blinds the search
+ABA demonstration. Ch 13 hardens the same gate against injected prompts and blinds the search
 agents to payment data (contextual segregation).
 
-*Built in:* ch 7 (ch 12 hardening).
+*Built in:* ch 8 (ch 13 hardening).
 
 === W5 — Disruption and Compensation Saga
 
@@ -120,9 +120,9 @@ the Hotel Agent's rebooking negotiation with the hotel booking system's scripted
 the livelock breaker
 increments `negotiation_turn_count` in the `WorkflowStateStore` and terminates the loop into the
 same compensation path. The circular wait between the parallel flight and hotel sub-workflows is
-the ch 8 deadlock demo.
+the ch 9 deadlock demo.
 
-*Built in:* ch 8 (on ch 7's machinery).
+*Built in:* ch 9 (on ch 8's machinery).
 
 [source,mermaid]
 ----
@@ -143,34 +143,34 @@ to a LangGraph-built replacement agent, which finishes the trip. Separately, a d
 delivery of `PaymentRequested` is absorbed by an `IdempotencyStore` check before the Payment sim
 is charged twice.
 
-*Built in:* ch 9.
+*Built in:* ch 10.
 
 === S1 — Trip Memory and Context (supporting workflow)
 
 *Flow:* all W1 events → Observer/Reflector Agent projects `TripView` upserts into the
 `SemanticViewStore` → any waking agent hydrates by `correlation_id` / `context_path`
-(Tier 1 + Tier 2) instead of replaying history. Ch 4's A/B compares the summarizing and
-experiential variants of the same Observer; ch 6 scopes views by `context_path` so the Paris
+(Tier 1 + Tier 2) instead of replaying history. Ch 5's A/B compares the summarizing and
+experiential variants of the same Observer; ch 7 scopes views by `context_path` so the Paris
 Hotel work never sees Madrid's events.
 
-*Built in:* ch 4 (variants), ch 5 (CQRS + hydration), ch 6 (context paths).
+*Built in:* ch 5 (variants), ch 6 (CQRS + hydration), ch 7 (context paths).
 
-=== Cross-cutting layers (ch 9–14)
+=== Cross-cutting layers (ch 10–14)
 
 Not workflows but behaviors applied across W1–W6:
 
-* **Reliability (ch 9):** DLQ routing and replay (W6), idempotent side-effects.
-* **Cost governance (ch 10):** token budget per `correlation_id` in the `WorkflowStateStore` →
+* **Reliability (ch 10):** DLQ routing and replay (W6), idempotent side-effects.
+* **Cost governance (ch 11):** token budget per `correlation_id` in the `WorkflowStateStore` →
   `BudgetExceeded` throttles; LiteLLM's configured fallback chain (cloud → local Ollama) engages
   on provider outage or budget downgrade, and a LiteLLM callback publishes
   `ModelFallbackActivated` so the fallback is a visible business fact, not a silent retry.
-* **Testing (ch 11):** the whole system exercised offline — `InMemoryBroker`, deterministic LLM
+* **Testing (ch 12):** the whole system exercised offline — `InMemoryBroker`, deterministic LLM
   fixtures, LLM-as-judge regression scoring, a shadow consumer.
-* **Security (ch 12):** Guardrail Worker republish-or-quarantine (`EventQuarantined`), egress
+* **Security (ch 13):** Guardrail Worker republish-or-quarantine (`EventQuarantined`), egress
   DLP scrubbing, Policy Gate as the deterministic last line, red-team script.
-* **Observability and evolution (ch 13):** OTel spans (`llm.token_count`,
+* **Observability and evolution (ch 14):** OTel spans (`llm.token_count`,
   `agent.reasoning_step`) across W1 end to end; V1→V2 schema Translator.
-* **Cloud (ch 14):** every Port re-implemented against managed services; the same workflows
+* **Cloud (ch 15):** every Port re-implemented against managed services; the same workflows
   under load and chaos.
 
 == Draft Event Catalog
@@ -184,7 +184,7 @@ Conventions:
   the same qualified form. Payload schemas are Pydantic models (ch 2.5); this catalog fixes names and
   ownership, not field lists — full contract detail would be invalidated by chapter-level
   discoveries.
-* Every event carries `correlation_id` (from ch 2) and `context_path` (from ch 6) as
+* Every event carries `correlation_id` (from ch 2) and `context_path` (from ch 7) as
   CloudEvents extension attributes; the full identity conventions — UUID event ids,
   causation, order id — are the Identifiers section of 01_system_overview.adoc.
 * One producer per event type (single writer); consumers listed are typical, not exclusive —
@@ -196,60 +196,60 @@ Conventions:
 | Event | Producer | Typical consumers | Debut
 
 4+e| booking — the front door and the booking lifecycle
-| TripRequested | Booking Agent (demo script in ch 1; Router from ch 3) | Planner, Coordinator, audit | ch 1
-| ItineraryApproved | Booking Agent (customer via UI) | Policy Gate, Coordinator | ch 7
-| TripConfirmed | Coordinator | Booking Agent, Observer | ch 7
-| TripCancelled | Coordinator | Booking Agent, Observer | ch 8
-| FlightBooked | Coordinator (booking step, via the airline booking system) | Rental Car Agent, Observer | ch 6
-| HotelBooked | Coordinator (booking step, via the hotel booking system) | Observer | ch 6
-| CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 6
+| TripRequested | Booking Agent (demo script in ch 1; Router from ch 4) | Planner, Coordinator, audit | ch 1
+| ItineraryApproved | Booking Agent (customer via UI) | Policy Gate, Coordinator | ch 8
+| TripConfirmed | Coordinator | Booking Agent, Observer | ch 8
+| TripCancelled | Coordinator | Booking Agent, Observer | ch 9
+| FlightBooked | Coordinator (booking step, via the airline booking system) | Rental Car Agent, Observer | ch 7
+| HotelBooked | Coordinator (booking step, via the hotel booking system) | Observer | ch 7
+| CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 7
 
 4+e| itinerary — planning and assembly (scatter-gather)
 | ItineraryProposed | Planner | Booking Agent (to customer; the demo script in ch 1), Observer | ch 1
-| ItineraryAssembled | Coordinator | Booking Agent, Policy Gate | ch 6
-| FlightSearchRequested | Coordinator | Airline Agent | ch 6
-| HotelSearchRequested | Coordinator | Hotel Agent | ch 6
-| FlightOffersProposed | Airline Agent | Coordinator (barrier) | ch 6
-| HotelOffersProposed | Hotel Agent | Coordinator (barrier) | ch 6
-| ActionProposed | Airline/Hotel Agents | Arbiter | ch 6
-| ActionCommitted | Arbiter | Coordinator, Observer | ch 6
+| ItineraryAssembled | Coordinator | Booking Agent, Policy Gate | ch 7
+| FlightSearchRequested | Coordinator | Airline Agent | ch 7
+| HotelSearchRequested | Coordinator | Hotel Agent | ch 7
+| FlightOffersProposed | Airline Agent | Coordinator (barrier) | ch 7
+| HotelOffersProposed | Hotel Agent | Coordinator (barrier) | ch 7
+| ActionProposed | Airline/Hotel Agents | Arbiter | ch 7
+| ActionCommitted | Arbiter | Coordinator, Observer | ch 7
 
 4+e| disruption — compensation (W5)
-| HotelSoldOut | Hotel Booking System adapter | Cleanup Agent (W5) | ch 8
-| CancellationDrafted | Cleanup Agent | Compensation code, Booking Agent | ch 8
-| FlightBookingCancelled | Compensation code | Coordinator, Observer | ch 8
+| HotelSoldOut | Hotel Booking System adapter | Cleanup Agent (W5) | ch 9
+| CancellationDrafted | Cleanup Agent | Compensation code, Booking Agent | ch 9
+| FlightBookingCancelled | Compensation code | Coordinator, Observer | ch 9
 
 4+e| approval (W4)
-| PolicyViolationDetected | Policy Gate | Coordinator | ch 7
-| ApprovalRequested | Coordinator (outbox) | Approval console, audit | ch 7
-| ApprovalGranted | Approval console | Coordinator | ch 7
-| ApprovalRejected | Approval console | Coordinator | ch 7
-| ApprovalTimedOut | EventScheduler | Coordinator (escalation) | ch 7
+| PolicyViolationDetected | Policy Gate | Coordinator | ch 8
+| ApprovalRequested | Coordinator (outbox) | Approval console, audit | ch 8
+| ApprovalGranted | Approval console | Coordinator | ch 8
+| ApprovalRejected | Approval console | Coordinator | ch 8
+| ApprovalTimedOut | EventScheduler | Coordinator (escalation) | ch 8
 
 4+e| payment
-| PaymentRequested | Coordinator | Payment step (idempotent consumer) | ch 9
-| PaymentAuthorized | Payment step (via Payment sim) | Coordinator, Observer | ch 9
+| PaymentRequested | Coordinator | Payment step (idempotent consumer) | ch 10
+| PaymentAuthorized | Payment step (via Payment sim) | Coordinator, Observer | ch 10
 
 4+e| communication (W2)
-| EmailReceived | Email replay script | Semantic Router | ch 3
-| SupportRequested | Router (scripted in ch 2) | Support AaaS adapter | ch 2
-| VendorUpdateReceived | Router | Agentic Inbox staging, Coordinator | ch 3
-| SupportTicketResolved | Support AaaS adapter | Booking Agent, Observer | ch 2
+| EmailReceived | Email replay script | Semantic Router | ch 4
+| SupportRequested | Router (scripted in ch 3) | Support AaaS adapter | ch 3
+| VendorUpdateReceived | Router | Agentic Inbox staging, Coordinator | ch 4
+| SupportTicketResolved | Support AaaS adapter | Booking Agent, Observer | ch 3
 
 4+e| content — research and ingestion (W3)
-| BrochureUploaded | UI shell or script | Claim-check ingestion | ch 4
-| DocumentAvailable | Claim-check ingestion | Research Agent | ch 4
+| BrochureUploaded | UI shell or script | Claim-check ingestion | ch 5
+| DocumentAvailable | Claim-check ingestion | Research Agent | ch 5
 
 4+e| system and governance
-| BudgetExceeded | Economic circuit breaker | Model fallback, ops | ch 10
-| ModelFallbackActivated | Model access layer (LiteLLM callback) | Observer, ops | ch 10
-| EventQuarantined | Guardrail Worker | Quarantine DLQ, security review | ch 12
+| BudgetExceeded | Economic circuit breaker | Model fallback, ops | ch 11
+| ModelFallbackActivated | Model access layer (LiteLLM callback) | Observer, ops | ch 11
+| EventQuarantined | Guardrail Worker | Quarantine DLQ, security review | ch 13
 |===
 
 Notes:
 
 * Chapter 1 publishes two event types — `TripRequested` (demo script → Planner + audit) and
   `ItineraryProposed` (Planner → the script) — the reply carrying the request event's id as
-  a `request_id` payload field, the causation link ch 2.8 later names.
-* DLQ and replay are broker-contract behavior (ch 9), not separate event types: dead-lettered
+  a `request_id` payload field, promoted to a `causationid` extension attribute in ch 2.6.
+* DLQ and replay are broker-contract behavior (ch 10), not separate event types: dead-lettered
   events are the original business events on a DLQ topic.
