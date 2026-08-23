@@ -1,7 +1,7 @@
 """Plays the customer at the front door: requests a trip, then waits — without
 blocking anything — for the itinerary to arrive as an event.
 
-Chapter 2's Booking Agent takes over this front-door role; until then, this
+Chapter 3's Booking Agent takes over this front-door role; until then, this
 script stands in for it.
 """
 

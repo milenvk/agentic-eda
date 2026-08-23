@@ -15,7 +15,7 @@ async def main() -> None:
     console.configure_logging()
     handler = functools.partial(record, os.environ.get("AUDIT_LOG", "/data/audit.log"))
     async with event_broker(SOURCE) as broker:
-        # One subscription per event type the system has so far; chapter 3
+        # One subscription per event type the system has so far; chapter 4
         # replaces this list with a single subscribe-all.
         await broker.subscribe(TRIP_REQUESTED, handler)
         await broker.subscribe(ITINERARY_PROPOSED, handler)

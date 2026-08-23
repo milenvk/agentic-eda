@@ -10,7 +10,7 @@ Components in play: Kafka (single KRaft container), the Itinerary Planner Agent
 ([components/itinerary_planner_minimal](../../components/itinerary_planner_minimal)),
 and the audit consumer ([components/audit_consumer](../../components/audit_consumer)).
 The demo script stands in for the front door until the Booking Agent arrives in
-chapter 2.
+chapter 3.
 
 ## Setup
 

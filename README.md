@@ -102,6 +102,6 @@ The default model is `llama3.2` (about 2 GB). A larger machine runs a larger mod
 changing the `LLM_MODEL` string in `.env`; the download happens automatically.
 
 Per-chapter setup instructions are in each chapter directory's README. A minimal web UI (a
-chat front door with a live event view) joins in chapter 2 and gains a manager approval
-console in chapter 7. The book's examples run from scripts and never depend on it; it is
+chat front door with a live event view) joins in chapter 3 and gains a manager approval
+console in chapter 8. The book's examples run from scripts and never depend on it; it is
 included for convenience.
