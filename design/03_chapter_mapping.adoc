@@ -38,7 +38,7 @@ carries the narrative.
 | W1 hardening: the ch 1 round trip contracted and correlated
 | CloudEvents + Pydantic contract models, validating boundary at the container,
   `correlationid` + `causationid` extension attributes, InMemoryBroker, first mock test
-| Agent typology, boundaries, single writer, agent container (pull/push), data contracts,
+| Agent traits, boundaries, single writer, agent container (pull/push), data contracts,
   correlation and causation, at-least-once floor
 
 | 3
@@ -81,9 +81,10 @@ carries the narrative.
 | Workflow
 | W4 complete; W1 slice 4 (customer acceptance, policy check, `TripConfirmed`); **B2B pivot**
 | `WorkflowStateStore`, outbox relay, `EventScheduler` (APScheduler+PG), Policy Gate,
-  approval console in UI shell
+  approval console in UI shell, Duty-of-Care Monitor (proactive, with Travel Advisory
+  Feed sim), Booking Agent follow-up nudge
 | Durable state machines, agentic outbox, human-in-the-loop, semantic checkpointing,
-  macro-timeouts, ABA
+  macro-timeouts, ABA, proactive agents
 
 | 9
 | Workflow

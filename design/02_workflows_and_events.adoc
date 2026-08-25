@@ -6,8 +6,8 @@
 
 == Workflow Catalog
 
-Six business workflows (W1–W6), one supporting workflow (S1), and the cross-cutting layers of
-chapters 9–14. Each workflow is an event-flow narrative; "built in" lists the chapters that
+Six business workflows (W1–W6), two supporting workflows (S1, S2), and the cross-cutting
+layers of chapters 10–15. Each workflow is an event-flow narrative; "built in" lists the chapters that
 construct it — a workflow built across several chapters is the norm, and is the evolutionary
 architecture working as promised. Event names are defined in the catalog at the end of this
 document.
@@ -155,7 +155,18 @@ Hotel work never sees Madrid's events.
 
 *Built in:* ch 5 (variants), ch 6 (CQRS + hydration), ch 7 (context paths).
 
-=== Cross-cutting layers (ch 10–14)
+=== S2 — Duty of Care (supporting workflow)
+
+*Flow:* `DutyOfCareSweepDue` (EventScheduler, recurring) → the Duty-of-Care Monitor queries
+the Travel Advisory Feed sim for advisories touching booked destinations →
+`TravelRiskDetected` on impact → the Booking Agent warns the customer; a disruptive
+advisory can open the W5 compensation path. The Booking Agent's follow-up nudge shares the
+mechanism: `CustomerFollowUpDue`, scheduled when a proposal is relayed, triggers a reminder
+if the customer has not answered.
+
+*Built in:* ch 8.
+
+=== Cross-cutting layers (ch 10–15)
 
 Not workflows but behaviors applied across W1–W6:
 
@@ -203,6 +214,7 @@ Conventions:
 | FlightBooked | Coordinator (booking step, via the airline booking system) | Rental Car Agent, Observer | ch 7
 | HotelBooked | Coordinator (booking step, via the hotel booking system) | Observer | ch 7
 | CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 7
+| CustomerFollowUpDue | EventScheduler (scheduled by Booking Agent) | Booking Agent | ch 8
 
 4+e| itinerary — planning and assembly (scatter-gather)
 | ItineraryProposed | Planner | Booking Agent (to customer; the demo script in ch 1), Observer | ch 1
@@ -218,6 +230,7 @@ Conventions:
 | HotelSoldOut | Hotel Booking System adapter | Cleanup Agent (W5) | ch 9
 | CancellationDrafted | Cleanup Agent | Compensation code, Booking Agent | ch 9
 | FlightBookingCancelled | Compensation code | Coordinator, Observer | ch 9
+| TravelRiskDetected | Duty-of-Care Monitor | Booking Agent, Coordinator | ch 8
 
 4+e| approval (W4)
 | PolicyViolationDetected | Policy Gate | Coordinator | ch 8
@@ -241,6 +254,7 @@ Conventions:
 | DocumentAvailable | Claim-check ingestion | Research Agent | ch 5
 
 4+e| system and governance
+| DutyOfCareSweepDue | EventScheduler | Duty-of-Care Monitor | ch 8
 | BudgetExceeded | Economic circuit breaker | Model fallback, ops | ch 11
 | ModelFallbackActivated | Model access layer (LiteLLM callback) | Observer, ops | ch 11
 | EventQuarantined | Guardrail Worker | Quarantine DLQ, security review | ch 13

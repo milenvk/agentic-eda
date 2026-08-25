@@ -198,18 +198,18 @@ The researched industry realism stays in the book as prose, not code:
   as the real-world shape.
 * **IATA ONE Order** — a sidebar candidate where event sourcing is taught (ch 6): the industry
   is converging on exactly the "single record of the trip" the event log provides.
-* **Treasury, VCCs, ticketing deadlines, commission reconciliation, duty of care** — mid/back
+* **Treasury, VCCs, ticketing deadlines, commission reconciliation** — mid/back
   office operations the prose can gesture at (e.g., in ch 1.4's scenarios or a ch 8/ch 9
   sidebar) as further applications of the same patterns, without building them.
 
 == Component Inventory
 
-Twenty components in total: 12 agents, 4 simulators, and 4 deterministic components. Every
+Twenty-two components in total: 13 agents, 5 simulators, and 4 deterministic components. Every
 agent is one the outline itself names.
 
 === LLM agents
 
-Types are the ch 2.1 typology. "py" = plain Python against the Ports, calling models through
+Traits are the ch 2.1 vocabulary; the Type column names each agent's dominant trait. "py" = plain Python against the Ports, calling models through
 LiteLLM (see Ports below). Chapter = where the component first appears in the book.
 
 [cols="2,1,1,1,3", options="header"]
@@ -221,7 +221,8 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | py
 | 3
 | Customer-facing intake: accepts trip requests (UI/chat), publishes `TripRequested`, relays
-  proposals, confirmations, and questions back to the customer. Debuts when this language
+  proposals, confirmations, and questions back to the customer; follows up proactively
+  when a relayed proposal goes unanswered (ch 8). Debuts when this language
   work arrives; in ch 1 the demo script publishes `TripRequested` directly as the front
   door's stand-in.
 
@@ -309,6 +310,15 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
   graph (checkpoints stay inside its boundary), drafts `CancellationDrafted`; deterministic
   compensation code performs the actual mutations.
 
+| Duty-of-Care Monitor
+| Proactive
+| py
+| 8
+| Wakes on a recurring schedule via the `EventScheduler`, inspects the Travel Advisory
+  Feed sim for advisories affecting booked destinations, reasons over customer impact,
+  and publishes `TravelRiskDetected`; the corporate client's duty-of-care obligation
+  made an agent (B2B pivot).
+
 | Guardrail Worker
 | Reflex
 | py + Llama Guard (Ollama)
@@ -374,6 +384,12 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
 | 10
 | Stripe-like charge API honoring **idempotency keys** — the external side-effect the ch 10
   idempotency lesson protects.
+
+| Travel Advisory Feed sim
+| 8
+| Seeded travel advisories (weather, strikes, unrest) by destination and date range,
+  queried synchronously by the Duty-of-Care Monitor; scriptable advisory injection for
+  the demo.
 
 | Support Desk AaaS sim
 | 3
