@@ -84,6 +84,84 @@ The business evolves in four phases that track the book's parts:
 | Observability, schema evolution, and migration to managed cloud services.
 |===
 
+=== Domain Map
+
+Decided in the design pass of 2026-08-24. The business divides into eight subdomains, each held
+one-to-one with a bounded context and an event prefix, so prefix, context, and subdomain are one
+name. The one-to-one hold is a deliberate simplification: where DDD would split a subdomain into
+several contexts (a language that diverges inside it, or an external system's own model), this
+design answers with aggregates inside one context and with edge adapters at the vendor's boundary.
+
+[cols="2,1,4,3", options="header"]
+|===
+| Subdomain | Prefix | Language and facts | Components
+
+| Trip Planning
+| `itinerary`
+| request, preferences, availability, offers, fare conditions, proposal, assembly, arbitration;
+  ItineraryProposed, ItineraryAssembled, FlightSearchRequested, HotelSearchRequested,
+  FlightOffersProposed, HotelOffersProposed, ActionProposed, ActionCommitted
+| Itinerary Planner, Destination Research Agent, Trip Coordinator (fan-out and barrier),
+  Airline and Hotel Agents (offers), Arbiter
+
+| Booking
+| `booking`
+| trip request, itinerary approval, reservation, confirmation, cancellation, follow-up;
+  TripRequested, ItineraryApproved, TripConfirmed, TripCancelled, FlightBooked, HotelBooked,
+  CarRentalBooked, CustomerFollowUpDue; two aggregates: the customer request (Booking Agent)
+  and the trip order (the Coordinator's `WorkflowStateStore`)
+| Booking Agent (the demo script stands in during ch 1), Trip Coordinator (order lifecycle and
+  booking step), Rental Car Agent
+
+| Payment
+| `payment`
+| charge, authorization, idempotency key; PaymentRequested, PaymentAuthorized; kept separate
+  for idempotency against a real side effect (ch 10) and data segregation (ch 13)
+| Coordinator's payment step, Payment sim
+
+| Corporate Travel Policy
+| `policy`
+| policy, violation, approval, manager, escalation, timeout; PolicyViolationDetected,
+  ApprovalRequested, ApprovalGranted, ApprovalRejected, ApprovalTimedOut
+| Policy Gate, approval console, Coordinator's waiting state
+
+| Disruption and Care
+| `disruption`
+| disruption, sold out, compensation, rebooking, advisory, risk; HotelSoldOut,
+  CancellationDrafted, FlightBookingCancelled, TravelRiskDetected
+| Cleanup Agent, compensation code, Duty-of-Care Monitor, Hotel Agent (rebooking negotiation)
+
+| Customer Support
+| `support`
+| ticket, resolution; SupportRequested, SupportTicketResolved; a bought capability whose
+  vendor model stops at the edge adapter
+| Support Desk AaaS sim behind its adapter
+
+| Customer Communication
+| `communication`
+| email, message, channel, classification, triage; EmailReceived, VendorUpdateReceived,
+  TripRequestReceived (provisional name, settled at ch 4 planning)
+| email replay script, Semantic Router
+
+| Destination Knowledge
+| `content`
+| brochure, document, index, claim reference; BrochureUploaded, DocumentAvailable
+| claim-check ingestion, Destination Research Agent
+|===
+
+Rules the map carries:
+
+* **One owning context per event type.** Several components may publish a type when they stand
+  in the same context (the demo script and the Booking Agent for `TripRequested`); a component
+  in another context that republishes an inbound fact publishes its own type (the Router's
+  `TripRequestReceived`, which the Booking Agent turns into `TripRequested`).
+* **`system` is the platform's technical namespace, outside the map.** BudgetExceeded,
+  ModelFallbackActivated, EventQuarantined, and DutyOfCareSweepDue are technical events in
+  ch 1's sense, facts about the system's own behavior, each owned by the mechanism that emits it.
+* **Scheduled events carry the prefix of the fact they assert.** ApprovalTimedOut is `policy`
+  though the scheduler fires it; a wake with no business meaning (DutyOfCareSweepDue) is
+  `system`.
+
 == Architecture at a Glance
 
 Hub-and-spoke around the `EventBroker`. Every component connects only to the broker (via Ports)
@@ -111,6 +189,7 @@ flowchart TB
         OBSERVER[Observer/Reflector - py ambient]
         CLEANUP[Cleanup - LangGraph]
         GUARD[Guardrail Worker - py/Llama Guard]
+        MONITOR[Duty-of-Care Monitor - py proactive]
     end
 
     subgraph Deterministic["Deterministic components"]
@@ -127,6 +206,7 @@ Kafka adapter))
         HOTEL[Hotel Booking System sim - REST]
         PAYGW[Payment sim - Stripe-like]
         SUPPORT[Support Desk AaaS sim]
+        ADVISORY[Travel Advisory Feed sim - REST]
     end
 
     subgraph Infra["Ports and infrastructure"]
@@ -147,6 +227,7 @@ Inbox, Barrier, Idempotency stores)]
     COORD -.REST.-> AIR
     COORD -.REST.-> HOTEL
     COORD -.REST.-> PAYGW
+    MONITOR -.REST.-> ADVISORY
     SUPPORT -.edge prompting.-> BROKER
 ----
 

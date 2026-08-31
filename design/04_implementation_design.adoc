@@ -91,8 +91,8 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
 == Event Type Naming
 
 * An event type is `<domain>.<Name>`, where `<domain>` is the bounded context (the catalog
-  groups in `02_workflows_and_events.adoc`: booking, itinerary, disruption, approval,
-  payment, communication, content, system). There is no organization segment: the domain is
+  groups in `02_workflows_and_events.adoc`: booking, itinerary, disruption, policy,
+  payment, support, communication, content, and the technical namespace system). There is no organization segment: the domain is
   what a reader and a subscriber need, and a reverse-DNS prefix adds length without adding
   meaning inside one system.
 * Every type is declared exactly once, as a constant in

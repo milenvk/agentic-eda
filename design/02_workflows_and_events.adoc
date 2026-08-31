@@ -77,7 +77,7 @@ Email arrives in volume; most of it must never reach an expensive agent.
 
 *Flow:* `EmailReceived` (replay script over the seeded dataset) → the Semantic Router buffers
 each burst in a short time window and classifies the batch in one bulk call (semantic
-windowing) → republishes a typed business event of its own context (an email trip-request type named at
+windowing) → republishes a typed business event of its own context (`TripRequestReceived`, a provisional name settled at
 ch 4's planning, `SupportRequested`, `VendorUpdateReceived`; the Booking Agent turns the first into `TripRequested`, since
 `booking.TripRequested` has one owning context), stripping the raw email (headers, quoted chains) down to the fields
 downstream agents need (payload mediation) — or drops spam at the Token Defense Filter → an
@@ -192,7 +192,8 @@ Conventions:
 * Names are **PascalCase past-tense business facts** (`FlightBooked`), never commands.
 * On the wire every event is a CloudEvent; `type` is
   `<domain>.<Name>` (e.g. `booking.TripRequested`), where
-  `<domain>` is the bounded context, the catalog's group headers below. The book's prose uses
+  `<domain>` is the bounded context, the catalog's group headers below; the domain map in
+  01_system_overview.adoc is the authority, and `system` is the technical namespace outside it. The book's prose uses
   the same qualified form. Payload schemas are Pydantic models (ch 2.5); this catalog fixes names and
   ownership, not field lists — full contract detail would be invalidated by chapter-level
   discoveries.
@@ -217,7 +218,7 @@ Conventions:
 | CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 7
 | CustomerFollowUpDue | EventScheduler (scheduled by Booking Agent) | Booking Agent | ch 8
 
-4+e| itinerary — planning and assembly (scatter-gather)
+4+e| itinerary — trip planning and assembly (scatter-gather)
 | ItineraryProposed | Planner | Booking Agent (to customer; the demo script in ch 1), Observer | ch 1
 | ItineraryAssembled | Coordinator | Booking Agent, Policy Gate | ch 7
 | FlightSearchRequested | Coordinator | Airline Agent | ch 7
@@ -227,13 +228,13 @@ Conventions:
 | ActionProposed | Airline/Hotel Agents | Arbiter | ch 7
 | ActionCommitted | Arbiter | Coordinator, Observer | ch 7
 
-4+e| disruption — compensation (W5)
+4+e| disruption — disruption and care (W5, S2)
 | HotelSoldOut | Hotel Booking System adapter | Cleanup Agent (W5) | ch 9
 | CancellationDrafted | Cleanup Agent | Compensation code, Booking Agent | ch 9
 | FlightBookingCancelled | Compensation code | Coordinator, Observer | ch 9
 | TravelRiskDetected | Duty-of-Care Monitor | Booking Agent, Coordinator | ch 8
 
-4+e| approval (W4)
+4+e| policy — the corporate client's rules and approvals (W4)
 | PolicyViolationDetected | Policy Gate | Coordinator | ch 8
 | ApprovalRequested | Coordinator (outbox) | Approval console, audit | ch 8
 | ApprovalGranted | Approval console | Coordinator | ch 8
@@ -244,17 +245,20 @@ Conventions:
 | PaymentRequested | Coordinator | Payment step (idempotent consumer) | ch 10
 | PaymentAuthorized | Payment step (via Payment sim) | Coordinator, Observer | ch 10
 
-4+e| communication (W2)
+4+e| communication — how customers and vendors reach the agency (W2)
 | EmailReceived | Email replay script | Semantic Router | ch 4
-| SupportRequested | Router (scripted in ch 3) | Support AaaS adapter | ch 3
+| TripRequestReceived (provisional name, settled at ch 4 planning) | Semantic Router | Booking Agent | ch 4
 | VendorUpdateReceived | Router | Agentic Inbox staging, Coordinator | ch 4
+
+4+e| support — customer support, fulfilled by a vendor
+| SupportRequested | Router (scripted in ch 3) | Support AaaS adapter | ch 3
 | SupportTicketResolved | Support AaaS adapter | Booking Agent, Observer | ch 3
 
-4+e| content — research and ingestion (W3)
+4+e| content — destination knowledge (W3)
 | BrochureUploaded | UI shell or script | Claim-check ingestion | ch 5
 | DocumentAvailable | Claim-check ingestion | Research Agent | ch 5
 
-4+e| system and governance
+4+e| system — the platform's technical namespace, outside the domain map
 | DutyOfCareSweepDue | EventScheduler | Duty-of-Care Monitor | ch 8
 | BudgetExceeded | Economic circuit breaker | Model fallback, ops | ch 11
 | ModelFallbackActivated | Model access layer (LiteLLM callback) | Observer, ops | ch 11
