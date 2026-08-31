@@ -32,7 +32,8 @@ it.
    rules and either stays silent or opens the approval workflow (W4).
 5. The Coordinator's deterministic booking step calls the airline and hotel booking systems:
    `FlightBooked`, `HotelBooked`. The Rental Car Agent reacts to `FlightBooked` by pure
-   choreography (`CarRentalBooked`).
+   choreography: a pay-later `CarRentalReserved` in the requested class with its estimated
+   total, or `CarRentalUnavailable` when no class fits.
 6. The Coordinator's payment step publishes `PaymentRequested` and charges the Payment sim under
    an idempotency key: `PaymentAuthorized`.
 7. `TripConfirmed` (Coordinator); the Booking Agent relays it to the customer.
@@ -215,7 +216,8 @@ Conventions:
 | TripCancelled | Coordinator | Booking Agent, Observer | ch 9
 | FlightBooked | Coordinator (booking step, via the airline booking system) | Rental Car Agent, Observer | ch 7
 | HotelBooked | Coordinator (booking step, via the hotel booking system) | Observer | ch 7
-| CarRentalBooked | Rental Car Agent | Booking Agent, Observer | ch 7
+| CarRentalReserved | Rental Car Agent | Booking Agent, Observer | ch 7
+| CarRentalUnavailable | Rental Car Agent | Booking Agent | ch 7
 | CustomerFollowUpDue | EventScheduler (scheduled by Booking Agent) | Booking Agent | ch 8
 
 4+e| itinerary — trip planning and assembly (scatter-gather)

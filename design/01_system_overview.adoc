@@ -106,9 +106,9 @@ design answers with aggregates inside one context and with edge adapters at the 
 
 | Booking
 | `booking`
-| trip request, itinerary approval, reservation, confirmation, cancellation, follow-up;
-  TripRequested, ItineraryApproved, TripConfirmed, TripCancelled, FlightBooked, HotelBooked,
-  CarRentalBooked, CustomerFollowUpDue; two aggregates: the customer request (Booking Agent)
+| trip request, itinerary approval, reservation, confirmation, cancellation, car class,
+  follow-up; TripRequested, ItineraryApproved, TripConfirmed, TripCancelled, FlightBooked,
+  HotelBooked, CarRentalReserved, CarRentalUnavailable, CustomerFollowUpDue; two aggregates: the customer request (Booking Agent)
   and the trip order (the Coordinator's `WorkflowStateStore`)
 | Booking Agent (the demo script stands in during ch 1), Trip Coordinator (order lifecycle and
   booking step), Rental Car Agent
@@ -151,6 +151,12 @@ design answers with aggregates inside one context and with edge adapters at the 
 
 Rules the map carries:
 
+* **A component is placed by the facts it owns, not by its subject.** The Airline and Hotel
+  Agents own planning facts (offers, proposals) and book nothing, so they sit in Trip Planning;
+  the Coordinator's booking step owns `FlightBooked` and `HotelBooked`; the Rental Car Agent
+  owns `CarRentalReserved` and does no planning, so it sits in Booking. That asymmetry is the
+  ch 7 choreography demonstration (a car added by reacting to `FlightBooked`, with nobody
+  orchestrating it), not a modeling accident.
 * **One owning context per event type.** Several components may publish a type when they stand
   in the same context (the demo script and the Booking Agent for `TripRequested`); a component
   in another context that republishes an inbound fact publishes its own type (the Router's
@@ -207,6 +213,7 @@ Kafka adapter))
         PAYGW[Payment sim - Stripe-like]
         SUPPORT[Support Desk AaaS sim]
         ADVISORY[Travel Advisory Feed sim - REST]
+        CARSIM[Car Rental sim - REST]
     end
 
     subgraph Infra["Ports and infrastructure"]
@@ -228,6 +235,7 @@ Inbox, Barrier, Idempotency stores)]
     COORD -.REST.-> HOTEL
     COORD -.REST.-> PAYGW
     MONITOR -.REST.-> ADVISORY
+    CAR -.REST.-> CARSIM
     SUPPORT -.edge prompting.-> BROKER
 ----
 
@@ -285,7 +293,7 @@ The researched industry realism stays in the book as prose, not code:
 
 == Component Inventory
 
-Twenty-two components in total: 13 agents, 5 simulators, and 4 deterministic components. Every
+Twenty-three components in total: 13 agents, 6 simulators, and 4 deterministic components. Every
 agent is one the outline itself names.
 
 === LLM agents
@@ -365,8 +373,13 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Tool-Using
 | py
 | 7
-| Pure choreography demo: reacts to `FlightBooked` with a rental car booking; nobody
-  orchestrates it.
+| Pure choreography demo; nobody orchestrates it. Reacts to `FlightBooked` by reserving a
+  pay-later car in the class the trip request (or the corporate policy) specifies, at the
+  arrival airport and time, and publishes `CarRentalReserved` with the quoted estimated total;
+  on no availability it escalates through a similar class and other vendors before publishing
+  `CarRentalUnavailable` for the customer to answer (decided 2026-08-31, after research into
+  GDS practice: cars are reserved by ACRISS class, keyed to the arrival flight, as pay-later
+  holds with an estimated total).
 
 | Arbiter Agent
 | Reflex
@@ -460,6 +473,12 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
 | REST hotel supplier: availability, booking, cancellation. Scriptable failure modes: sold-out
   (the ch 9 saga trigger) and a canned negotiation auto-responder (the ch 9 livelock
   counterparty).
+
+| Car Rental sim
+| 7
+| REST car supplier: availability and rates by vehicle class (ACRISS-style codes) at an
+  airport and time, pay-later reservations with an estimated total, scriptable sold-out per
+  class (the Rental Car Agent's escalation path).
 
 | Payment sim
 | 10

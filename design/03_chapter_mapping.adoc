@@ -73,7 +73,7 @@ carries the narrative.
 | Workflow
 | W1 slice 3: multi-item parallel trip, booked without approval
 | Coordinator, Airline Agent (py), Hotel Agent (CrewAI), Rental Car Agent,
-  Arbiter, `BarrierStore`, Hotel Booking System sim, context paths
+  Arbiter, `BarrierStore`, Hotel Booking System sim, Car Rental sim, context paths
 | Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical
   context, communication topologies
 
