@@ -77,8 +77,9 @@ Email arrives in volume; most of it must never reach an expensive agent.
 
 *Flow:* `EmailReceived` (replay script over the seeded dataset) → the Semantic Router buffers
 each burst in a short time window and classifies the batch in one bulk call (semantic
-windowing) → republishes the typed business event (`TripRequested`, `SupportRequested`,
-`VendorUpdateReceived`), stripping the raw email (headers, quoted chains) down to the fields
+windowing) → republishes a typed business event of its own context (an email trip-request type named at
+ch 4's planning, `SupportRequested`, `VendorUpdateReceived`; the Booking Agent turns the first into `TripRequested`, since
+`booking.TripRequested` has one owning context), stripping the raw email (headers, quoted chains) down to the fields
 downstream agents need (payload mediation) — or drops spam at the Token Defense Filter → an
 out-of-order vendor
 update (a hotel confirmation arriving before its prerequisite flight confirmation) is staged in
@@ -207,7 +208,7 @@ Conventions:
 | Event | Producer | Typical consumers | Debut
 
 4+e| booking — the front door and the booking lifecycle
-| TripRequested | Booking Agent (demo script in ch 1; Router from ch 4) | Planner, Coordinator, audit | ch 1
+| TripRequested | Booking Agent, as the booking context's owner (the demo script stands in during ch 1; the Router's email intake republishes under its own communication-context type from ch 4, which the Booking Agent turns into `TripRequested`) | Planner, Coordinator, audit | ch 1
 | ItineraryApproved | Booking Agent (customer via UI) | Policy Gate, Coordinator | ch 8
 | TripConfirmed | Coordinator | Booking Agent, Observer | ch 8
 | TripCancelled | Coordinator | Booking Agent, Observer | ch 9
