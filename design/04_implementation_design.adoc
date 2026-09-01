@@ -180,12 +180,12 @@ from then on the component resumes from its own committed position.
   every reply until the 45-second mark (`PLANNING_SECONDS`; the chapter's stated
   inference time), so the durability act's kill window does not depend on the reader's
   model speed. Components get the same narration
-  for free: the Kafka adapter logs a card for every event it publishes or receives (the
+  for free: the Kafka adapter logs a card for every event that it publishes or receives (the
   `EventBroker` logger, INFO), so `docker compose logs <component>` shows that
   component's side of the conversation.
 * `compose/` — one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
   later `postgres.yaml`, `minio.yaml`, …). A chapter's `compose.yaml` uses `include:` to
-  pull exactly the fragments it needs, so no chapter drags infrastructure it does not use.
+  pull exactly the fragments that it needs, so no chapter drags infrastructure that it does not use.
 * `docker/` — shared Dockerfiles, named by what they build (`python.Dockerfile`: the
   kernel-equipped Python image used by demo scripts and chapter-level tests).
 * `.env` at the repository root — one required file of reader configuration for the whole

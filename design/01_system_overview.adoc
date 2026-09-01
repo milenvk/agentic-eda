@@ -149,9 +149,9 @@ design answers with aggregates inside one context and with edge adapters at the 
 | claim-check ingestion, Destination Research Agent
 |===
 
-Rules the map carries:
+The map's rules:
 
-* **A component is placed by the facts it owns, not by its subject.** The Airline and Hotel
+* **A component is placed by the facts that it owns, not by its subject.** The Airline and Hotel
   Agents own planning facts (offers, proposals) and book nothing, so they sit in Trip Planning;
   the Coordinator's booking step owns `FlightBooked` and `HotelBooked`; the Rental Car Agent
   owns `CarRentalReserved` and does no planning, so it sits in Booking. That asymmetry is the
@@ -164,7 +164,7 @@ Rules the map carries:
 * **`system` is the platform's technical namespace, outside the map.** BudgetExceeded,
   ModelFallbackActivated, EventQuarantined, and DutyOfCareSweepDue are technical events in
   ch 1's sense, facts about the system's own behavior, each owned by the mechanism that emits it.
-* **Scheduled events carry the prefix of the fact they assert.** ApprovalTimedOut is `policy`
+* **Scheduled events carry the prefix of the fact that they assert.** ApprovalTimedOut is `policy`
   though the scheduler fires it; a wake with no business meaning (DutyOfCareSweepDue) is
   `system`.
 
@@ -241,7 +241,7 @@ Inbox, Barrier, Idempotency stores)]
 
 === Identifiers
 
-Identity conventions, in the order the book introduces them:
+Identity conventions, in the order that the book introduces them:
 
 * **Event `id`** (CloudEvents core attribute) — every event's own identity, minted as a
   UUID and **globally unique across the entire solution** by architectural decision. This is
@@ -249,7 +249,7 @@ Identity conventions, in the order the book introduces them:
   system may not have a `source`, and a single unique key keeps references and table lookups
   one-column simple. The book explains this reasoning where CloudEvents is introduced
   (ch 2.5).
-* **Causation** — a reply carries the globally unique id of the event it answers: ch 1's
+* **Causation** — a reply carries the globally unique id of the event that it answers: ch 1's
   `ItineraryProposed` holds the `TripRequested` id as a `request_id` payload field, and the
   demo script matches on it. Ch 2.6 promotes it to a `causationid` extension attribute
   (settled at ch 2 planning: one attribute, since ids are globally unique); ch 14's

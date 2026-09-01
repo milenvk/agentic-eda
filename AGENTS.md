@@ -8,9 +8,10 @@ writing any code), and each chapter's runnable demo is in `chapters/chNN/`.
   `.env.example`, code comments) follows the book's writing discipline: no em dashes,
   ever (use parentheses, a colon, a comma, or two sentences); no anthropomorphized
   artifacts (an example is located in a directory, not living in one) and no livelihood
-  idioms ("earns its keep"); shell code blocks contain commands only, with the
-  explanation in a prose sentence before the block, because zsh rejects `#` comments
-  pasted interactively.
+  idioms ("earns its keep"); no dropped relative pronouns ("rules the map carries" becomes
+  "the map's rules" or a sentence, and a relative clause that stays keeps its "that" or
+  "which"); shell code blocks contain commands only, with the explanation in a prose
+  sentence before the block, because zsh rejects `#` comments pasted interactively.
 - **The design documents are the authority.** `design/01`-`design/03` fix the
   architecture, workflows, events, and chapter mapping;
   `design/04_implementation_design.adoc` fixes the low-level conventions: the frozen

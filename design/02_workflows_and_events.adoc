@@ -191,7 +191,7 @@ Not workflows but behaviors applied across W1–W6:
 Conventions:
 
 * Names are **PascalCase past-tense business facts** (`FlightBooked`), never commands.
-* On the wire every event is a CloudEvent; `type` is
+* On the wire, every event is a CloudEvent; `type` is
   `<domain>.<Name>` (e.g. `booking.TripRequested`), where
   `<domain>` is the bounded context, the catalog's group headers below; the domain map in
   01_system_overview.adoc is the authority, and `system` is the technical namespace outside it. The book's prose uses
