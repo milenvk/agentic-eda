@@ -210,7 +210,7 @@ Conventions:
 | Event | Producer | Typical consumers | Debut
 
 4+e| booking — the front door and the booking lifecycle
-| TripRequested | Booking Agent, as the booking context's owner (the demo script stands in during ch 1; the Router's email intake republishes under its own communication-context type from ch 4, which the Booking Agent turns into `TripRequested`) | Planner, Coordinator, audit | ch 1
+| TripRequested | Booking Agent, as the booking context's owner (the demo script stands in during ch 1; the Router's email intake republishes under its own communication-context type from ch 4, turned into `TripRequested` by the Booking Agent) | Planner, Coordinator, audit | ch 1
 | ItineraryApproved | Booking Agent (customer via UI) | Policy Gate, Coordinator | ch 8
 | TripConfirmed | Coordinator | Booking Agent, Observer | ch 8
 | TripCancelled | Coordinator | Booking Agent, Observer | ch 9
