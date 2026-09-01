@@ -3,9 +3,9 @@
 
 // Design documentation for the Travel Agency application built across the book. Companion
 // documents: 01_system_overview.adoc (components), 02_workflows_and_events.adoc
-// (workflows + events), 03_chapter_mapping.adoc (chapter mapping). This document is the
-// low-level authority: the exact port surfaces, event envelope, naming, and repository
-// conventions that every chapter's code obeys.
+// (workflows + events), 03_chapter_mapping.adoc (chapter mapping), 05_data_consistency_and_state_model.adoc
+// (consistency strategy). This document is the low-level authority: the exact port surfaces,
+// event envelope, naming, and repository conventions that every chapter's code obeys.
 
 == The `EventBroker` Surface — Final Form
 

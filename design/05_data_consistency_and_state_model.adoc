@@ -1,0 +1,312 @@
+= Travel Agency Application — System Design: Data Consistency and State Model
+:toc:
+
+// Design documentation for the Travel Agency application built across the book. Companion
+// documents: 01_system_overview.adoc (components), 02_workflows_and_events.adoc (workflows +
+// events), 03_chapter_mapping.adoc (chapter mapping), 04_implementation_design.adoc (implementation
+// surfaces and conventions). This document defines the architectural strategy for handling state,
+// consistency, and ordering in a distributed, eventually-consistent system.
+
+== Overview
+
+This document describes how the Travel Agency system ensures consistency across its components
+without requiring synchronous coordination. The strategy rests on three pillars: **Event Sourcing**
+as the write model (immutable facts), **CQRS** (Command Query Responsibility Segregation) to
+separate writes from reads, and **eventual consistency** enforced through causation tracking and
+idempotent read model updates.
+
+== Event Sourcing: The Write Model
+
+The system does not store aggregate state directly. Instead, every state transition is recorded as
+an immutable event — the fact that it happened. An aggregate root is the entity whose events are
+the source of truth for that aggregate's state.
+
+* **Aggregates:** Trip, Itinerary, and Payment are separate aggregate roots. Each event belongs to
+  exactly one aggregate. When a Trip is updated, a `booking.TripRequested` event (or a later event
+  like `booking.TripUpdated`) names the trip ID; when an Itinerary is assembled, an
+  `itinerary.ItineraryProposed` event names the itinerary ID. A Payment is never versioned inside
+  a Trip — it is its own aggregate with its own event chain.
+* **Immutability:** Events are written once and never modified. Correction is a new event
+  (e.g., `booking.TripCancelled`), not an edit to an existing one.
+* **Replay and Rebuilding:** The full history of an aggregate's events reconstructs its current
+  state. If a read model is corrupted or stale, replaying the event log rebuilds it without loss
+  of information.
+
+== CQRS: Separation of Writes and Reads
+
+CQRS does not mean the event log itself is separate from the command handler. It means the *model
+used to answer queries* is separate and derived.
+
+* **Write Model (Events):** Agents publish commands as events. These events carry the fact (e.g.,
+  "customer requested a trip for 2 travelers"). Once published, an event is immutable. It does
+  not express an opinion about whether the request is valid; the event is the record of the fact
+  that it was requested.
+* **Read Model (Projected State):** A separate service or component listens to events and builds a
+  materialized view — a queryable snapshot. For example, the Booking component might maintain a
+  read model that says "Trip 123 has status = 'requested', traveler count = 2". This view is
+  mutable and can be rebuilt from scratch.
+* **Eventual Consistency:** The read model lags behind the event log. When an event is published,
+  the read model has not yet been updated. A subscriber listening for events and projecting them
+  into the read model does so at its own pace. If the subscriber is fast, the lag is milliseconds;
+  if congested, it may be seconds. But the read model eventually matches the history.
+
+== Single Writer Principle: One Context Owns Each Aggregate
+
+Only one component (or one component's replica set with coordinated writes) publishes events for
+a given aggregate. The Booking service is the single writer for Trip events; the Itinerary Planner
+is the single writer for Itinerary events; the Payment service is the single writer for Payment
+events.
+
+This principle does not prevent reads. The Audit Consumer reads all events. The Booking service
+can query the Itinerary Planner's read model to know what itineraries have been proposed (a read).
+But when the Itinerary Planner updates its own Itinerary aggregate, only it publishes the
+`itinerary.ItineraryProposed` or `itinerary.ItineraryRejected` event.
+
+=== Multiple Replicas of the Same Writer
+
+The single writer principle does not require a single process. A component may have multiple
+replicas for scaling or availability. However, all replicas must coordinate to ensure that at any
+given time, only one of them publishes on behalf of the aggregate.
+
+Coordination strategies include:
+
+* **Partitioned Writes by Key:** If the broker supports partitioning (e.g., Kafka partitions by
+  trip ID), then all events for Trip 123 go to the same partition. Within a partition, the broker
+  guarantees order. If all replicas of the Booking service consume from the same consumer group,
+  the broker assigns each partition to exactly one replica. That replica becomes the sole writer
+  for trips in its assigned partitions.
+* **Distributed Locking:** If partitioning is unavailable, a distributed lock (e.g., via Redis or
+  etcd) can serialize writes. Before publishing an event for Trip 123, a replica acquires a lock
+  keyed on that trip. Only the lock holder publishes; others wait. This is slower and introduces
+  bottlenecks but works when the broker does not partition.
+* **Idempotent Deduplication:** If neither partitioning nor locking is viable, the system relies
+  on idempotent processing and deduplication. Each event carries a unique ID. If two replicas
+  both publish an event for the same aggregate (a rare race condition), downstream components
+  detect the duplicate by event ID and ignore it. This approach tolerates eventual conflicts but
+  requires careful handling.
+
+== Causation Chains: Linking Events Across Aggregates
+
+When one aggregate's event triggers a change in another aggregate, the two events are linked by
+**causation ID** (`causationId`) and **correlation ID** (`correlationId`).
+
+* **Causation ID:** When the Planner receives a `booking.TripRequested` event (causation ID = the
+  event's ID), it publishes `itinerary.ItineraryProposed` with the same causation ID. The read
+  model can trace backward: "This itinerary proposal was caused by this trip request."
+* **Correlation ID:** All events in a logical flow (e.g., all events related to planning a single
+  trip request) share a correlation ID. The first event in the flow (e.g., the trip request) mints
+  a new correlation ID; subsequent events inherit it. The audit log can then trace the entire
+  workflow by correlation ID.
+
+Causation chains are stored in event `attributes` (see `04_implementation_design.adoc`). They
+enable tracing without requiring real-time synchronous calls between components.
+
+== Aggregate Boundaries: Why Trip, Itinerary, and Payment Are Separate
+
+A naive design might combine Trip, Itinerary, and Payment into a single aggregate, reasoning that
+an itinerary is always related to a single trip and a payment is always related to a single trip.
+This design is rejected because:
+
+* **Concurrency and Conflicts:** A Trip might be updated by a customer (adding a traveler) while
+  the Planner simultaneously proposes an Itinerary for the original request. If both are in the
+  same aggregate, the two updates conflict. Sequencing them requires distributed locking or
+  consensus — a bottleneck.
+* **Different Lifecycles:** A Trip is created and updated by the Booking service. An Itinerary is
+  created by the Planner and updated only by the Planner. A Payment is created by the Payment
+  service. Their lifecycles are independent. Grouping them forces artificial synchronization.
+* **Single Writer Clarity:** If all three are in one aggregate, which component is the single
+  writer? The answer becomes "Booking, Planner, and Payment, in some order" — no longer a single
+  writer, but coordinated writers, which requires consensus and is harder to reason about.
+
+By keeping them separate, each maintains a single writer, a clear lifecycle, and independent
+concurrency. Trade-offs:
+
+* **Cross-Aggregate Queries:** If the Booking service needs to know the payment status for a
+  trip, it reads the Payment aggregate's state (a read model), not a synchronous call. The read
+  model may lag.
+* **No Atomic Transactions:** A change to a Trip and a linked Payment cannot be made atomic. The
+  Trip event is published first; then the Payment event. If the Payment event is never published
+  (e.g., a crash), the Trip is already committed. A saga or compensating transaction may be
+  needed to undo it. This is the cost of eventual consistency.
+
+== Read Models: Materialized Views and Idempotent Projections
+
+A read model is built by a **projection** — a component that listens to events and updates a
+query-able store (a database table, an in-memory cache, a materialized view).
+
+=== Idempotent Projections
+
+Events may arrive out of order or be redelivered. A projection must be idempotent: applying the
+same event twice produces the same final state as applying it once.
+
+Example: A read model stores `trip_status`. When `booking.TripRequested` arrives with trip ID 123
+and status "requested", the projection updates the row for trip 123. If the same event is
+redelivered (the message broker ensures at-least-once delivery), the projection receives it again.
+An idempotent projection checks: "Is there already a row for trip 123 with status 'requested'?" If
+yes, it is a duplicate; do nothing. If no, insert the row.
+
+Idempotency relies on **event deduplication by event ID**. Each event has a globally unique ID.
+The projection tracks which event IDs it has processed. Before updating state, it checks: "Have I
+already processed event ID X-Y-Z?" If yes, skip it. If no, process and record the ID.
+
+=== Handling Out-of-Order Events
+
+Events from multiple topics (or multiple partitions within a topic) can arrive in any order. The
+Planner publishes `itinerary.ItineraryProposed` for Trip 123. Meanwhile, the Booking service
+publishes `booking.TripUpdated` for Trip 123 (status changed to "itinerary proposed"). These
+events may arrive to the read model in any order.
+
+A robust read model does not assume order. Instead, it uses **causation IDs** to understand
+dependencies:
+
+* If `itinerary.ItineraryProposed` arrives first, it is stored with status "proposed". When
+  `booking.TripUpdated` arrives later (causation ID matching the Itinerary event), the read model
+  updates the Trip's status.
+* If `booking.TripUpdated` arrives first, it is stored with status "itinerary proposed". When
+  `itinerary.ItineraryProposed` arrives later, the read model updates the Itinerary view.
+
+In both cases, the final state is consistent because the causation chain is explicit. A read model
+that does not understand causation cannot tolerate out-of-order events reliably.
+
+== Eventual Consistency: Guarantees and Trade-offs
+
+The system guarantees:
+
+* **Causal Consistency:** If event A causes event B, any observer that has seen B has also seen A.
+  This is enforced by the causation chain: B's causation ID points to A, so a read model applying
+  B will first ensure A is processed.
+* **At-Least-Once Delivery:** Every event is delivered at least once. Exactly-once is not
+  guaranteed (the broker delivers at-least-once, and retries on failure). Projections are
+  idempotent to tolerate duplicates.
+* **Durability:** Once an event is written to the broker, it persists until the retention period
+  expires (e.g., Kafka's log retention).
+
+The system does NOT guarantee:
+
+* **Immediate Consistency:** A query to a read model immediately after publishing an event may not
+  reflect that event. The projection is still applying it.
+* **Total Ordering:** Events from different aggregates have no defined global order. Event A for
+  Trip 1 and Event B for Trip 2 may arrive in any order.
+* **Atomic Multi-Aggregate Transactions:** Updates to two separate aggregates cannot be made
+  atomic. One succeeds and is durable; the other may fail. Compensating logic is required.
+
+Clients must accept these trade-offs:
+
+* After publishing a command (e.g., "update trip"), the client waits for the projected read model
+  to reflect the change before considering the operation complete. This waiting is the "eventual"
+  part.
+* If a client needs to coordinate updates across two aggregates, it publishes the first, waits for
+  the read model, publishes the second (if needed), and waits again. If the second fails, the
+  first is already committed; a compensating event may be needed to revert it.
+
+== Partitioning and Ordering Guarantees
+
+=== Within an Aggregate
+
+If the broker supports partitioning by key (e.g., Kafka), all events for a given aggregate (keyed
+by trip ID, itinerary ID, etc.) are assigned to the same partition. The broker guarantees that
+events within a partition are delivered in order. A single-threaded projection that reads from one
+partition sees events for that aggregate in the order they were published.
+
+This is how a partition-keyed system achieves order: **All events for a Trip are in Trip's
+partition. Only one replica (or thread) reads from that partition, so events are processed
+serially and in order.**
+
+=== Across Aggregates
+
+Partitioning breaks at the boundary. The Booking service publishes a Trip event to the `booking`
+topic (partitioned by trip ID). The Planner publishes an Itinerary event to the `itinerary`
+topic (partitioned by itinerary ID). A read model that needs both events (e.g., "Trip 123 with
+its proposed Itinerary") must somehow join them.
+
+A **co-partitioning** strategy assigns both events the same partition key (trip ID) so they land
+in the same partition. But this is tight coupling: the Planner's internal event now carries a
+trip ID, which it would not otherwise need. It also requires that the Booking service publish its
+Trip event first, before the Planner even knows an itinerary is being planned.
+
+In the Travel Agency system, **the solution is causation chains and eventual consistency**, not
+co-partitioning:
+
+1. The Planner reads (queries) the Trip's read model to know the trip details before proposing an
+   itinerary (not a synchronous call, just a point-in-time query).
+2. The Planner publishes `itinerary.ItineraryProposed` with a causation ID pointing to the Trip
+   event that triggered the proposal.
+3. A separate projection (or the Trip's own read model) listens for itinerary events and updates
+   the Trip's view to include "itinerary status = proposed".
+4. Cross-aggregate read models (e.g., a view joining Trip and Itinerary) are built from both
+   topics and lazily reconciled using causation IDs.
+
+This avoids the bottleneck of a single key and tolerates the out-of-order arrival of events from
+different topics.
+
+== Application to the Travel Agency
+
+=== Aggregates
+
+* **Trip:** Owned by Booking. Created by `booking.TripRequested`, updated by `booking.TripUpdated`
+  (e.g., adding travelers), and finalized by `booking.TripConfirmed`. State includes trip ID,
+  traveler list, desired destinations, status.
+* **Itinerary:** Owned by Itinerary Planner. Created by `itinerary.ItineraryProposed`, updated by
+  `itinerary.ItineraryRejected` or the next iteration. State includes itinerary ID, trip ID,
+  proposed flights and stays, and status.
+* **Payment:** Owned by Payment Service. Created by `payment.PaymentRequested`, updated by
+  `payment.PaymentProcessed` or `payment.PaymentFailed`. State includes payment ID, trip ID or
+  itinerary ID, amount, and status.
+
+=== Read Models
+
+* **Trip Read Model:** Maintained by the Booking service. Stores trip ID, traveler count, status,
+  and a denormalized reference to the current itinerary ID (if any). Updated when Itinerary
+  events arrive (via causation ID).
+* **Itinerary Read Model:** Maintained by the Itinerary Planner. Stores itinerary ID, linked trip
+  ID, proposed flights, stays, and status. Updated only by itinerary events.
+* **Payment Read Model:** Maintained by the Payment service. Stores payment ID, linked trip or
+  itinerary ID, amount, and status. Updated only by payment events.
+* **Audit Read Model:** Maintained by the Audit Consumer. Stores all events in order (by event
+  ID), grouped by correlation ID for tracing entire workflows.
+
+=== Example: Concurrent Update and Out-of-Order Events
+
+Scenario: Customer updates a trip (adds a traveler) while the Planner simultaneously proposes an
+itinerary.
+
+1. **T1:** Booking receives "add traveler to Trip 123" and publishes `booking.TripUpdated(trip_id=123, travelers=2)`. Correlation ID = CID-A.
+2. **T2:** Planner receives the earlier `booking.TripRequested` event and publishes `itinerary.ItineraryProposed(itinerary_id=ITN-1, trip_id=123)`. Causation ID = the ID of `TripRequested`. Correlation ID = CID-A (inherited).
+3. **Projection (Trip Read Model):** At T1, updates Trip 123 status to "updated, 2 travelers". At T2, receives Itinerary event with causation ID matching the original TripRequested. Adds "itinerary_id=ITN-1" to the Trip's read model. **No conflict, because Trip and Itinerary are separate aggregates.**
+
+If Trip and Itinerary were in the same aggregate, the two updates (one from Booking at T1, one
+from Planner at T2) would conflict. One would be rejected, or they would need to be serialized.
+Keeping them separate means both proceed independently, and the read model reconciles them via
+causation chains.
+
+== Design Decisions and Rationale
+
+=== Why Not Atomic Transactions?
+
+Atomic transactions (ACID) require all changes to commit or all to roll back. In a distributed
+system with multiple writers, achieving atomicity requires consensus — a performance bottleneck.
+The Travel Agency instead uses saga patterns: a component publishes an event, waits for
+downstream effects, and publishes a compensating event if needed.
+
+=== Why Not Pessimistic Locking?
+
+Pessimistic locking (holding locks across multiple operations) is an alternative to eventual
+consistency. A component could acquire a lock on Trip 123 before allowing the Planner to read it.
+But locks are slow, do not scale, and are fragile (a dead component may hold a lock forever).
+Event-driven architectures and eventual consistency are faster.
+
+=== Why Not Real-Time Queries?
+
+Instead of reading a stale read model, why not query the Trip's current state synchronously when
+the Planner needs it? Because synchronous queries are coupled and slow. If the Booking service is
+down, the Planner blocks. Event-driven systems separate concerns: the Planner publishes its
+events; downstream components react. The Planner does not wait.
+
+== Summary
+
+The Travel Agency system achieves consistency without atomic transactions or real-time coupling by
+combining event sourcing (immutable facts), CQRS (separated read models), eventual consistency
+(lazy reconciliation), and causation tracking (explicit dependency chains). Each aggregate has a
+single writer and an independent lifecycle. Out-of-order events are tolerated through idempotent
+projections and causation chains. The trade-off is that reads may lag and multi-aggregate
+operations must be compensated, but the system is resilient, scalable, and fast.
