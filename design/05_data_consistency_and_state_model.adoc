@@ -136,28 +136,31 @@ query-able store (a database table, an in-memory cache, a materialized view).
 
 === Idempotent Projections
 
-Events may arrive out of order or be redelivered. A projection must be idempotent: applying the
-same event twice produces the same final state as applying it once.
+Brokers guarantee at-least-once delivery, which means an event may be redelivered (e.g., if the
+consumer crashed or was slow to acknowledge). A projection must be idempotent: applying the same
+event twice produces the same final state as applying it once.
 
 Example: A read model stores `trip_status`. When `booking.TripRequested` arrives with trip ID 123
 and status "requested", the projection updates the row for trip 123. If the same event is
-redelivered (the message broker ensures at-least-once delivery), the projection receives it again.
-An idempotent projection checks: "Is there already a row for trip 123 with status 'requested'?" If
-yes, it is a duplicate; do nothing. If no, insert the row.
+redelivered due to a consumer restart, the projection receives it again. An idempotent projection
+checks: "Have I already processed this event?" If yes, skip it. If no, process and record it.
 
-Idempotency relies on **event deduplication by event ID**. Each event has a globally unique ID.
-The projection tracks which event IDs it has processed. Before updating state, it checks: "Have I
-already processed event ID X-Y-Z?" If yes, skip it. If no, process and record the ID.
+Idempotency is implemented via **event deduplication by event ID**. Each event has a globally
+unique ID. The projection tracks which event IDs it has processed. Before updating state, it
+checks: "Have I already processed event ID X-Y-Z?" If yes, skip it. If no, process and record
+the ID. This is required for all consumers, regardless of whether the broker supports ordering.
 
-=== Handling Out-of-Order Events
+=== Handling Out-of-Order Events: Cross-Aggregate Only
 
-Events from multiple topics (or multiple partitions within a topic) can arrive in any order. The
-Planner publishes `itinerary.ItineraryProposed` for Trip 123. Meanwhile, the Booking service
-publishes `booking.TripUpdated` for Trip 123 (status changed to "itinerary proposed"). These
-events may arrive to the read model in any order.
+Within a single aggregate, order is guaranteed if the broker supports key-based ordering (e.g.,
+Google Pub/Sub with ordering enabled, or Kafka partitioning). All events for Trip 123 are
+delivered in order; the consumer's idempotency guard handles redeliveries.
 
-A robust read model does not assume order. Instead, it uses **causation IDs** to understand
-dependencies:
+Out-of-order arrival occurs only *across* aggregates, when the Planner publishes
+`itinerary.ItineraryProposed` (keyed on itinerary ID) and the Booking service publishes
+`booking.TripUpdated` (keyed on trip ID). These events may arrive to a read model in any order.
+
+A robust read model uses **causation IDs** to understand cross-aggregate dependencies:
 
 * If `itinerary.ItineraryProposed` arrives first, it is stored with status "proposed". When
   `booking.TripUpdated` arrives later (causation ID matching the Itinerary event), the read model
@@ -165,28 +168,34 @@ dependencies:
 * If `booking.TripUpdated` arrives first, it is stored with status "itinerary proposed". When
   `itinerary.ItineraryProposed` arrives later, the read model updates the Itinerary view.
 
-In both cases, the final state is consistent because the causation chain is explicit. A read model
-that does not understand causation cannot tolerate out-of-order events reliably.
+In both cases, the final state is consistent because the causation chain is explicit. A
+cross-aggregate read model that joins events from different aggregates must tolerate this
+arrival order; within an aggregate, order is guaranteed.
 
-== Eventual Consistency: Guarantees and Trade-offs
+== Consistency Guarantees: Within and Across Aggregates
 
 The system guarantees:
 
-* **Causal Consistency:** If event A causes event B, any observer that has seen B has also seen A.
-  This is enforced by the causation chain: B's causation ID points to A, so a read model applying
-  B will first ensure A is processed.
+* **Strong Consistency Within Aggregates:** Events for a single aggregate (e.g., Trip 123) are
+  delivered in order and processed serially. The read model sees them in publish order. Combined
+  with idempotency, this ensures an aggregate's view is always consistent with its event history.
+* **Causal Consistency Across Aggregates:** If event A (in one aggregate) causes event B (in
+  another), the causation chain (B's causation ID) explicitly links them. Read models can use
+  this to resolve dependencies regardless of arrival order.
 * **At-Least-Once Delivery:** Every event is delivered at least once. Exactly-once is not
-  guaranteed (the broker delivers at-least-once, and retries on failure). Projections are
-  idempotent to tolerate duplicates.
+  guaranteed (the broker delivers at-least-once, and retries on failure). Idempotent projections
+  tolerate duplicates.
 * **Durability:** Once an event is written to the broker, it persists until the retention period
   expires (e.g., Kafka's log retention).
 
 The system does NOT guarantee:
 
 * **Immediate Consistency:** A query to a read model immediately after publishing an event may not
-  reflect that event. The projection is still applying it.
-* **Total Ordering:** Events from different aggregates have no defined global order. Event A for
-  Trip 1 and Event B for Trip 2 may arrive in any order.
+  reflect that event. The projection is still applying it. This lag is typically milliseconds but
+  may be seconds if the projection is congested.
+* **Total Ordering Across Aggregates:** Events from different aggregates have no defined global
+  order. Event A for Trip 1 and Event B for Trip 2 may arrive in any order. Cross-aggregate read
+  models use causation IDs to reconcile them.
 * **Atomic Multi-Aggregate Transactions:** Updates to two separate aggregates cannot be made
   atomic. One succeeds and is durable; the other may fail. Compensating logic is required.
 
@@ -199,18 +208,72 @@ Clients must accept these trade-offs:
   the read model, publishes the second (if needed), and waits again. If the second fails, the
   first is already committed; a compensating event may be needed to revert it.
 
-== Partitioning and Ordering Guarantees
+== Ordering Guarantees: Broker Requirement
 
-=== Within an Aggregate
+This design **requires per-key ordering guarantees** as a prerequisite. An aggregate's events must
+arrive in order to its read model; without this, strong within-aggregate consistency cannot be
+achieved. Order is guaranteed by one of two mechanisms:
 
-If the broker supports partitioning by key (e.g., Kafka), all events for a given aggregate (keyed
-by trip ID, itinerary ID, etc.) are assigned to the same partition. The broker guarantees that
-events within a partition are delivered in order. A single-threaded projection that reads from one
-partition sees events for that aggregate in the order they were published.
+**Partitioning (e.g., Kafka):** All events for a given aggregate (keyed by trip ID, itinerary ID,
+etc.) are assigned to the same partition. The broker guarantees events within a partition are
+delivered in order. A projection reading from one partition sees events for that aggregate in
+publish order.
 
-This is how a partition-keyed system achieves order: **All events for a Trip are in Trip's
-partition. Only one replica (or thread) reads from that partition, so events are processed
-serially and in order.**
+**Key-Based Ordering (e.g., Google Pub/Sub with ordering enabled):** The broker guarantees that
+events for a given key are delivered serially: the next message for that key is not delivered
+until the previous one is acknowledged. This achieves the same effect—intra-aggregate
+ordering—without explicit partitioning.
+
+Both mechanisms ensure that an aggregate's events arrive in order to its read model. The
+projection's idempotency guard (deduplication by event ID) handles redeliveries. **The aggregate
+maintains strong consistency within itself, even though the broader system is eventually
+consistent across aggregates.**
+
+=== Broker Support Matrix
+
+Per-key ordering is a prerequisite; the system does not implement broker-specific ordering logic.
+Brokers are selected, not adapted.
+
+[cols="1,1,1"]
+|===
+| Broker | Native Support | Notes
+
+| Kafka
+| ✓ Yes (partitioning)
+| Events with same key → same partition → strict order. No acknowledgment overhead.
+
+| Google Pub/Sub
+| ✓ Yes (ordering by key)
+| Requires ordering enabled; next message held until previous acked.
+
+| Azure Event Hubs
+| ✓ Yes (partitioning)
+| Kafka-compatible; per-partition order guarantees.
+
+| AWS EventBridge
+| ✗ No
+| No per-key ordering. Workaround: route to FIFO SQS (adds latency).
+
+| Azure Event Grid
+| ✗ No
+| No per-key ordering. Not a suitable primary broker for this design. Use Event Hubs directly
+  instead (Azure's Kafka equivalent). Event Grid is useful only for multi-target routing of
+  non-critical events; critical events requiring order must go to Event Hubs.
+
+| RabbitMQ (classic queues)
+| ✗ No
+| Per-queue order exists but not per-key. One queue per aggregate doesn't scale.
+
+| RabbitMQ Streams
+| ✓ Yes (partitioning by key)
+| Log-based like Kafka; supports per-partition order, consumer groups, and replay. Requires
+  RabbitMQ 3.8+.
+|===
+
+**Selected brokers must guarantee per-key order natively or via a downstream workaround layer.**
+If a broker lacks this capability, it is ruled out or an ordering shim is added (e.g.,
+EventBridge → FIFO SQS), but no application logic is broker-specific. The ordering guarantee is
+either present or absent; if absent, the broker is not viable.
 
 === Across Aggregates
 
@@ -238,6 +301,28 @@ co-partitioning:
 
 This avoids the bottleneck of a single key and tolerates the out-of-order arrival of events from
 different topics.
+
+== Broker Selection and Implementation Trade-offs
+
+**Suitable brokers:** Kafka, Google Pub/Sub, Azure Event Hubs, RabbitMQ Streams, AWS EventBridge
+(with FIFO SQS workaround).
+
+**Unsuitable brokers:** AWS EventBridge (standalone), Azure Event Grid, RabbitMQ classic queues.
+
+**No broker-specific code.** The design does not branch on broker type. Instead, broker selection
+is a prerequisite: a broker must either support per-key ordering natively (Kafka, Pub/Sub, Event
+Hubs) or have a lightweight workaround layer that adds it (e.g., EventBridge → FIFO SQS). Do not
+add extra hops (e.g., Event Grid → Event Hubs) to achieve ordering; use the ordering broker
+directly.
+
+If a broker cannot provide per-key ordering, it is unsuitable for this design and is ruled out at
+the architecture stage, not adapted at implementation time.
+
+This constraint exists because the design's correctness depends on the guarantee. Application code
+assumes events for an aggregate arrive in order; projections are built with this assumption. If the
+broker breaks this guarantee, the read model can silently diverge from the event history, causing
+data corruption that is hard to debug. It is better to fail loudly at broker selection than to
+ship code that silently fails under load.
 
 == Application to the Travel Agency
 
@@ -304,9 +389,10 @@ events; downstream components react. The Planner does not wait.
 
 == Summary
 
-The Travel Agency system achieves consistency without atomic transactions or real-time coupling by
-combining event sourcing (immutable facts), CQRS (separated read models), eventual consistency
-(lazy reconciliation), and causation tracking (explicit dependency chains). Each aggregate has a
-single writer and an independent lifecycle. Out-of-order events are tolerated through idempotent
-projections and causation chains. The trade-off is that reads may lag and multi-aggregate
-operations must be compensated, but the system is resilient, scalable, and fast.
+The Travel Agency system is a **hybrid consistency model**: strong within aggregates, eventual
+across them. It combines event sourcing (immutable facts), CQRS (separated read models), and
+causation tracking (explicit dependency chains). Each aggregate has a single writer, guaranteed
+in-order delivery (via partitioning or key-based ordering), and an independent lifecycle. Idempotent
+projections handle redeliveries. Out-of-order arrival is tolerated only across aggregates, where
+causation IDs reconcile dependencies. The trade-off is that cross-aggregate queries and updates may
+lag and must be compensated, but the system is resilient, scalable, and fast.
