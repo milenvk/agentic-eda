@@ -76,8 +76,10 @@ little is passed:
 
 `Event.attributes` holds every CloudEvents attribute that is not a root field: the optional
 standard attributes (`datacontenttype`, `subject`, `dataschema`, `time`) and all extension
-attributes (`correlationid` and `causationid` from ch 2, `contextpath` from ch 7). Root fields are exactly the
-required core attributes (`id`, `type`, `source`) plus `payload` as `data`.
+attributes (`correlationid` and `causationid` from ch 2, `contextpath` from ch 7, and
+`partitionkey`, the aggregate id a producer sets where within-aggregate order matters, honoured
+by adapters that can order and ignored by the rest; see Ordering below). Root fields are
+exactly the required core attributes (`id`, `type`, `source`) plus `payload` as `data`.
 
 == Wire Format
 
@@ -91,17 +93,18 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
 == Event Type Naming
 
 * An event type is `<domain>.<Name>`, where `<domain>` is the bounded context (the catalog
-  groups in `02_workflows_and_events.adoc`: booking, itinerary, disruption, policy,
-  payment, support, communication, content, and the technical namespace system). There is no organization segment: the domain is
+  groups in `02_workflows_and_events.adoc`: booking, planning, disruption, policy,
+  payment, support, communication, destination, and the technical namespace system). There is no organization segment: the domain is
   what a reader and a subscriber need, and a reverse-DNS prefix adds length without adding
   meaning inside one system.
 * Every type is declared exactly once, as a constant in
   `lib/travel_agency/event_types.py`, grown additively by later chapters. Components import
   the constant, never retype the string.
 * The producer is **never** part of the type. Its identity is carried by the CloudEvents
-  `source` attribute; the Single Writer Principle assigns one producer per type, and the book
-  replaces producers behind stable events (ch 3, ch 10), which producer-named types would
-  break.
+  `source` attribute; the Single Writer Principle assigns one owning context per type, a
+  producer stands in that context, and a relay publishing for an owner (the `EventScheduler`,
+  the outbox relay) sets `source` to that owner. The book replaces producers behind stable
+  events (ch 3, ch 10), which producer-named types would break.
 * Quoting registers: code uses the full string; repository documentation (chapter READMEs,
   design docs where disambiguation helps) quotes domain-qualified — `booking.TripRequested`;
   book prose uses the bare name.
@@ -120,7 +123,13 @@ one-place change and remains the adapter's business alone; agents never name top
 * Offsets are committed manually, **only after the handler returns**
   (`enable_auto_commit=False`). A consumer killed mid-handler never commits, so the event is
   redelivered on restart — the ch 1 durability demonstration, and the at-least-once floor
-  the book teaches in ch 2.7.
+  the book teaches in `ch02_delivery_guarantees`.
+* **Ordering.** The adapter uses the `partitionkey` attribute, when present, as the Kafka
+  record key, so an aggregate's events land in one partition and arrive in order. Without it
+  the key is null and no order across an aggregate is promised. Ordering is an adapter
+  capability outside the `EventBroker` contract (the capability intersection in
+  `ch02_agent_container`); `05_data_consistency_and_state_model.adoc` states what holds with
+  and without it.
 * `event_broker(client_name, start=...)` chooses where a component reads from the first
   time it subscribes, and `start` has exactly two values.
 +

@@ -45,9 +45,10 @@ carries the narrative.
 | Component
 | W1 slice 2: planning against real availability; support AaaS wired
 | ADK Planner replacing the ch 1 minimal Planner on the same subscription (A2A edge), Booking
-  Agent (chat intake), Front Desk UI shell (chat + live event view), Research Agent
+  Agent (event-only intake), Front Desk UI shell (the communication context's chat edge:
+  `ChatMessageReceived`, `CustomerNotified`, live event view), Research Agent
   (LlamaIndex, MCP edge), Airline Booking System sim (the external booking system, REST),
-  Support AaaS sim, `adk web` as the Planner's dev UI
+  support adapter and Support AaaS sim, `adk web` as the Planner's dev UI
 | Universal integration, protocol vocabulary, edge prompting, zero-trust seed
 
 | 4
@@ -72,32 +73,36 @@ carries the narrative.
 | 7
 | Workflow
 | W1 slice 3: multi-item parallel trip, booked without approval
-| Coordinator, Airline Agent (py), Hotel Agent (CrewAI), Rental Car Agent,
-  Arbiter, `BarrierStore`, Hotel Booking System sim, Car Rental sim, context paths
+| Planner extended, or replaced on the same subscription, into the scatter-gather
+  orchestrator; Airline Agent (py), Hotel Agent (CrewAI), Rental Car Agent, Arbiter,
+  `BarrierStore`, Hotel Booking System sim, Car Rental sim, context paths
 | Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical
   context, communication topologies
 
 | 8
 | Workflow
 | W4 complete; W1 slice 4 (customer acceptance, policy check, `TripConfirmed`); **B2B pivot**
-| `WorkflowStateStore`, outbox relay, `EventScheduler` (APScheduler+PG), Policy Gate,
-  approval console in UI shell, Duty-of-Care Monitor (proactive, with Travel Advisory
-  Feed sim), Booking Agent follow-up nudge
+| Booking Agent extended into the owner of the trip's booking workflow, `WorkflowStateStore`,
+  outbox relay, `EventScheduler` (APScheduler+PG), Policy Gate, approval console in UI shell,
+  Duty-of-Care Monitor (proactive, with Travel Advisory Feed sim), Booking Agent follow-up
+  nudge
 | Durable state machines, agentic outbox, human-in-the-loop, semantic checkpointing,
   macro-timeouts, ABA, proactive agents
 
 | 9
 | Workflow
 | W5 complete
-| Cleanup Agent (LangGraph), deterministic compensation code, livelock breaker, sold-out and
-  negotiation auto-responder injection in the Hotel Booking System sim, deadlock demo
+| Cleanup Agent (LangGraph), the Booking Agent's deterministic compensation step, livelock
+  breaker, sold-out and negotiation auto-responder injection in the Hotel Booking System sim,
+  deadlock demo
 | Sagas, semantic rollback, livelock circuit breaker, deadlock resolution
 
 | 10
 | Layer (with W6 demos)
 | W6 complete; W1 payment step added, idempotent
-| DLQ wiring, `IdempotencyStore`, Payment sim (Stripe-like), idempotent payment step,
-  replacement Hotel Agent (LangGraph), poison-pill scripts
+| DLQ wiring, `IdempotencyStore`, Payment sim (Stripe-like), payment step (the payment
+  context's deterministic consumer of `booking.PaymentRequested`, idempotent), replacement
+  Hotel Agent (LangGraph), poison-pill scripts
 | At-least-once reality, deterministic idempotency, internal checkpointing, DLQ, time travel,
   cross-framework replay
 

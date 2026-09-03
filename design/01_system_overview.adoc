@@ -23,11 +23,14 @@ decisions, settled in the design interviews of 2026-08-09:
   "Realism kept as texture" below.
 * **Realism split:** agents only where non-deterministic reasoning is genuinely needed; deterministic
   work is done by deterministic code and simulated vendor services.
-* **Front door:** a minimal web/chat UI exists as a demo shell (kept out of the book's page
-  budget); runnable scripts remain the primary teaching harness. Every entry into the *system*
-  is a published event — the UI, the email replay, and the scripts are all edge producers. A
-  framework's own UI (ADK's `adk web`, used to develop the Planner) is an entry into a single
-  agent, never into the system.
+* **Front door:** a minimal web/chat UI, the Front Desk shell, exists as a demo shell (kept
+  out of the book's page budget); runnable scripts remain the primary teaching harness. Every
+  entry into the *system* is a published event — the shell, the email replay, and the scripts
+  are all edge producers. The shell is the Customer Communication context's edge for chat in
+  both directions: it publishes `communication.ChatMessageReceived` when the customer writes
+  and `communication.CustomerNotified` when it delivers a message, so the audit trail records
+  what the customer was told. A framework's own UI (ADK's `adk web`, used to develop the
+  Planner) is an entry into a single agent, never into the system.
 * **LLM strategy:** reasoning agents default to one cloud API key; Ollama is the documented
   zero-cost fallback and powers the Semantic Router and Guardrail models. Model access goes
   through **LiteLLM** rather than a hand-written port (see Ports below).
@@ -97,76 +100,138 @@ design answers with aggregates inside one context and with edge adapters at the 
 | Subdomain | Prefix | Language and facts | Components
 
 | Trip Planning
-| `itinerary`
+| `planning`
 | request, preferences, availability, offers, fare conditions, proposal, assembly, arbitration;
   ItineraryProposed, ItineraryAssembled, FlightSearchRequested, HotelSearchRequested,
-  FlightOffersProposed, HotelOffersProposed, ActionProposed, ActionCommitted
-| Itinerary Planner, Destination Research Agent, Trip Coordinator (fan-out and barrier),
-  Airline and Hotel Agents (offers), Arbiter
+  FlightOffersProposed, HotelOffersProposed, ActionProposed, ActionCommitted; one aggregate,
+  the itinerary
+| Itinerary Planner (orchestrates the multi-item trip from ch 7), Airline Agent, Hotel Agent,
+  Arbiter
 
 | Booking
 | `booking`
 | trip request, itinerary approval, reservation, confirmation, cancellation, car class,
-  follow-up; TripRequested, ItineraryApproved, TripConfirmed, TripCancelled, FlightBooked,
-  HotelBooked, CarRentalReserved, CarRentalUnavailable, CustomerFollowUpDue; two aggregates: the customer request (Booking Agent)
-  and the trip order (the Coordinator's `WorkflowStateStore`)
-| Booking Agent (the demo script stands in during ch 1), Trip Coordinator (order lifecycle and
-  booking step), Rental Car Agent
+  follow-up, approval wait, payment request, compensation; TripRequested, ItineraryApproved,
+  ApprovalRequested, ApprovalTimedOut, FlightBooked, HotelBooked, PaymentRequested,
+  TripConfirmed, TripCancelled, FlightBookingCancelled, CarRentalReserved,
+  CarRentalUnavailable, CustomerFollowUpDue; two aggregates, both the Booking Agent's: the
+  customer request and the trip's booking workflow (the `WorkflowStateStore`)
+| Booking Agent (the demo script stands in during ch 1; owns the booking workflow from ch 8),
+  Rental Car Agent
 
 | Payment
 | `payment`
-| charge, authorization, idempotency key; PaymentRequested, PaymentAuthorized; kept separate
-  for idempotency against a real side effect (ch 10) and data segregation (ch 13)
-| Coordinator's payment step, Payment sim
+| charge, authorization, idempotency key; PaymentAuthorized; kept separate for idempotency
+  against a real side effect (ch 10) and data segregation (ch 13)
+| payment step (a deterministic consumer of `booking.PaymentRequested`), Payment sim
 
 | Corporate Travel Policy
 | `policy`
-| policy, violation, approval, manager, escalation, timeout; PolicyViolationDetected,
-  ApprovalRequested, ApprovalGranted, ApprovalRejected, ApprovalTimedOut
-| Policy Gate, approval console, Coordinator's waiting state
+| policy, violation, approval, manager, escalation; PolicyViolationDetected, ApprovalGranted,
+  ApprovalRejected
+| Policy Gate, approval console
 
 | Disruption and Care
 | `disruption`
-| disruption, sold out, compensation, rebooking, advisory, risk; HotelSoldOut,
-  CancellationDrafted, FlightBookingCancelled, TravelRiskDetected
-| Cleanup Agent, compensation code, Duty-of-Care Monitor, Hotel Agent (rebooking negotiation)
+| disruption, sold out, compensation plan, rebooking, advisory, risk; HotelSoldOut,
+  CancellationDrafted, TravelRiskDetected
+| Duty-of-Care Monitor, Cleanup Agent
 
 | Customer Support
 | `support`
 | ticket, resolution; SupportRequested, SupportTicketResolved; a bought capability whose
   vendor model stops at the edge adapter
-| Support Desk AaaS sim behind its adapter
+| support adapter, Support Desk AaaS sim behind it
 
 | Customer Communication
 | `communication`
-| email, message, channel, classification, triage; EmailReceived, VendorUpdateReceived,
-  TripRequestReceived (provisional name, settled at ch 4 planning)
-| email replay script, Semantic Router
+| email, chat, message, channel, classification, triage, notification, delivery;
+  EmailReceived, ChatMessageReceived, VendorUpdateReceived, TripRequestReceived (provisional
+  name, settled at ch 4 planning), SupportRequestReceived, CustomerNotified
+| Front Desk shell, email replay script, Semantic Router
 
 | Destination Knowledge
-| `content`
+| `destination`
 | brochure, document, index, claim reference; BrochureUploaded, DocumentAvailable
 | claim-check ingestion, Destination Research Agent
 |===
 
 The map's rules:
 
-* **A component is placed by the facts under its ownership, not by its subject.** The Airline and Hotel
-  Agents own planning facts (offers, proposals) and book nothing, so they sit in Trip Planning;
-  the Coordinator's booking step owns `FlightBooked` and `HotelBooked`; the Rental Car Agent
-  owns `CarRentalReserved` and does no planning, so it sits in Booking. That asymmetry is the
-  ch 7 choreography demonstration (a car added by reacting to `FlightBooked`, with nobody
-  orchestrating it), not a modeling accident.
+* **A component is placed by the facts under its ownership, not by its subject, and appears in
+  exactly one row.** The Airline and Hotel Agents own planning facts (offers, proposals) and
+  book nothing, so they sit in Trip Planning even when the Hotel Agent negotiates a rebooking
+  after a disruption (ch 9); the Booking Agent's booking step owns `FlightBooked` and
+  `HotelBooked`; the Rental Car Agent owns `CarRentalReserved` and does no planning, so it sits
+  in Booking. That asymmetry is the ch 7 choreography demonstration (a car added by reacting to
+  `FlightBooked`, with nobody orchestrating it), not a modeling accident. A component that owns
+  no facts (the Destination Research Agent) is placed by what it serves.
+* **An event belongs to the context whose aggregate it asserts a fact about.**
+  `booking.FlightBookingCancelled` is booking's although disruption decided it: the Cleanup
+  Agent drafts the compensation plan (`disruption.CancellationDrafted`) and the Booking Agent's
+  compensation step mutates the reservation.
+* **A request carries the requester's prefix and the answer the answerer's.** The Booking
+  Agent's `booking.ApprovalRequested` is answered by the console's `policy.ApprovalGranted` or
+  `policy.ApprovalRejected`; its `booking.PaymentRequested` by the payment step's
+  `payment.PaymentAuthorized`.
 * **One owning context per event type.** Several components may publish a type when they stand
   in the same context (the demo script and the Booking Agent for `TripRequested`); a component
   in another context that republishes an inbound fact publishes its own type (the Router's
-  `TripRequestReceived`, turned into `TripRequested` by the Booking Agent).
+  `TripRequestReceived`, turned into `TripRequested` by the Booking Agent; the Router's
+  `SupportRequestReceived`, turned into `SupportRequested` by the support adapter).
 * **`system` is the platform's technical namespace, outside the map.** BudgetExceeded,
   ModelFallbackActivated, EventQuarantined, and DutyOfCareSweepDue are technical events in
   ch 1's sense, facts about the system's own behavior, each owned by the mechanism that emits it.
-* **Scheduled events carry the prefix of the asserted fact.** ApprovalTimedOut is `policy`
-  though the scheduler fires it; a wake with no business meaning (DutyOfCareSweepDue) is
-  `system`.
+  Platform components (below) stand in no row: they own only `system` facts, and when one
+  publishes a business-prefixed event it relays it for the owning component and sets the
+  CloudEvents `source` to that owner.
+* **Scheduled events carry the prefix of the asserted fact.** ApprovalTimedOut is `booking`,
+  the workflow's expired wait, though the scheduler fires it, as is CustomerFollowUpDue; a wake
+  with no business meaning (DutyOfCareSweepDue) is `system`.
+
+=== The Platform
+
+Components that serve every context and belong to none. They sit beside the map, not in it;
+their own facts are `system` events, and none of them holds business state of its own.
+
+[cols="2,1,3,2", options="header"]
+|===
+| Component | Chapter | What it does | `system` facts it emits
+
+| Audit Consumer
+| 1
+| Appends every event to a durable audit record.
+| none
+
+| Observer/Reflector Agent
+| 6
+| Projects the event log into Materialized Semantic Views through the `SemanticViewStore`.
+| none
+
+| Token budget guard (economic circuit breaker)
+| 11
+| Meters token spend per `correlation_id` in the `WorkflowStateStore` and throttles.
+| `BudgetExceeded`
+
+| Model fallback callback
+| 11
+| A LiteLLM callback that records a provider fallback as a fact.
+| `ModelFallbackActivated`
+
+| Guardrail Worker
+| 13
+| Consumes sensitive topics, forwards verified events to trusted topics (re-delivery, not
+  authorship: `source` stays the original producer), quarantines the rest.
+| `EventQuarantined`
+
+| Egress DLP Interceptor
+| 13
+| Scrubs PII from events bound for the external support vendor.
+| none
+|===
+
+The `EventScheduler` and the outbox relay are Ports and infrastructure (below), not components:
+they publish on behalf of whichever component scheduled or enqueued the event.
 
 == Architecture at a Glance
 
@@ -187,7 +252,6 @@ flowchart TB
         ROUTER[Semantic Router - py/Ollama]
         PLANNER[Itinerary Planner - ADK/A2A]
         RESEARCH[Destination Research - LlamaIndex/MCP]
-        COORD[Trip Coordinator - py]
         AIRA[Airline Agent - py]
         HOTA[Hotel Agent - CrewAI]
         CAR[Rental Car - py]
@@ -200,6 +264,7 @@ flowchart TB
 
     subgraph Deterministic["Deterministic components"]
         POLICY[Policy Gate]
+        PAYSTEP[Payment step]
         DLP[Egress DLP Interceptor]
         AUDIT[Audit Consumer]
     end
@@ -231,9 +296,9 @@ Inbox, Barrier, Idempotency stores)]
     PLANNER -.REST.-> AIR
     AIRA -.REST.-> AIR
     HOTA -.REST.-> HOTEL
-    COORD -.REST.-> AIR
-    COORD -.REST.-> HOTEL
-    COORD -.REST.-> PAYGW
+    BA -.REST.-> AIR
+    BA -.REST.-> HOTEL
+    PAYSTEP -.REST.-> PAYGW
     MONITOR -.REST.-> ADVISORY
     CAR -.REST.-> CARSIM
     SUPPORT -.edge prompting.-> BROKER
@@ -248,25 +313,26 @@ Identity conventions, in the book's order of introduction:
   deliberately stricter than the CloudEvents minimum (unique per `source`): the reader's own
   system may not have a `source`, and a single unique key keeps references and table lookups
   one-column simple. The book explains this reasoning where CloudEvents is introduced
-  (ch 2.5).
+  (`ch02_semantic_data_contracts`).
 * **Causation** — a reply carries the globally unique id of its request: ch 1's
   `ItineraryProposed` holds the `TripRequested` id as a `request_id` payload field, and the
-  demo script matches on it. Ch 2.6 promotes it to a `causationid` extension attribute
-  (settled at ch 2 planning: one attribute, since ids are globally unique); ch 14's
+  demo script matches on it. `ch02_correlation_id` promotes it to a `causationid` extension
+  attribute (settled at ch 2 planning: one attribute, since ids are globally unique); ch 14's
   `traceparent` carries parent identity for observability, not business causation.
-* **`correlation_id`** — the execution-thread key (established in ch 2.6), minted at the
-  first request and copied to every event of the execution; it replaces the synchronous
-  call stack. Causation is a link, correlation a label: following causation walks the
-  thread hop by hop, filtering on correlation returns it whole.
+* **`correlation_id`** — the execution-thread key (established in `ch02_correlation_id`),
+  minted at the first request and copied to every event of the execution; it replaces the
+  synchronous call stack. Causation is a link, correlation a label: following causation walks
+  the thread hop by hop, filtering on correlation returns it whole.
+* **`partitionkey`** — the CloudEvents extension a producer sets to its aggregate's id (trip,
+  itinerary, payment) where within-aggregate order matters. Adapters that can order honour it
+  (Kafka as the record key, Pub/Sub as the ordering key); those that cannot ignore it. Ordering
+  is therefore an adapter capability outside the `EventBroker` contract, and
+  `05_data_consistency_and_state_model.adoc` states what holds with and without it.
 * **`context_path`** (from ch 7.6) — hierarchical context scoping, e.g.
   `/trips/{correlation_id}/paris/hotel`.
-* **Order id** — a business fact, not a scoping mechanism: created and returned to the
-  customer only when an order comes into existence (the booking chapters, ch 7–8), expected
-  as a CloudEvents extension attribute; the minting owner and its exact relationship to
-  `correlation_id` are decided at that chapter's planning. Scoping stays correlation's job —
-  sub-workflows may run before any order exists or never concern one. There is still no
-  order aggregate or Order Service: the trip *is* the correlated event stream, read through
-  semantic views (ch 6) and workflow state (ch 8).
+* The trip has no order id and no order aggregate: the trip *is* the correlated event stream,
+  read through semantic views (ch 6) and the booking workflow's state (ch 8). A customer-facing
+  reference, if `TripConfirmed` needs one, is a payload field decided at ch 8 planning.
 
 === Realism rule: what is an agent and what is not
 
@@ -293,12 +359,12 @@ The researched industry realism stays in the book as prose, not code:
 
 == Component Inventory
 
-Twenty-three components in total: 13 agents, 6 simulators, and 4 deterministic components. Every
-agent is one the outline itself names.
+Twenty-three components in total: 12 agents, 6 simulators, and 5 deterministic components.
+Every agent is one the outline itself names.
 
 === LLM agents
 
-Traits are the ch 2.1 vocabulary; the Type column names each agent's dominant trait. "py" = plain Python against the Ports, calling models through
+Traits are the `ch02_defining_the_actors` vocabulary; the Type column names each agent's dominant trait. "py" = plain Python against the Ports, calling models through
 LiteLLM (see Ports below). Chapter = where the component first appears in the book.
 
 [cols="2,1,1,1,3", options="header"]
@@ -306,24 +372,34 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
 | Agent | Type | Framework | Chapter | Responsibility
 
 | Booking Agent
-| Tool-Using
+| Tool-Using; Durable from 8
 | py
 | 3
-| Customer-facing intake: accepts trip requests (UI/chat), publishes `TripRequested`, relays
-  proposals, confirmations, and questions back to the customer; follows up proactively
-  when a relayed proposal goes unanswered (ch 8). Debuts when this language
-  work arrives; in ch 1 the demo script publishes `TripRequested` directly as the front
-  door's stand-in.
+| The booking context's agent, event-only: it has no HTTP surface. Intake: consumes
+  `communication.ChatMessageReceived` and `TripRequestReceived`, publishes `TripRequested`,
+  and relays proposals, confirmations, and questions back to the customer through the Front
+  Desk shell; follows up proactively when a relayed proposal goes unanswered (ch 8). From ch 8
+  it owns the trip's booking workflow: macro-state in the `WorkflowStateStore`,
+  `ApprovalRequested` through the outbox, the 48-hour timeout through the `EventScheduler`,
+  the deterministic booking and payment steps as intent-named aggregate operations
+  (idempotent from ch 10), `TripConfirmed`, and in ch 9 the compensation step and
+  `TripCancelled`, holding `negotiation_turn_count`. Should it grow too far, a second
+  booking-context agent takes the workflow (decided 2026-09-02; not needed yet). In ch 1 the
+  demo script publishes `TripRequested` directly as the front door's stand-in.
 
 | Itinerary Planner Agent
 | Tool-Using
 | ADK (A2A edge)
-| 1 (plain), replaced 3
+| 1 (plain), replaced 3, extended or replaced 7
 | Turns a request into a proposed itinerary: queries availability on the Airline Booking
   System sim, reasons over fare conditions and preferences, publishes `ItineraryProposed`.
   Developed and debugged through ADK's `adk web` dev UI (ch 3). The ch 3 ADK Planner is a
   new component on the same subscription; the ch 1 minimal Planner (a plain loop over
-  LiteLLM) stays in the tree.
+  LiteLLM) stays in the tree. From ch 7 it orchestrates the multi-item trip by publishing
+  events, never commands: scatter-gather via `FlightSearchRequested` and
+  `HotelSearchRequested`, the barrier through the `BarrierStore`, `ItineraryAssembled` when
+  the offers are in, and the context paths of its sub-workflows; it is the only consumer of
+  `TripRequested` and decides for itself whether a request is simple or multi-item.
 
 | Destination Research Agent
 | Tool-Using
@@ -340,16 +416,6 @@ LiteLLM (see Ports below). Chapter = where the component first appears in the bo
   Consumes bursts in time-windowed micro-batches assessed in one bulk call (semantic
   windowing), and on republish strips raw email down to the fields downstream agents need
   (payload mediation).
-
-| Trip Coordinator Agent
-| Tool-Using
-| py
-| 7
-| Orchestrates multi-item trips by publishing events, never commands: scatter-gather via
-  `FlightSearchRequested`/`HotelSearchRequested`, gathers through the `BarrierStore`, publishes
-  `ItineraryAssembled`. From ch 8 it owns the durable trip workflow — macro-state in the
-  `WorkflowStateStore`, the outbox, scheduled timeouts — and executes the deterministic booking
-  and payment steps (idempotent from ch 10).
 
 | Airline Agent
 | Tool-Using
@@ -437,6 +503,12 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
   (e.g., flights over $1000 need approval), publishes `PolicyViolationDetected`; in ch 13 it is
   the deterministic security gate that stops any injected prompt from talking its way through.
 
+| Payment step
+| 10
+| The payment context's deterministic consumer: charges the Payment sim under an idempotency
+  key on `booking.PaymentRequested`, guarded by the `IdempotencyStore`, and publishes
+  `PaymentAuthorized`.
+
 | Egress DLP Interceptor
 | 13
 | Aspect-oriented scrubber on outbound topics; strips PII before events leave for the external
@@ -450,10 +522,11 @@ Agent with a LangGraph-built replacement (both frameworks already taught by then
 
 | Web/Chat UI shell ("Front Desk")
 | 3, approval console 8
-| One small FastAPI app, arriving with the Booking Agent: chat intake (publishes to the
-  Booking Agent) and a live event-stream view; the ch 8 manager approval console. Out of
-  the book's page budget by design. Chapter 1 needs no UI — the demo's labeled log stream
-  is the whole show.
+| One small FastAPI app, arriving with the Booking Agent, and the Customer Communication
+  context's edge for chat in both directions: it publishes `communication.ChatMessageReceived`
+  for each customer message and `communication.CustomerNotified` for each message it delivers,
+  and shows a live event-stream view; the ch 8 manager approval console. Out of the book's page
+  budget by design. Chapter 1 needs no UI — the demo's labeled log stream is the whole show.
 |===
 
 === External vendor simulators (shipped, seeded, deterministic)
@@ -515,7 +588,7 @@ refresh; an adapter whose backend has no native patterns emulates the promise fr
 event-type→topic registry; on GCP (ch 15) the mechanism moves into infrastructure — an
 Eventarc Advanced enrollment feeds a pipeline that pushes to the consumer's ingestion
 endpoint, so the consumer does not subscribe at all. Consumers therefore come in both
-invocation models the container supports (ch 2.4): a pull loop, or a push endpoint the
+invocation models the container supports (`ch02_agent_container`): a pull loop, or a push endpoint the
 infrastructure delivers into. The audit consumer is the standing beneficiary: it sees every
 event, including types added chapters later, with no code change.
 

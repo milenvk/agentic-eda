@@ -3,7 +3,7 @@
 The booking workflow the chapter watched fail, rebuilt decoupled behind the
 `EventBroker` interface. A demo script publishes `booking.TripRequested`; the
 Itinerary Planner Agent (a plain asyncio loop that calls an LLM, no framework)
-consumes it on its own schedule and answers with `itinerary.ItineraryProposed`;
+consumes it on its own schedule and answers with `planning.ItineraryProposed`;
 the script receives the reply by subscribing. Nothing waits on anything.
 
 Components in play: Kafka (single KRaft container), the Itinerary Planner Agent
@@ -105,7 +105,7 @@ Observe in the watch terminal, in order:
    never depends on your hardware or choice of model (`demo-1` prints a
    heartbeat meanwhile).
 3. `itinerary-planner-1` prints a PUBLISHED card for
-   `itinerary.ItineraryProposed`; its `request_id` is the request's event id.
+   `planning.ItineraryProposed`; its `request_id` is the request's event id.
 4. `demo-1` receives that same reply as a RECEIVED card, matched by
    `request_id`, and prints a green ✔ SUCCESS.
 
