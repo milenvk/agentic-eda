@@ -37,7 +37,7 @@ the source of truth for that aggregate's state.
 CQRS does not mean the event log itself is separate from the command handler. It means the *model
 used to answer queries* is separate and derived.
 
-* **Write Model (Events):** Agents publish commands as events. These events carry the fact (e.g.,
+* **Write Model (Events):** Agents publish facts, never commands. These events carry the fact (e.g.,
   "customer requested a trip for 2 travelers"). Once published, an event is immutable. It does
   not express an opinion about whether the request is valid; the event is the record of the fact
   that it was requested.
