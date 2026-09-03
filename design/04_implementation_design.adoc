@@ -43,7 +43,7 @@ class EventBroker(Protocol):
 
 Structural subtyping: an adapter satisfies a port by method shape alone — no inheritance,
 and the adapter never imports the port. Agents type-hint against the Protocol; any object
-with the right methods qualifies (the Kafka adapter, the ch 2 `InMemoryBroker`, a test
+with the right methods qualifies (the Kafka adapter, the ch 3 `InMemoryBroker`, a test
 double). This is the ports-and-adapters dependency direction expressed in Python's own
 idiom: agents depend on the port, adapters depend on nothing from the agents' world.
 

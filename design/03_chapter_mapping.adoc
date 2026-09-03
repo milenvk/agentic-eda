@@ -37,7 +37,7 @@ carries the narrative.
 | Component
 | W1 hardening: the ch 1 round trip contracted and correlated
 | CloudEvents + Pydantic contract models, validating boundary at the container,
-  `correlationid` + `causationid` extension attributes, InMemoryBroker, first mock test
+  `correlationid` + `causationid` extension attributes
 | Agent traits, boundaries, single writer, agent container (pull/push), data contracts,
   correlation and causation, at-least-once floor
 
@@ -48,7 +48,8 @@ carries the narrative.
   Agent (event-only intake), Front Desk UI shell (the communication context's chat edge:
   `ChatMessageReceived`, `CustomerNotified`, live event view), Research Agent
   (LlamaIndex, MCP edge), Airline Booking System sim (the external booking system, REST),
-  support adapter and Support AaaS sim, `adk web` as the Planner's dev UI
+  support adapter and Support AaaS sim, `adk web` as the Planner's dev UI, `InMemoryBroker`,
+  first agent mock test
 | Universal integration, protocol vocabulary, edge prompting, zero-trust seed
 
 | 4
