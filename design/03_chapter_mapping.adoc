@@ -85,7 +85,8 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
 | 6
 | Component
 | S1 complete
-| Observer/Reflector Agent, `SemanticViewStore`, stateless hydration by `correlationid`
+| Observer/Reflector Agent, `SemanticViewStore` keyed by the trip id, stateless hydration by the
+  trip id through the context path (`correlationid` scoping the current thread only)
 | Event sourcing (NDC and ONE Order as the sidebar), Agentic CQRS, materialized semantic views,
   Tier 1+2 hydration, idempotent projections, staging across topics
 

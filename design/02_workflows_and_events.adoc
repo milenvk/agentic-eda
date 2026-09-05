@@ -291,8 +291,10 @@ check before the Payment sim is charged twice.
 === S1: Trip Memory and Context (supporting workflow)
 
 *Flow:* all W1 events reach the Observer/Reflector Agent, which projects `TripView` upserts into
-the `SemanticViewStore`; any waking agent hydrates by `correlationid` and `contextpath` (Tier 1
-+ Tier 2) instead of replaying history. Ch 5's A/B compares the summarizing and experiential
+the `SemanticViewStore`, keyed by the trip id; any waking agent hydrates by the trip id through
+the context path (`/trips/{trip_id}/...`, Tier 1 + Tier 2) instead of replaying history, with
+`correlationid` scoping the current thread only, since a second thread on the same trip mints
+its own. Ch 5's A/B compares the summarizing and experiential
 variants of the same Observer; ch 7 scopes views by `contextpath` (`/trips/{trip_id}/...`) so
 the Paris hotel work never sees Madrid's events, and files the experiential variant's lessons
 under the path where they were learned.

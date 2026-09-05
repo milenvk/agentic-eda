@@ -177,7 +177,8 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   handling is the trip's event stream read through the Observer's views, the compensation
   plan is the immutable payload of the Cleanup Agent's draft (superseded by a new draft if
   rejected), and the Cleanup Agent's working state is its private LangGraph checkpoint. Every
-  mutation of the trip is booking's fact, caused by the draft.
+  mutation of the trip is booking's fact, caused by the draft. The livelock guard beside
+  the map counts negotiation turns per correlation id.
 | Duty-of-Care Monitor, Cleanup Agent
 
 | Customer Support (generic)
