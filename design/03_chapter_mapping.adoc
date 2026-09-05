@@ -146,15 +146,19 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
 | Layer
 | cost governance across W1/W5 traffic
 | Token budget guard, economic circuit breaker, LiteLLM fallback chain (cloud to Ollama) and
-  rate-limit configuration as predictive throttling, model fallback callback
-| Token backpressure, economic circuit breaking, model fallbacks
+  rate-limit configuration as predictive throttling, model fallback callback, supplier circuit
+  breaker on the shared supplier client (opened by the Airline Reservation System sim's
+  slow-vendor mode, its open state an observation to the agent)
+| Token backpressure, economic circuit breaking, model fallbacks, per-dependency circuit
+  breaking with the open state as an observation
 
 | 12
 | Layer
 | all workflows under test
 | Offline semantic test harness over ch 7's recording (the replay module into the
   `InMemoryBroker`), LLM mock fixtures (pinning the Paris lesson's wording), LLM-as-judge
-  scripts, shadow consumer
+  scripts, shadow consumer (a V2 Semantic Router classifier beside the live one, routed to the
+  evaluation sink)
 | Deterministic testing of non-deterministic agents, semantic regression, shadow processing
 
 | 13

@@ -774,7 +774,8 @@ reservations on it.
 | REST flight supplier on the Amadeus self-service shape (NDC in plain REST): offer search
   with seeded prices, fare conditions (change and refund penalties), and a validity; confirm an
   offer's price; create an order as a time-limited hold; retrieve; cancel; scriptable
-  slow-vendor mode. This *is* ch 3's external reservation system.
+  slow-vendor mode (the trigger of ch 11's supplier breaker). This *is* ch 3's external
+  reservation system.
 
 | Hotel Reservation System sim
 | 7
@@ -850,9 +851,20 @@ abstracting an abstraction. Concretely:
   throttling against provider limits are LiteLLM configuration (the fallback chain and the
   per-deployment token and request rate limits); the *economic circuit breaker* (token budget
   per `correlationid`, spanning agents and frameworks) remains the book's own pattern on the
-  `WorkflowStateStore`, because no gateway can know workflow identity across a polyglot swarm.
+  `WorkflowStateStore`, because no gateway can know workflow identity across a polyglot swarm;
+  the supplier circuit breaker (below) is the book's own code as well, since it guards a
+  dependency outside LiteLLM's reach.
 * **Chapter 15**'s swap to Vertex AI / Bedrock becomes a one-line model-string change, a
   cleaner zero-lock-in proof than a custom adapter.
+
+**Supplier clients carry a circuit breaker.** Every call from an agent's tool to a supplier sim
+goes through a shared client in `lib/travel_agency` with a per-dependency circuit breaker:
+repeated timeouts open it, calls fail fast while it is open, and a trial call closes it again.
+An open breaker is not an exception raised to the container but an observation returned by the
+tool to the reasoning loop ("supplier unavailable"), so the agent proposes alternatives instead
+of waiting on a timeout. Ch 11 demonstrates it on the Airline Reservation System sim's
+slow-vendor mode; the model's counterpart is LiteLLM's fallback chain, so an agent's two failing
+dependencies have two breakers.
 
 Infrastructure: Kafka (KRaft, single container) + Kafka Connect HTTP sink for push, PostgreSQL,
 MinIO, Redis (alternative broker adapter), Ollama, LiteLLM (SDK in-process), APScheduler relay

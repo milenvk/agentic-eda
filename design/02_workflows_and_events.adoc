@@ -324,10 +324,14 @@ Not workflows but behaviors applied across W1 to W6:
   and `BudgetExceeded` throttling are the book's own pattern; predictive throttling against
   provider limits and the fallback chain (cloud, then local Ollama) are LiteLLM configuration,
   and a LiteLLM callback publishes `ModelFallbackActivated` so the fallback is a visible fact,
-  not a silent retry.
+  not a silent retry; the supplier circuit breaker on the shared supplier client, demonstrated
+  on the Airline Reservation System sim's slow-vendor mode, returns its open state to the agent
+  as a "supplier unavailable" observation for the reasoning loop to adapt to, so an agent's two
+  failing dependencies have two breakers.
 * **Testing (ch 12):** the whole system exercised offline: `InMemoryBroker`, deterministic LLM
   fixtures (which also pin the Paris lesson's wording), LLM-as-judge regression scoring, a
-  shadow consumer, and ch 7's audit recording as the historical event file.
+  shadow consumer (a V2 Semantic Router classifier beside the live one, its classifications
+  routed to the evaluation sink), and ch 7's audit recording as the historical event file.
 * **Security (ch 13):** the `identitytoken` attribute verified at the container boundary and by
   the Guardrail Worker on sensitive topics; the Guardrail Worker's republish-or-quarantine
   (`EventQuarantined`); egress DLP scrubbing; the Policy Gate as the deterministic last line and
