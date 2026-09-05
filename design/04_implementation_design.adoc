@@ -1,13 +1,14 @@
-= Travel Agency Application — System Design: Implementation Design
+= Travel Agency Application, System Design: Implementation Design
 :toc:
 
 // Design documentation for the Travel Agency application built across the book. Companion
-// documents: 01_system_overview.adoc (components), 02_workflows_and_events.adoc
-// (workflows + events), 03_chapter_mapping.adoc (chapter mapping), 05_data_consistency_and_state_model.adoc
-// (consistency strategy). This document is the low-level authority: the exact port surfaces,
-// event envelope, naming, and repository conventions that every chapter's code obeys.
+// documents: 01_system_overview.adoc (components, domain map, identifiers),
+// 02_workflows_and_events.adoc (workflows + events), 03_chapter_mapping.adoc (chapter mapping),
+// 05_data_consistency_and_state_model.adoc (consistency strategy). This document is the
+// low-level authority: the exact port surfaces, event envelope, naming, topic mapping, consumer
+// rules, container mechanics, and repository conventions that every chapter's code obeys.
 
-== The `EventBroker` Surface — Final Form
+== The `EventBroker` Surface, Final Form
 
 One tree means one kernel, so the public surface is designed complete up front and is
 **frozen for the whole book**: the book's listings and the repository never drift. Adapter
@@ -36,12 +37,15 @@ class EventBroker(Protocol):
 * `publish` returns the event's id, whether passed or minted.
 * `handler` is an async callable receiving an `Event`.
 * Deferred capabilities carried by the frozen surface: `attributes` is exercised from ch 2
-  (CloudEvents), `mode="competing"` and the `"*"` subscribe-all sentinel from ch 4. Ch 1
-  code uses none of them.
+  (CloudEvents, `correlationid`, `causationid`, and `partitionkey`), `mode="competing"` and the
+  `"*"` subscribe-all sentinel from ch 4. Ch 1 code uses none of them.
+* The port has no nack, no defer, and no key parameter. Returning from a handler acknowledges;
+  raising redelivers under at-least-once; the key travels in `attributes`. Everything left unsaid by
+  the port is the adapter's or the container's business (below).
 
 === Ports are `typing.Protocol` (PEP 544)
 
-Structural subtyping: an adapter satisfies a port by method shape alone — no inheritance,
+Structural subtyping: an adapter satisfies a port by method shape alone, with no inheritance,
 and the adapter never imports the port. Agents type-hint against the Protocol; any object
 with the right methods qualifies (the Kafka adapter, the ch 3 `InMemoryBroker`, a test
 double). This is the ports-and-adapters dependency direction expressed in Python's own
@@ -54,8 +58,8 @@ place any component names an implementation. Entry points call it; none of them 
 reads a broker address, or closes a connection. A second broker, or a test double, is a
 change to that one function.
 
-It yields an `EventBrokerConnection`: the frozen `EventBroker` surface plus `run()`, the
-delivery loop a process hands control to after subscribing. The split is the dependency
+It yields an `EventBrokerConnection`: the frozen `EventBroker` surface plus `run()`, the delivery
+loop; a process hands control to it after subscribing. The split is the dependency
 rule made visible. Business logic type-hints `EventBroker`, because publishing and
 subscribing is all it ever does; only the entry point needs the loop. Lifecycle stays off
 both surfaces, because the factory owns it.
@@ -65,25 +69,37 @@ both surfaces, because the factory owns it.
 `publish` completes whatever the caller omits, so every event is spec-complete no matter how
 little is passed:
 
-* `id` — a UUID. Ids are globally unique across the entire solution by architectural
+* `id`: a UUID. Ids are globally unique across the entire solution by architectural
   decision (see Identifiers in `01_system_overview.adoc`), deliberately stricter than the
   CloudEvents per-`source` minimum.
-* `time` — now, UTC, RFC 3339, unless supplied in `attributes`.
-* `datacontenttype` — `application/json` unless supplied in `attributes`.
-* `specversion` — supplied by the wire codec, never by callers.
+* `time`: now, UTC, RFC 3339, unless supplied in `attributes`.
+* `datacontenttype`: `application/json` unless supplied in `attributes`.
+* `specversion`: supplied by the wire codec, never by callers.
+* `partitionkey` is never minted. The producer sets it, because only the producer knows the
+  aggregate; a key unique per event would be no order at all. From the ch 2 practical the
+  outbound validation at the container boundary rejects an event without one; ch 1's events
+  carry none and are published with a null key.
 
 === `attributes` semantics
 
 `Event.attributes` holds every CloudEvents attribute that is not a root field: the optional
 standard attributes (`datacontenttype`, `subject`, `dataschema`, `time`) and all extension
-attributes (`correlationid` and `causationid` from ch 2, `contextpath` from ch 7, and
-`partitionkey`, the aggregate id a producer sets where within-aggregate order matters, honoured
-by adapters that can order and ignored by the rest; see Ordering below). Root fields are
-exactly the required core attributes (`id`, `type`, `source`) plus `payload` as `data`.
+attributes. Root fields are exactly the required core attributes (`id`, `type`, `source`) plus
+`payload` as `data`. The extension attributes, in order of introduction:
+
+* `correlationid` (ch 2): the execution thread's label, minted at the first request and copied
+  to every event of the execution.
+* `causationid` (ch 2): the id of the event that directly caused this one.
+* `partitionkey` (the ch 2 practical): the standard CloudEvents partitioning extension, on
+  every event; the id of the event's aggregate or, where the context holds no aggregate, the
+  id of the trip concerned. On `booking.TripRequested` it is the event's own id. The adapter
+  maps it to whatever its broker orders by (Ordering, below).
+* `contextpath` (ch 7): hierarchical context scoping, `/trips/{trip_id}/paris/hotel`.
+* `identitytoken` (ch 13): the producer's signed identity (Producer Identity, below).
 
 == Wire Format
 
-CloudEvents 1.0 **structured JSON** from day one — the codec is written once, inside
+CloudEvents 1.0 **structured JSON** from day one: the codec is written once, inside
 the adapter, and components never see bytes. Encoding: root fields in their core positions,
 `payload` as `data`, each `attributes` entry in its spec position (standard names at the top
 level under their standard keys; everything else as an extension attribute). The codec
@@ -93,55 +109,68 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
 == Event Type Naming
 
 * An event type is `<domain>.<Name>`, where `<domain>` is the bounded context (the catalog
-  groups in `02_workflows_and_events.adoc`: booking, planning, disruption, policy,
-  payment, support, communication, destination, and the technical namespace system). There is no organization segment: the domain is
-  what a reader and a subscriber need, and a reverse-DNS prefix adds length without adding
-  meaning inside one system.
+  groups in `02_workflows_and_events.adoc`: `customer`, `planning`, `booking`, `policy`,
+  `servicing`, `support`, `destination`, and the technical namespace `system`). There is no
+  organization segment: the domain is what a reader and a subscriber need, and a reverse-DNS
+  prefix adds length without adding meaning inside one system.
 * Every type is declared exactly once, as a constant in
   `lib/travel_agency/event_types.py`, grown additively by later chapters. Components import
   the constant, never retype the string.
 * The producer is **never** part of the type. Its identity is carried by the CloudEvents
   `source` attribute; the Single Writer Principle assigns one owning context per type, a
   producer stands in that context, and a relay publishing for an owner (the `EventScheduler`,
-  the outbox relay) sets `source` to that owner. The book replaces producers behind stable
-  events (ch 3, ch 10), which producer-named types would break.
+  the outbox relay) sets `source` to that owner. The book replaces producers behind stable events
+  (ch 3, ch 10), and producer-named types would break that.
 * Quoting registers: code uses the full string; repository documentation (chapter READMEs,
-  design docs where disambiguation helps) quotes domain-qualified — `booking.TripRequested`;
+  design docs where disambiguation helps) quotes domain-qualified, `booking.TripRequested`;
   book prose uses the same domain-qualified form.
 
 == Topic Mapping
 
-`topic_for(event_type)` in the Kafka adapter — identity mapping today: the full type string
-is the topic name (Kafka permits dots). The function exists so that a different scheme is a
-one-place change and remains the adapter's business alone; agents never name topics.
+`topic_for(event_type)` in the Kafka adapter is the one place a topic is named; agents never
+name one. The mapping changes once in the book, and the port does not notice.
+
+* **Ch 1: identity.** The full type string is the topic name (Kafka permits dots), and the
+  record key is null. The function exists so that a different scheme is a one-place change
+  and remains the adapter's business alone.
+* **From the ch 2 practical: one topic per context.** `topic_for` returns the type's prefix, so
+  the `booking` topic carries every booking event, and likewise for the other six contexts and
+  for `system`. The type travels inside the event (CloudEvents `type`); a subscription by type
+  is filtered in the adapter, which subscribes to the context topic behind each subscribed
+  type, dispatches by type, and acknowledges events of other types without handing them to a
+  handler. The reason is the ordering contract: an ordering broker orders per key within one
+  topic, so two events of one aggregate on two topics are unordered whatever their key. One
+  topic per context is the first of the contract's three conditions
+  (`05_data_consistency_and_state_model.adoc`). The change is one function plus the dispatch,
+  a small demonstration of the adapter hiding the mapping, and the ch 2.1 sentence that the
+  prefix "carries no mechanism today" is true until this practical.
+* **Subscribe-all** is a regex subscription over the seven context topics and `system`; a
+  new event type never creates a topic, so the audit consumer sees it with no discovery
+  delay.
+* **Dead letters** (ch 10) go to one DLQ topic per context, `dlq.<context>`, with the record
+  key preserved, so a replay from the DLQ keeps per-key order.
 
 == Subscription Mechanics (Kafka adapter)
 
 * Consumer group id = the adapter's `client_name`. Distinct components therefore each
   receive every event (broadcast across components), while replicas sharing a `client_name`
-  compete within one group — the two `mode` semantics fall out of group identity.
+  compete within one group; the two `mode` semantics fall out of group identity.
 * Offsets are committed manually, **only after the handler returns**
   (`enable_auto_commit=False`). A consumer killed mid-handler never commits, so the event is
-  redelivered on restart — the ch 1 durability demonstration, and the at-least-once floor
+  redelivered on restart: the ch 1 durability demonstration, and the at-least-once floor
   the book teaches in `ch02_delivery_guarantees`.
-* **Ordering.** The adapter uses the `partitionkey` attribute, when present, as the Kafka
-  record key, so an aggregate's events land in one partition and arrive in order. Without it
-  the key is null and no order across an aggregate is promised. Ordering is an adapter
-  capability outside the `EventBroker` contract (the capability intersection in
-  `ch02_agent_container`); `05_data_consistency_and_state_model.adoc` states what holds with
-  and without it.
 * `event_broker(client_name, start=...)` chooses where a component reads from the first
   time it subscribes, and `start` has exactly two values.
 +
 --
-`"now"` (the default) delivers what is published from that moment onward. It is the one
-promise every broker can keep, so a component that says nothing about history behaves
-identically on Kafka, Eventarc and RabbitMQ.
+`"now"` (the default) delivers what is published from that moment onward. It is the one promise kept
+by every broker, so a component that says nothing about history behaves
+identically on Kafka, Pub/Sub, and RabbitMQ Streams.
 
-`"beginning"` asks for the history the broker still holds, which only a log-backed broker
-can serve. An adapter that cannot replay must raise rather than quietly starting from now:
-silently downgrading the one thing the caller was explicit about is the failure mode this
-option exists to prevent. "Beginning" means the start of the *retained* log, not the start
+`"beginning"` asks for the history still held by the broker, which only a log-backed broker can
+serve. An adapter that cannot replay must raise rather than quietly starting from now: silently
+downgrading the caller's one explicit request is the failure mode, and this option exists to prevent
+it. "Beginning" means the start of the *retained* log, not the start
 of time, and Kafka's `log.retention.hours` defaults to 168.
 
 The option is on the connection because a component is one consumer group, and Kafka fixes
@@ -158,75 +187,205 @@ from then on the component resumes from its own committed position.
   completes a round trip before act 2 kills anything, and a queue-backed adapter has no
   equivalent gap, since its queue exists from the moment of binding.
 
+=== Ordering: the contract and how the adapter keeps it
+
+The contract (ch 2.3, from the ch 2 practical on): events sharing a `partitionkey` are
+delivered in publish order, one at a time, to one consumer. It promises order per key, never
+partitions: a Kafka adapter keeps it with the record key, a Pub/Sub adapter with the ordering
+key, a Service Bus adapter with the session id. A broker that cannot order by key is
+unsupported or reached through a workaround (`05_data_consistency_and_state_model.adoc` lists
+both). The Kafka adapter keeps the promise as follows.
+
+* **Producer.** `partitionkey` becomes the record key, so an aggregate's events hash to one
+  partition. The producer is idempotent (`enable.idempotence=true`, which implies `acks=all`
+  and bounds the in-flight requests per connection so that a retry cannot reorder a
+  partition); `delivery.timeout.ms` bounds retries; `linger.ms` stays small, since the traffic
+  is sparse and latency matters more than batching.
+* **Consumer rule: one key at a time, commit in order.** A partition is assigned to exactly one
+  replica of a group, and the adapter handles a partition's records sequentially in offset
+  order, one handler at a time, committing after each handler returns. Per-key order, one at
+  a time, to one consumer follows from those two facts. The delivery loop keeps fetching while
+  a handler runs, so group membership never lapses during a long activation
+  (`max.poll.interval.ms` bounds the gap between fetches, not a handler's duration; heartbeats
+  run in the background); fetched records queue per partition in offset order and wait for the
+  handler. An activation therefore blocks its partition's queue, never the poll. Consumer
+  settings: `enable.auto.commit=false`; `auto.offset.reset` follows `start` (`latest` for
+  `"now"`, `earliest` for `"beginning"`); `max.poll.records` small, since records wait in
+  memory while a handler runs; session and heartbeat intervals at their defaults.
+* **The fence.** A replica mid-activation when the broker reassigns its partition (a rebalance)
+  can write after the new owner has moved on. A version check in the store is the fence: the
+  `WorkflowStateStore` rejects a write whose expected aggregate version is stale, and the
+  rejection returns to the handler as an error. One sentence in ch 8; never hit by the demos.
+* **Head-of-line blocking.** A partition serializes unrelated keys, so a handler behind per-key
+  order must be fast, and slow reasoning must sit where order is not needed. The design fits:
+  the Booking Agent's handlers on the booking topic are deterministic state changes; the
+  Planner and the Rental Car Agent treat trips independently and scale with partitions.
+* **Idempotency** stays the consumer's: deduplication by event id (the ch 6 projections, the
+  ch 10 `IdempotencyStore`), because the contract is at-least-once and a redelivery arrives
+  in order like any other event.
+
+*Production notes* (named in ch 4 and ch 15, not built):
+
+* **Key-level parallelism.** The contract promises order per key, not per partition, so an
+  adapter may run different keys of one partition concurrently with watermark commits
+  (Confluent's Parallel Consumer in key-ordering mode is the reference). The book's own adapter
+  stays sequential per partition with fast handlers.
+* **The partition count** is a deployment decision: it caps a component's useful replicas and
+  is expensive to change once keys have hashed into it.
+* **An inbox per aggregate** takes slow work off the ordered path: the handler stages the event
+  and acknowledges, and the slow activation runs from the staging store (the `InboxStore`
+  shape of ch 4).
+* **Share groups** (KIP-932, GA in Apache Kafka 4.2): many consumers per partition with
+  per-record acknowledgement, order only within a fetched batch, no per-key order; the
+  equivalent of Pub/Sub without ordering keys. They could back only a subscription mode that
+  explicitly gives up order, never a silent adapter choice, and the Python clients do not
+  support them for production. Not used; a sidebar candidate in ch 4 or ch 15.
+
+== The Agent Container
+
+The container wraps the port around one agent (`ch02_agent_container`). Its handler signature
+is the same under the pull loop and under a push endpoint, which is what makes the invocation
+model an adapter concern. The container owns four things.
+
+* **The validating boundary.** Inbound: the envelope's schema, the UUID `id`, the required
+  attributes, the payload's Pydantic contract, and from ch 13 the producer's identity; a
+  rejected event is logged and, from ch 10, dead-lettered, and never reaches the handler.
+  Outbound: the same contract on every publish, including the presence of `partitionkey`
+  (from the ch 2 practical).
+* **One key at a time.** The container handles the events of one key sequentially and
+  acknowledges each by returning; the adapter commits in order. Deferral to the next
+  activation is the default for anything that arrives while a handler runs.
+* **The activation inbox** (ch 7). An activation can run for minutes, and a relevant fact can
+  land meanwhile. Records for the key under activation, of a type declared interrupting by the
+  subscription, are not queued behind the handler: the container hands them to the running
+  loop as observations, checked between reasoning steps, and the loop revises its beliefs
+  rather than finishing on stale ones. Per-key ordering makes this safe, because only the
+  running activation can see that key's events; the interrupting events' offsets are
+  committed with the activation's when it returns. Which types interrupt which activations is
+  declared in the container's subscription configuration (`interrupting_types` per
+  subscription, next to the handler), never inferred by the model, and the port surface is
+  unchanged. An interrupting type arriving when no activation holds its key is handled as an
+  ordinary event in its own activation. The Planner declares `booking.TripChanged` as
+  interrupting for its planning activations; nothing else declares anything in the book.
+* **No defer, no nack.** The port offers neither, and the container adds neither. Staging an
+  event until its prerequisite arrives is the `InboxStore` (the Agentic Inbox, ch 4):
+  activation gated on the completeness of its context, verified deterministically before any
+  inference runs. Re-sequencing at ingress happens exactly once in the design, at one line,
+  inside the Semantic Router: the time window of ch 4's semantic windowing is sorted by the
+  sender's timestamp before the one bulk call, a deterministic fix that works only where a
+  trusted sequence exists. Bouncing an event through a consumer that runs a model would re-run
+  the model, and a nack fights per-key ordering everywhere (block the key, as queue brokers do,
+  or break the order, as a retry topic does), so NACK and retry is analyzed in the book and not
+  built.
+
+== Producer Identity (ch 13)
+
+An application-layer identity, portable across brokers:
+
+* Every component holds its own key pair, generated at build time; the public keys are a
+  committed registry in `lib/travel_agency/identity/` for the compose stack and a secret store
+  in ch 15.
+* On publish, the container adds `identitytoken`: a compact signed token (JWS) whose subject is
+  the component's `source` and whose claims bind the event's `id` and `type`, so a token copied
+  from one event does not verify on another.
+* On consumption, the validating boundary verifies the signature against the registry, checks
+  that the subject equals the event's `source`, that the bound id and type match, and that the
+  source is an allowed producer of the type (the catalog's owning context in
+  `02_workflows_and_events.adoc`). The Guardrail Worker performs the same check on sensitive
+  topics before republishing to the trusted topic. A failure is a rejection at the boundary,
+  logged and dead-lettered, and never a handler call.
+* A relay (`EventScheduler`, outbox relay) publishes an event built and signed by the owner at
+  scheduling or enqueue time, verbatim; the relay adds nothing and holds no key of its own.
+* Kafka principals with topic write ACLs in the compose stack are defense in depth and the
+  enforcement view of the single writer promised in ch 2.2: a component can write only its
+  own context's topic.
+* Before ch 13 the attribute is absent and the boundary does not require it; the attribute and
+  its verification arrive together. Ch 13's red-team script publishes a forged
+  `booking.TripConfirmed` and watches it rejected.
+
+== The Replay Script
+
+`python -m travel_agency.replay <recording.jsonl>` republishes a recording through the port.
+The recording format is the audit consumer's: one CloudEvent per line, structured JSON. The
+script preserves `id`, `type`, `source`, `attributes`, and `payload` exactly, so keys,
+correlation, causation, and identity survive; publishes in file order; paces publishes by the
+recorded `time` gaps unless `--fast`; and filters by `--correlationid` or `--type` when asked.
+It runs against a fresh stack, since idempotent consumers skip already-seen ids.
+Uses: the optional shortcut for ch 7's first Paris run (the recording ships in
+`chapters/ch07/data/`), and ch 12's offline harness, which replays the same recording into the
+`InMemoryBroker`. DLQ replay (ch 10) is broker behavior and a different script.
+
 == Repository Layout Conventions
 
-* `lib/travel_agency/` — the shared kernel (port, adapters, event-type constants, and the
-  `console` event renderer) every component installs; its own pyproject and tests.
-* `components/<book_component_name>/` — one self-contained directory per component, named
-  after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`):
-  sources, Dockerfile, pyproject with **pinned exact versions**, unit tests.
-  A component's image carries only its own dependencies — one framework's agent never drags
-  another's.
-* `chapters/chNN/` — the chapter's README (what is demonstrated, how to run it), its
-  `compose.yaml` entry point, its demo scripts, chapter-level tests, and `test.sh`. Shell
-  blocks in READMEs contain commands only — no `#` comments, because zsh, the macOS
-  default shell, rejects them when a block is pasted interactively. Each block is
-  introduced by a prose sentence saying what the commands do, and how long they take when
-  that is not obvious (first builds, model downloads). Documented compose commands always
-  carry `--build`: Compose never checks the source tree on a plain `up`, while BuildKit's
-  layer cache makes an unchanged rebuild cost seconds — so readers who edit code never
-  chase stale images. Chapter
-  walkthroughs lead the reader step by step and never leave them guessing, in a fixed
-  two-terminal model: the first terminal starts the stack and runs one persistent
-  `docker compose logs -f <services>` naming every demo participant (Compose attaches
-  containers created later, so the command never needs restarting); the second terminal
-  runs every action — demo triggers (`up -d --build --force-recreate <script-service>`),
-  kills, new consumers. Each act gives the second-terminal commands, then an "Observe"
-  that says which component prints what in the watch stream and what it proves. Demo scripts
-  narrate events, not model output: every publish and receive is printed as an event card
-  via `travel_agency.console` (id, type, source, attributes, payload), with long values
-  truncated — the full facts are on the audit record. The ch 1 minimal Planner holds
-  every reply until the 45-second mark (`PLANNING_SECONDS`; the chapter's stated
-  inference time), so the durability act's kill window does not depend on the reader's
-  model speed. Components get the same narration
-  for free: the Kafka adapter logs a card for every event published or received (the
-  `EventBroker` logger, INFO), so `docker compose logs <component>` shows that
-  component's side of the conversation.
-* `compose/` — one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
-  later `postgres.yaml`, `minio.yaml`, …). A chapter's `compose.yaml` uses `include:` to
-  pull exactly the needed fragments, so no chapter drags unused infrastructure.
-* `docker/` — shared Dockerfiles, named by what they build (`python.Dockerfile`: the
-  kernel-equipped Python image used by demo scripts and chapter-level tests).
-* `.env` at the repository root — one required file of reader configuration for the whole
+* `lib/travel_agency/`: the shared kernel (port, adapters, event-type constants, the container,
+  the identity registry, the replay module, and the `console` event renderer) every component
+  installs; its own pyproject and tests.
+* `components/<book_component_name>/`: one self-contained directory per component, named
+  after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`,
+  `airline_reservation_system_sim`): sources, Dockerfile, pyproject with **pinned exact
+  versions**, unit tests. A component's image carries only its own dependencies; one
+  framework's agent never drags another's.
+* `chapters/chNN/`: the chapter's README (what is demonstrated, how to run it), its
+  `compose.yaml` entry point, its demo scripts, its recordings under `data/`, chapter-level
+  tests, and `test.sh`. Shell blocks in READMEs contain commands only, no `#` comments,
+  because zsh, the macOS default shell, rejects them when a block is pasted interactively.
+  Each block is introduced by a prose sentence saying what the commands do, and how long they
+  take when that is not obvious (first builds, model downloads). Documented compose commands
+  always carry `--build`: Compose never checks the source tree on a plain `up`, while
+  BuildKit's layer cache makes an unchanged rebuild cost seconds, so readers who edit code
+  never chase stale images. Chapter walkthroughs lead the reader step by step and never leave
+  them guessing, in a fixed two-terminal model: the first terminal starts the stack and runs
+  one persistent `docker compose logs -f <services>` naming every demo participant (Compose
+  attaches containers created later, so the command never needs restarting); the second
+  terminal runs every action: demo triggers (`up -d --build --force-recreate
+  <script-service>`), kills, new consumers. Each act gives the second-terminal commands, then
+  an "Observe" that says which component prints what in the watch stream and what it proves.
+  Demo scripts narrate events, not model output: every publish and receive is printed as an
+  event card via `travel_agency.console` (id, type, source, attributes, payload), with long
+  values truncated; the full facts are on the audit record. The ch 1 minimal Planner holds
+  every reply until the 45-second mark (`PLANNING_SECONDS`; the chapter's stated inference
+  time), so the durability act's kill window does not depend on the reader's model speed.
+  Components get the same narration for free: the Kafka adapter logs a card for every event
+  published or received (the `EventBroker` logger, INFO), so `docker compose logs <component>`
+  shows that component's side of the conversation.
+* `compose/`: one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
+  later `postgres.yaml`, `minio.yaml`, and so on). A chapter's `compose.yaml` uses `include:`
+  to pull exactly the needed fragments, so no chapter drags unused infrastructure. Ch 4's
+  compose scales the Semantic Router to two replicas (`deploy.replicas: 2`), the book's
+  demonstration of competing consumption and per-key serialization.
+* `docker/`: shared Dockerfiles, named by what they build (`python.Dockerfile`: the
+  kernel-equipped Python image used by demo scripts, the replay script, and chapter-level
+  tests).
+* `.env` at the repository root: one required file of reader configuration for the whole
   book. Containers read it through `env_file`; compose-time switches (`OLLAMA_ENABLED`)
   reach the shared fragments through `include:` with `env_file`, since Compose interpolation
   only reads the project directory's own `.env`.
 * Tests: unit tests are colocated with each component and run inside that component's image
   (the only environment with its exact dependencies). The entry point is per chapter:
   `tests-<component>` services plus `tests-chapter` in the chapter's own
-  `compose.tests.yaml`, looped by the chapter's `test.sh` — the CI gate. Tests have a
+  `compose.tests.yaml`, looped by the chapter's `test.sh`, the CI gate. Tests have a
   separate compose file deliberately: they must run with no Kafka, no model, and no `.env`.
 
 == House Style
 
-* **asyncio throughout** — agents are async loops; handlers are async callables.
+* **asyncio throughout.** Agents are async loops; handlers are async callables.
 * **Everything runs in containers.** The reader needs git, Docker (with Compose), and an
-  internet connection; every reader command is `docker compose …` from the chapter
+  internet connection; every reader command is `docker compose ...` from the chapter
   directory, identical on Mac, Windows, and Linux. Host Python is a contributor
   convenience, never a requirement.
-* **Model access:** LiteLLM; the general-case model — what most agents use — is the
+* **Model access:** LiteLLM; the general-case model, used by most agents, is the
   `LLM_MODEL` string in `.env`, one of four reader choices: Gemini (default), OpenAI,
   Claude, or Ollama. Each choice is one block to uncomment, key included; the Ollama
   block needs no key and carries `OLLAMA_ENABLED=1`, which replicas-gates the service.
   The service pulls its own models on first start, and consumers attach with
-  `depends_on … required: false` — no compose flags and no manual pulls exist anywhere.
+  `depends_on ... required: false`; no compose flags and no manual pulls exist anywhere.
   The four blocks are curated defaults, not a boundary: no compose file or component
   enumerates providers (containers receive the whole `.env`, agents read only
-  `LLM_MODEL`), so any of LiteLLM's 100+ providers is two `.env` lines — its key
-  variable plus the model string — and providers LiteLLM does not know are still
-  reachable when OpenAI-compatible, via `openai/<model>` + `OPENAI_API_BASE`.
+  `LLM_MODEL`), so any of LiteLLM's 100+ providers is two `.env` lines, its key
+  variable plus the model string, and providers unknown to LiteLLM are still reachable when
+  OpenAI-compatible, via `openai/<model>` + `OPENAI_API_BASE`.
   Ollama placement: `compose/ollama.yaml` defines two flavors of one service off a
-  shared anchor — `ollama` (CPU, `OLLAMA_ENABLED=1`) and `ollama-gpu` (NVIDIA device
+  shared anchor, `ollama` (CPU, `OLLAMA_ENABLED=1`) and `ollama-gpu` (NVIDIA device
   reservation, `OLLAMA_GPU=1`), the GPU flavor network-aliased to `ollama` so the
   address is `http://ollama:11434` either way and switching flavors is one `.env`
   change, never a file copy. The reservation lives only on the gated service because it
@@ -238,11 +397,13 @@ from then on the component resumes from its own committed position.
   `extra_hosts: host.docker.internal:host-gateway` so that variant works on Linux too.
   Reader-facing setup for all three variants lives in one place: the root README's
   "Local models with Ollama" section; chapter READMEs and `.env.example` point there.
+  Predictive throttling against provider limits (ch 11) is LiteLLM's rate-limit
+  configuration, tokens and requests per minute per deployment, never hand-written.
 * **Chapter-mandated local models** (the ch 4 Semantic Router's embeddings, ch 13's
   Llama Guard, the ch 11 fallback chain) never read the general `LLM_MODEL`. The chapter
   pins the component's model in its own compose files and forces the service on by
-  including `compose/ollama.yaml` with an env-file list —
-  `env_file: [../../.env, ollama-required.env]` — where the committed second file
+  including `compose/ollama.yaml` with an env-file list,
+  `env_file: [../../.env, ollama-required.env]`, where the committed second file
   overrides `OLLAMA_ENABLED=1` and lists the `OLLAMA_MODELS` to pull. A chapter never
   edits reader configuration.
 * **Comments clarify.** All code is read and judged by humans; comments explain what the
