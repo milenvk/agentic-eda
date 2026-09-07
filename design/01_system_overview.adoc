@@ -825,8 +825,8 @@ the application's namespace, picking up newly created topics on the periodic met
 refresh; an adapter whose backend has no native patterns emulates the promise from its own
 event-type-to-topic registry; on GCP (ch 15) the mechanism moves into infrastructure, where an
 Eventarc Advanced enrollment feeds a pipeline that pushes to the consumer's ingestion
-endpoint, so the consumer does not subscribe at all. From the ch 2 practical the adapter maps
-one topic per context and filters each subscription by type, and agents see neither. Consumers
+endpoint, so the consumer does not subscribe at all. From ch 1 the adapter maps one topic per
+context and filters each subscription by type, and agents see neither. Consumers
 therefore come in both invocation models the container supports (`ch02_agent_container`): a
 pull loop, or a push endpoint the infrastructure delivers into. The audit consumer is the
 standing beneficiary: it sees every event, including types added chapters later, with no code

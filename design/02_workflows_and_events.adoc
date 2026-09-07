@@ -69,8 +69,8 @@ is private state.
 
 *Built in:* ch 1 (steps 1 and 2 decoupled as a round trip: the demo script publishes
 `TripRequested` and receives `ItineraryProposed`, matching on the request event's id; audit
-consumer), ch 2 (CloudEvents contracts, correlation and causation, `partitionkey`, one topic per
-context), ch 3 (planning against the Airline Reservation System sim; the Booking Agent and the
+consumer; one topic per context and per-key lanes in the adapter), ch 2 (CloudEvents contracts,
+correlation and causation, `partitionkey`), ch 3 (planning against the Airline Reservation System sim; the Booking Agent and the
 shell take over step 1 for chat), ch 4 (step 1 for email), ch 7 (steps 3, 4, and 6: the
 demonstration ends with the trip reserved, both holds in place), ch 8 (steps 5 and 8, the
 follow-up nudge), ch 10 (step 7, idempotent).
@@ -363,7 +363,7 @@ Conventions:
   the id of the trip concerned; on `booking.TripRequested` it is the event's own id. Ordering
   by key is part of the broker contract: events sharing a `partitionkey` are delivered in
   publish order, one at a time, to one consumer, and all of a context's events travel on one
-  topic (the adapter's mapping from the ch 2 practical). There are no sequence numbers and no
+  topic (the adapter's mapping from ch 1). There are no sequence numbers and no
   per-event ordinal: order is the transport's, per key, never the consumer's by content. The
   full identity conventions (UUID event ids, causation, the trip's id, the customer reference)
   are the Identifiers section of 01_system_overview.adoc.

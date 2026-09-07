@@ -84,7 +84,7 @@ topic nor a writer.
 
 The single writer principle does not require a single process. A component may have multiple
 replicas for scaling or availability, and the ordering contract serializes them: the broker
-assigns each key's lane (a Kafka partition, a Pub/Sub ordering key) to one replica of the group
+assigns each key's lane (the Kafka partition holding it, a Pub/Sub ordering key) to one replica of the group
 at a time, so at any moment exactly one replica handles a given trip, and it handles that trip's
 events one at a time, in order. No lock and no coordination protocol is needed.
 
@@ -248,18 +248,21 @@ Three conditions make the promise hold, each stated where it lives:
 
 1. **All of an aggregate's events share a topic.** Ordering brokers order per key within one
    topic, so two events of one aggregate on two topics are unordered whatever their key. The
-   adapter therefore maps one topic per context from the ch 2 practical, with the type inside
-   the event and subscription by type filtered in the adapter (`04_implementation_design.adoc`).
-2. **The container consumes one key at a time and commits in order** (the consumer rule in
+   adapter therefore maps one topic per context from ch 1, with the type inside the event and
+   subscription by type filtered in the adapter (`04_implementation_design.adoc`).
+2. **The adapter handles one key at a time and commits by watermark**: per-key lanes, with
+   keys concurrent and the commit trailing the slowest (the consumer rule in
    `04_implementation_design.adoc`).
 3. **A version check in the store fences a stale replica** (Multiple Replicas, above).
 
-Two mechanisms build the lanes:
+Two mechanisms build the lanes, and who builds them differs:
 
 **Partitions (Kafka, Redpanda, Azure Event Hubs, RabbitMQ Streams):** the adapter uses
 `partitionkey` as the record key, so all events for a given aggregate hash into one of a fixed
 number of physical logs. The broker delivers a partition in order and assigns the whole partition
-to one replica of a group, ordering unrelated keys along with related ones.
+to one replica of a group, ordering unrelated keys along with related ones; the adapter then
+builds the per-key lanes inside the partition itself, so strangers sharing a partition do not
+wait for each other (`04_implementation_design.adoc`, the consumer rule).
 
 **Ordering keys (Google Pub/Sub with ordering enabled, Azure Service Bus sessions, SQS FIFO
 message groups):** the adapter uses `partitionkey` as the ordering key, the session id, or the
@@ -269,9 +272,7 @@ the previous one is acknowledged.
 Both solve the reserve-and-cancel race the same way: `booking.FlightReserved` and
 `booking.FlightReservationCancelled` travel on the booking topic with the trip's id as key,
 arrive in order, and reach one replica. Both need the one-topic condition, since lanes are
-scoped to a topic. A partition serializes strangers, so handlers behind per-key order stay fast
-and slow reasoning sits where order is not needed (`04_implementation_design.adoc`,
-head-of-line blocking).
+scoped to a topic. On either, a slow activation holds up only its own key.
 
 === Supported Brokers
 

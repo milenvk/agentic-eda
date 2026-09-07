@@ -24,6 +24,11 @@ class Event:
 
 EventHandler = Callable[[Event], Awaitable[None]]
 
+# The CloudEvents partitioning extension: the attribute an adapter orders by. Events
+# sharing its value are delivered in publish order, one at a time, to one consumer.
+# Producers set it, adapters read it, and neither spells the name twice.
+PARTITION_KEY = "partitionkey"
+
 
 class EventBroker(Protocol):
     """What a component may do: state a fact, and react to a kind of fact."""

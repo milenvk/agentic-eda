@@ -38,10 +38,13 @@ class EventBroker(Protocol):
 * `handler` is an async callable receiving an `Event`.
 * Deferred capabilities carried by the frozen surface: `attributes` is exercised from ch 2
   (CloudEvents, `correlationid`, `causationid`, and `partitionkey`), `mode="competing"` and the
-  `"*"` subscribe-all sentinel from ch 4. Ch 1 code uses none of them.
+  `"*"` subscribe-all sentinel from ch 4. Ch 1 code uses none of them, and the adapter
+  underneath is already the production-shaped one (one topic per context, per-key lanes):
+  ch 1 prints none of its internals, so nothing in the chapter changes when they are taught.
 * The port has no nack, no defer, and no key parameter. Returning from a handler acknowledges;
-  raising redelivers under at-least-once; the key travels in `attributes`. Everything left unsaid by
-  the port is the adapter's or the container's business (below).
+  raising redelivers under at-least-once; the key travels in `attributes`, under the name the
+  port module states once as `PARTITION_KEY`, so producers and adapters never spell it twice.
+  Everything left unsaid by the port is the adapter's or the container's business (below).
 
 === Ports are `typing.Protocol` (PEP 544)
 
@@ -128,22 +131,19 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
 == Topic Mapping
 
 `topic_for(event_type)` in the Kafka adapter is the one place a topic is named; agents never
-name one. The mapping changes once in the book, and the port does not notice.
+name one. The mapping is the same from ch 1 to the end of the book, and the port never sees it.
 
-* **Ch 1: identity.** The full type string is the topic name (Kafka permits dots), and the
-  record key is null. The function exists so that a different scheme is a one-place change
-  and remains the adapter's business alone.
-* **From the ch 2 practical: one topic per context.** `topic_for` returns the type's prefix, so
-  the `booking` topic carries every booking event, and likewise for the other six contexts and
-  for `system`. The type travels inside the event (CloudEvents `type`); a subscription by type
-  is filtered in the adapter, which subscribes to the context topic behind each subscribed
-  type, dispatches by type, and acknowledges events of other types without handing them to a
-  handler. The reason is the ordering contract: an ordering broker orders per key within one
-  topic, so two events of one aggregate on two topics are unordered whatever their key. One
-  topic per context is the first of the contract's three conditions
-  (`05_data_consistency_and_state_model.adoc`). The change is one function plus the dispatch,
-  a small demonstration of the adapter hiding the mapping, and the ch 2.1 sentence that the
-  prefix "carries no mechanism today" is true until this practical.
+* **One topic per context.** `topic_for` returns the type's prefix, so the `booking` topic
+  carries every booking event, and likewise for the other six contexts and for `system`. The
+  type travels inside the event (CloudEvents `type`); a subscription by type is filtered in
+  the adapter, which subscribes to the context topic behind each subscribed type, dispatches
+  by type, and acknowledges events of other types without handing them to a handler. The
+  reason is the ordering contract: an ordering broker orders per key within one topic, so two
+  events of one aggregate on two topics are unordered whatever their key. One topic per
+  context is the first of the contract's three conditions
+  (`05_data_consistency_and_state_model.adoc`). Ch 1 shows the mapping in one listing and
+  says why in one sentence; the record key is null until the ch 2 practical introduces
+  `partitionkey`.
 * **Subscribe-all** is a regex subscription over the seven context topics and `system`; a
   new event type never creates a topic, so the audit consumer sees it with no discovery
   delay.
@@ -156,9 +156,10 @@ name one. The mapping changes once in the book, and the port does not notice.
   receive every event (broadcast across components), while replicas sharing a `client_name`
   compete within one group; the two `mode` semantics fall out of group identity.
 * Offsets are committed manually, **only after the handler returns**
-  (`enable_auto_commit=False`). A consumer killed mid-handler never commits, so the event is
-  redelivered on restart: the ch 1 durability demonstration, and the at-least-once floor
-  the book teaches in `ch02_delivery_guarantees`.
+  (`enable_auto_commit=False`), and only up to the watermark (the consumer rule, below). A
+  consumer killed mid-handler never commits, so the event is redelivered on restart: the ch 1
+  durability demonstration, and the at-least-once floor the book teaches in
+  `ch02_delivery_guarantees`.
 * `event_broker(client_name, start=...)` chooses where a component reads from the first
   time it subscribes, and `start` has exactly two values.
 +
@@ -201,40 +202,46 @@ both). The Kafka adapter keeps the promise as follows.
   and bounds the in-flight requests per connection so that a retry cannot reorder a
   partition); `delivery.timeout.ms` bounds retries; `linger.ms` stays small, since the traffic
   is sparse and latency matters more than batching.
-* **Consumer rule: one key at a time, commit in order.** A partition is assigned to exactly one
-  replica of a group, and the adapter handles a partition's records sequentially in offset
-  order, one handler at a time, committing after each handler returns. Per-key order, one at
-  a time, to one consumer follows from those two facts. The delivery loop keeps fetching while
-  a handler runs, so group membership never lapses during a long activation
-  (`max.poll.interval.ms` bounds the gap between fetches, not a handler's duration; heartbeats
-  run in the background); fetched records queue per partition in offset order and wait for the
-  handler. An activation therefore blocks its partition's queue, never the poll. Consumer
-  settings: `enable.auto.commit=false`; `auto.offset.reset` follows `start` (`latest` for
-  `"now"`, `earliest` for `"beginning"`); `max.poll.records` small, since records wait in
-  memory while a handler runs; session and heartbeat intervals at their defaults.
+* **Consumer rule: lanes.** A partition is assigned to exactly one replica of a group, and
+  the adapter runs the partition's records in per-key lanes (`lib/travel_agency/lanes.py`,
+  taught in ch 4): one queue per record key drained by one task, so events sharing a key are
+  handled one at a time in offset order, and keys are handled concurrently. A record with no
+  key gets a lane of its own. Per-key order, one at a time, to one consumer follows from those
+  two facts. Every turn of the delivery loop does three things, and none waits for another:
+  fetch a batch, hand each record to its lane, commit what has finished. The commit is the
+  watermark, per partition: the first offset still in flight, or one past the last fetched
+  when none is, so a record is confirmed only once its handlers have returned and everything
+  before it is confirmed too. After a crash everything from the watermark on comes back,
+  finished or not, which is the at-least-once floor. `max_in_flight` (64 by default, on the
+  adapter's constructor) caps the records handled at once across all keys: at the cap the
+  loop pauses its partitions and keeps polling, so group membership never lapses during a
+  long activation, and resumes them when a lane frees. On revocation the listener commits
+  the watermark for the partitions being taken away and forgets them; a lane still running
+  for one of them finishes unheard, and the store's version check (the fence, below) covers
+  its write. `Lanes` and `Watermark` are broker-neutral: the Redis Streams adapter (ch 15)
+  reuses them, and an adapter over a broker that serializes per key itself (Pub/Sub ordering
+  keys, SQS FIFO groups, Service Bus sessions) needs neither. Consumer settings:
+  `enable.auto.commit=false`; `auto.offset.reset` follows `start` (`latest` for `"now"`,
+  `earliest` for `"beginning"`); session, heartbeat, and poll intervals at their defaults.
 * **The fence.** A replica mid-activation when the broker reassigns its partition (a rebalance)
   can write after the new owner has moved on. A version check in the store is the fence: the
   `WorkflowStateStore` rejects a write whose expected aggregate version is stale, and the
   rejection returns to the handler as an error. One sentence in ch 8; never hit by the demos.
-* **Head-of-line blocking.** A partition serializes unrelated keys, so a handler behind per-key
-  order must be fast, and slow reasoning must sit where order is not needed. The design fits:
-  the Booking Agent's handlers on the booking topic are deterministic state changes; the
-  Planner and the Rental Car Agent treat trips independently and scale with partitions.
+* **Head-of-line blocking** is per key only. A slow activation holds up the events behind it
+  on its own key and nothing else; the partition count caps a component's replicas, not the
+  activations one replica runs at once. A slow lane does hold the watermark back, so a crash
+  replays the faster lanes' finished work along with it, and idempotency absorbs that.
 * **Idempotency** stays the consumer's: deduplication by event id (the ch 6 projections, the
   ch 10 `IdempotencyStore`), because the contract is at-least-once and a redelivery arrives
   in order like any other event.
 
 *Production notes* (named in ch 4 and ch 15, not built):
 
-* **Key-level parallelism.** The contract promises order per key, not per partition, so an
-  adapter may run different keys of one partition concurrently with watermark commits
-  (Confluent's Parallel Consumer in key-ordering mode is the reference). The book's own adapter
-  stays sequential per partition with fast handlers.
+* **Confluent's Parallel Consumer** in key-ordering mode is the same lanes for Java, with one
+  refinement the book's adapter does without: it records the offsets finished beyond the
+  watermark in the commit's metadata, so a restart skips them instead of replaying them.
 * **The partition count** is a deployment decision: it caps a component's useful replicas and
   is expensive to change once keys have hashed into it.
-* **An inbox per aggregate** takes slow work off the ordered path: the handler stages the event
-  and acknowledges, and the slow activation runs from the staging store (the `InboxStore`
-  shape of ch 4).
 * **Share groups** (KIP-932, GA in Apache Kafka 4.2): many consumers per partition with
   per-record acknowledgement, order only within a fetched batch, no per-key order; the
   equivalent of Pub/Sub without ordering keys. They could back only a subscription mode that
@@ -253,8 +260,9 @@ model an adapter concern. The container owns four things.
   Outbound: the same contract on every publish, including the presence of `partitionkey`
   (from the ch 2 practical).
 * **One key at a time.** The container handles the events of one key sequentially and
-  acknowledges each by returning; the adapter commits in order. Deferral to the next
-  activation is the default for anything that arrives while a handler runs.
+  acknowledges each by returning; the adapter runs keys concurrently in lanes and commits by
+  watermark. Deferral to the next activation is the default for anything that arrives on the
+  key while a handler runs.
 * **The activation inbox** (ch 7). An activation can run for minutes, and a relevant fact can
   land meanwhile. Records for the key under activation, of a type declared interrupting by the
   subscription, are not queued behind the handler: the container hands them to the running

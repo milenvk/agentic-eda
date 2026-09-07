@@ -35,8 +35,8 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
 | Workflow
 | W1 slice 1: the `booking.TripRequested` to `planning.ItineraryProposed` round trip, decoupled
 | Demo script as front-door producer, minimal Planner (plain py over LiteLLM), `EventBroker`
-  port, Kafka adapter with identity topic mapping and a null record key, audit consumer, first
-  compose file
+  port, Kafka adapter (one topic per context, per-key lanes with watermark commits, a null
+  record key until ch 2), audit consumer, first compose file
 | Decoupling, durability, pub/sub, reply by subscription (causation by request id), second
   consumer at zero producer cost
 
@@ -45,7 +45,7 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
 | W1 hardening: the ch 1 round trip contracted, correlated, and keyed
 | CloudEvents + Pydantic contract models, the validating boundary at the container (inbound and
   outbound), `correlationid`, `causationid`, and `partitionkey` extension attributes, the
-  adapter's mapping switched to one topic per context with type dispatch inside the adapter
+  `partitionkey` becoming the adapter's record key
 | Agent traits, the domain map (seven contexts and the platform beside it), the glossary's two
   meanings of "trip", "request", and "confirmation", single writer, agent container, data
   contracts, correlation and causation, at-least-once floor, ordering by key in the contract
@@ -69,9 +69,13 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
 | Email replay script + seeded dataset (`customer.EmailReceived`), Semantic Router at two
   replicas (the three `customer` recognition events carrying the conversation id; the time
   window sorted by sender timestamp), Token Defense Filter, `InboxStore` (the Agentic Inbox
-  staging an early vendor update)
+  staging an early vendor update), the lanes demonstration (a burst of trip requests into one
+  Planner process, every inference in flight, order kept per trip, a kill mid-burst replayed
+  from the watermark)
 | Reflex agents, semantic routing, semantic windowing, filters and payload mediation, broadcast
-  vs competing consumers with per-key serialization, out-of-sequence handling (two patterns
+  vs competing consumers with per-key serialization, concurrency inside the consumer (per-key
+  lanes, the commit watermark, the in-flight cap; lanes built by the client on Kafka and
+  provided by the broker on Pub/Sub, SQS FIFO, and Service Bus), out-of-sequence handling (two patterns
   built, the Agentic Inbox as activation gated on completeness and the ingress re-sequencer at
   one line; NACK and retry analyzed, not built), subscribe-all, pull vs push
 
@@ -187,5 +191,6 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
   Streams adapter sharded per key, model swap to Vertex/Bedrock via LiteLLM config, Terraform,
   load + chaos test; share groups as a sidebar candidate
 | Ports pay off: zero agent-code changes; serverless scale-to-zero; per-key order kept by
-  construction on every supported broker
+  construction on every supported broker, the lanes the broker's where it serializes per key
+  and the adapter's own (reused from Kafka) where it hands out partitions
 |===
