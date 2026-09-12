@@ -90,14 +90,20 @@ standard attributes (`datacontenttype`, `subject`, `dataschema`, `time`) and all
 attributes. Root fields are exactly the required core attributes (`id`, `type`, `source`) plus
 `payload` as `data`. The extension attributes, in order of introduction:
 
-* `correlationid` (ch 2): the execution thread's label, minted at the first request and copied
-  to every event of the execution.
+* `correlationid` (ch 2): the execution thread's label, the conversation's id, minted at the
+  first customer message (or by the demo script standing in for it) and copied to every event
+  of the execution.
 * `causationid` (ch 2): the id of the event that directly caused this one.
 * `partitionkey` (the ch 2 practical): the standard CloudEvents partitioning extension, on
-  every event; the id of the event's aggregate or, where the context holds no aggregate, the
-  id of the trip concerned. On `booking.TripRequested` it is the event's own id. The adapter
-  maps it to whatever its broker orders by (Ordering, below).
+  every event; the id of the event's aggregate: the trip's id on booking, planning, and policy
+  facts, the conversation's id on customer facts, and, where the context holds no aggregate,
+  the id of the trip concerned or, before a trip exists, the conversation's. On
+  `booking.TripRequested` it is the event's own id. The adapter maps it to whatever its broker
+  orders by (Ordering, below).
 * `contextpath` (ch 7): hierarchical context scoping, `/trips/{trip_id}/paris/hotel`.
+* `promptversion` and `modelversion` (ch 10): stamped by the container on every event an agent
+  publishes, from the agent's own configuration (Prompts as configuration, below). No consumer
+  acts on them; the dead-letter tooling, the replay script, and the audit record read them.
 * `identitytoken` (ch 13): the producer's signed identity (Producer Identity, below).
 
 == Wire Format
@@ -122,8 +128,12 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
 * The producer is **never** part of the type. Its identity is carried by the CloudEvents
   `source` attribute; the Single Writer Principle assigns one owning context per type, a
   producer stands in that context, and a relay publishing for an owner (the `EventScheduler`,
-  the outbox relay) sets `source` to that owner. The book replaces producers behind stable events
-  (ch 3, ch 10), and producer-named types would break that.
+  the outbox relay) sets `source` to that owner. A context's requests (its open-host published
+  language: `booking.TripRequested`, `booking.CustomerReplied`, `planning.ItineraryRequested`,
+  `support.SupportRequested`, `destination.InspirationRequested`) are written by whoever asks,
+  and the catalog marks them. The book replaces a producer behind stable events (ch 2) and
+  adds callers of a published language (ch 3, 4, 14), and producer-named types would break
+  both.
 * Quoting registers: code uses the full string; repository documentation (chapter READMEs,
   design docs where disambiguation helps) quotes domain-qualified, `booking.TripRequested`;
   book prose uses the same domain-qualified form.
@@ -273,8 +283,10 @@ model an adapter concern. The container owns four things.
   declared in the container's subscription configuration (`interrupting_types` per
   subscription, next to the handler), never inferred by the model, and the port surface is
   unchanged. An interrupting type arriving when no activation holds its key is handled as an
-  ordinary event in its own activation. The Planner declares `booking.TripChanged` as
-  interrupting for its planning activations; nothing else declares anything in the book.
+  ordinary event in its own activation. The Planner declares its own request type,
+  `planning.ItineraryRequested`, as interrupting for its planning activations: a newer version
+  for the key under activation supersedes the run in progress, which restarts from its
+  checkpoint with the new requirements. Nothing else declares anything in the book.
 * **No defer, no nack.** The port offers neither, and the container adds neither. Staging an
   event until its prerequisite arrives is the `InboxStore` (the Agentic Inbox, ch 4):
   activation gated on the completeness of its context, verified deterministically before any
@@ -299,7 +311,8 @@ An application-layer identity, portable across brokers:
 * On consumption, the validating boundary verifies the signature against the registry, checks
   that the subject equals the event's `source`, that the bound id and type match, and that the
   source is an allowed producer of the type (the catalog's owning context in
-  `02_workflows_and_events.adoc`). The Guardrail Worker performs the same check on sensitive
+  `02_workflows_and_events.adoc`; for an open-host request type, any registered caller of that
+  published language). The Guardrail Worker performs the same check on sensitive
   topics before republishing to the trusted topic. A failure is a rejection at the boundary,
   logged and dead-lettered, and never a handler call.
 * A relay (`EventScheduler`, outbox relay) publishes an event built and signed by the owner at
@@ -321,7 +334,21 @@ recorded `time` gaps unless `--fast`; and filters by `--correlationid` or `--typ
 It runs against a fresh stack, since idempotent consumers skip already-seen ids.
 Uses: the optional shortcut for ch 7's first Paris run (the recording ships in
 `chapters/ch07/data/`), and ch 12's offline harness, which replays the same recording into the
-`InMemoryBroker`. DLQ replay (ch 10) is broker behavior and a different script.
+`InMemoryBroker`. DLQ replay (ch 10) is broker behavior and a different script: it selects
+parked events on `dlq.<context>` by `--type` and by the `--promptversion` that produced them,
+and republishes them with their keys, so the Planner on the fixed prompt answers them in order.
+
+== Prompts as Configuration
+
+A component is never edited after its first chapter (01_system_overview.adoc, ground rules),
+and a prompt is the part of an agent most likely to change, so prompts are configuration, not
+code. Every prompt is a versioned file under the component (`prompts/<name>.v<N>.md`), the
+compose file selects the version by environment (`PROMPT_VERSION`), and the container stamps
+`promptversion` and `modelversion` on every event the agent publishes. Ch 10's prompt regression
+selects a faulty version and replays the dead-lettered events after a bump; ch 12's optimality
+regression replays recorded requests through a new version. A behaviour switch a later chapter
+enables (the reservation step, the barrier wait, the policy wait) is the same kind of
+configuration, an environment flag read by the component at start.
 
 == Repository Layout Conventions
 
@@ -358,9 +385,12 @@ Uses: the optional shortcut for ch 7's first Paris run (the recording ships in
   shows that component's side of the conversation.
 * `compose/`: one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
   later `postgres.yaml`, `minio.yaml`, and so on). A chapter's `compose.yaml` uses `include:`
-  to pull exactly the needed fragments, so no chapter drags unused infrastructure. Ch 4's
-  compose scales the Semantic Router to two replicas (`deploy.replicas: 2`), the book's
-  demonstration of competing consumption and per-key serialization.
+  to pull exactly the needed fragments, so no chapter drags unused infrastructure. The compose
+  file is the only thing that differs between chapters: which components it selects (ch 2
+  selects the LangGraph Planner in place of ch 1's), which adapter each port gets (in-memory
+  or Postgres), which prompt version, and which behaviour flags are on. Ch 4's compose scales
+  the Semantic Router to two replicas (`deploy.replicas: 2`), the book's demonstration of
+  competing consumption and per-key serialization.
 * `docker/`: shared Dockerfiles, named by what they build (`python.Dockerfile`: the
   kernel-equipped Python image used by demo scripts, the replay script, and chapter-level
   tests).

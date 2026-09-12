@@ -20,139 +20,180 @@ Each chapter maps to the application in one of three ways:
   across the existing system; it owns no new business workflow but touches many.
 
 Every chapter still ends with the working system one increment richer; the type only says what
-carries the narrative. Event types debut in the chapter named in the catalog
-(02_workflows_and_events.adoc); the two fixed points of the spine are `booking.ItineraryApproved`
-in ch 7, because the customer's acceptance precedes the reservation step, and
-`booking.TripConfirmed` in ch 8 with the customer reference, with payment offstage until ch 10.
+carries the narrative. Under the immutable-component rule (01_system_overview.adoc, ground
+rules) a chapter's code is its compose file: the column "Selected for the first time" lists the
+components whose code first runs, complete, in that chapter, and "Switched on" the behaviour
+its configuration enables in components already running. Event types debut in the chapter
+named in the catalog (02_workflows_and_events.adoc); the fixed points of the spine are the
+customer's decision in ch 3, `booking.TripConfirmed` in ch 8 with the customer reference, and
+payment offstage until ch 10.
 
 == Chapter-by-Chapter Mapping
 
-[cols="1,1,2,2,2", options="header"]
+[cols="1,1,2,2,2,2", options="header"]
 |===
-| Ch | Type | Workflow slice(s) | New app elements | Patterns/concepts represented in the app
+| Ch | Type | Workflow slice(s) | Selected for the first time | Switched on | Patterns/concepts represented in the app
 
 | 1
 | Workflow
-| W1 slice 1: the `booking.TripRequested` to `planning.ItineraryProposed` round trip, decoupled
-| Demo script as front-door producer, minimal Planner (plain py over LiteLLM), `EventBroker`
-  port, Kafka adapter (one topic per context, per-key lanes with watermark commits, a null
-  record key until ch 2), audit consumer, first compose file
+| W1 slice 1: the `planning.ItineraryRequested` to `planning.ItineraryProposed` round trip,
+  decoupled
+| Demo script as planning's caller (the Booking Agent's stand-in), the plain Planner (a loop
+  over LiteLLM publishing the book's proposal shape with one candidate), `EventBroker` port,
+  Kafka adapter (one topic per context, per-key lanes with watermark commits, a null record key
+  until ch 2), audit consumer, first compose file
+| The round trip
 | Decoupling, durability, pub/sub, reply by subscription (causation by request id), second
   consumer at zero producer cost
 
 | 2
 | Component
-| W1 hardening: the ch 1 round trip contracted, correlated, and keyed
-| CloudEvents + Pydantic contract models, the validating boundary at the container (inbound and
-  outbound), `correlationid`, `causationid`, and `partitionkey` extension attributes, the
-  `partitionkey` becoming the adapter's record key
+| W1 hardening: the ch 1 round trip on a real Planner, contracted, correlated, and keyed
+| The LangGraph Planner in place of the plain one (the book's one replacement: same events,
+  new inside; a planner node, flight-search and hotel-search sub-agents, a validator node, the
+  join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
+  (REST) and the Hotel Reservation System sim (inventory over MCP), CloudEvents + Pydantic
+  contract models, the validating boundary at the container (inbound and outbound)
+| `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` becoming
+  the adapter's record key
 | Agent traits, the domain map (seven contexts and the platform beside it), the glossary's two
-  meanings of "trip", "request", and "confirmation", single writer, agent container, data
-  contracts, correlation and causation, at-least-once floor, ordering by key in the contract
+  meanings of "trip", "request", and "confirmation", the component boundary and the ten
+  criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, the
+  open-host request, agent container, data contracts, correlation and causation, at-least-once
+  floor, ordering by key in the contract; 2.8 shows the graph's shape and the two events only
 
 | 3
 | Component
-| W1 slice 2: planning against real availability; intake by chat; support AaaS wired
-| ADK Planner replacing the ch 1 minimal Planner on the same subscription (A2A edge), Booking
-  Agent (event-only intake and the Trip's writer, in memory until ch 8), Front Desk shell (the
-  Customer Relations chat edge and writer of Customer and Conversation:
-  `customer.ChatMessageReceived` with the conversation id, `customer.CustomerNotified`, live
-  event view), Research Agent (LlamaIndex, MCP edge), Airline Reservation System sim (REST on
-  the Amadeus self-service shape), support adapter and Support Desk AaaS sim, `adk web` as the
-  Planner's dev UI, `InMemoryBroker`, first agent mock test
-| Universal integration, protocol vocabulary, edge prompting, zero-trust seed; the customer,
-  support, and destination contexts by the boundary test
+| W1 slice 2: booking takes planning's end; the customer's decision; support wired
+| Booking Agent (event-only, consuming only `booking.*`, the Trip's writer, in memory until
+  ch 8, every later step present and off), Research Agent (LlamaIndex, A2A server), support
+  adapter and Support Desk AaaS sim, `InMemoryBroker`, first agent mock test; the demo script
+  moves to the customer's seat and writes `booking.TripRequested`, `booking.CustomerReplied`,
+  and `support.SupportRequested`
+| The Booking Agent's validation (`TripRequestRejected`), its request to planning, `ProposalReady`,
+  and its reply step (`ItineraryApproved`, `ItineraryRejected`, `TripChanged`, the re-request);
+  the Planner's A2A call to the Research Agent; ch 2's MCP and REST edges taught
+| Universal integration: four edges, four kinds of counterpart (a tool over MCP, an agent over
+  A2A, a legacy system over REST, a person through edge prompting; tools over MCP, agents over
+  A2A), the synchronous-query rule, edge prompting, zero-trust seed; the customer, support, and
+  destination contexts by the boundary test
 
 | 4
 | Workflow
-| W2 complete: email triage; intake by email
-| Email replay script + seeded dataset (`customer.EmailReceived`), Semantic Router at two
-  replicas (the three `customer` recognition events carrying the conversation id; the time
-  window sorted by sender timestamp), Token Defense Filter, `InboxStore` (the Agentic Inbox
-  staging an early vendor update), the lanes demonstration (a burst of trip requests into one
-  Planner process, every inference in flight, order kept per trip, a kill mid-burst replayed
-  from the watermark)
-| Reflex agents, semantic routing, semantic windowing, filters and payload mediation, broadcast
-  vs competing consumers with per-key serialization, concurrency inside the consumer (per-key
-  lanes, the commit watermark, the in-flight cap; lanes built by the client on Kafka and
-  provided by the broker on Pub/Sub, SQS FIFO, and Service Bus), out-of-sequence handling (two patterns
-  built, the Agentic Inbox as activation gated on completeness and the ingress re-sequencer at
-  one line; NACK and retry analyzed, not built), subscribe-all, pull vs push
+| W1 step 1 for chat and email; W2 complete; W3's inspiration path
+| Front Desk (the Customer Relations agent: chat shell out of the page budget, intent classifier
+  and publishing code in it, writer of Customer and Conversation, delivery by subscription),
+  email replay script + seeded dataset (`customer.EmailReceived`), Semantic Router at two
+  replicas (writing booking's, support's, and destination's requests directly, and
+  `booking.SupplierUpdateReceived`; the time window sorted by sender timestamp), email delivery
+  adapter, Token Defense Filter, `InboxStore` (the Agentic Inbox staging an early supplier
+  update), Destination Inspiration crew (CrewAI, the target of routing by meaning), the lanes
+  demonstration (a burst of trip requests into one Planner process, every inference in flight,
+  order kept per trip, a kill mid-burst replayed from the watermark)
+| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end
+| Reflex agents (the classifier as the first), semantic routing (the same classification in an
+  interactive message and a windowed burst, and why they are two components), semantic
+  windowing, filters and payload mediation, broadcast vs competing consumers with per-key
+  serialization, concurrency inside the consumer (per-key lanes, the commit watermark, the
+  in-flight cap; lanes built by the client on Kafka and provided by the broker on Pub/Sub, SQS
+  FIFO, and Service Bus), out-of-sequence handling (two patterns built, the Agentic Inbox as
+  activation gated on completeness and the ingress re-sequencer at one line; NACK and retry
+  analyzed, not built), subscribe-all, pull vs push, delivery as a subscription with one adapter
+  per channel; the practical shows the classifier and the Router's shape only
 
 | 5
 | Component
-| W3 complete; S1 variants
-| `BlobStore` (MinIO), claim-check flow (`destination.BrochureUploaded`,
-  `destination.DocumentAvailable`), Observer A/B (summarizing vs experiential)
+| W3's ingestion; S1 variants
+| `BlobStore` (MinIO), claim-check ingestion (`destination.BrochureUploaded`,
+  `destination.DocumentAvailable`), the Observer/Reflector Agent in both variants (summarizing
+  vs experiential), with no store behind them
+| The A/B
 | Claim check, context bottleneck, memory strategies
 
 | 6
 | Component
 | S1 complete
-| Observer/Reflector Agent, `SemanticViewStore` keyed by the trip id, stateless hydration by the
-  trip id through the context path (`correlationid` scoping the current thread only)
+| `SemanticViewStore` keyed by the trip id
+| The Observer's writes into the store; the Planner's hydration adapter (stateless hydration by
+  the trip id through the context path, `correlationid` scoping the current thread only); the
+  five-round scenario run without and with the store
 | Event sourcing (NDC and ONE Order as the sidebar), Agentic CQRS, materialized semantic views,
   Tier 1+2 hydration, idempotent projections, staging across topics
 
 | 7
 | Workflow
-| W1 slice 3: the multi-item trip from proposal to reservation, ending with the trip reserved
-  and both holds in place; the two Paris runs; the trip-change interrupt
-| Planner extended, or replaced on the same subscription, into the scatter-gather orchestrator
-  (versioned `ItineraryProposed`, the backup item, partial re-plan); Airline Agent (py), Hotel
-  Agent (CrewAI, rooms left and the last-room flag), Rental Car Agent (py, on `FlightReserved`),
-  Arbiter, `BarrierStore`, Hotel Reservation System sim, Car Rental sim; the Booking Agent's
-  reservation step (`FlightReserved`, `HotelReserved`, `ReservationFailed`, `CarReserved`, holds
-  with an expiry, fallback to the backup item) and its `ItineraryApproved`, `ItineraryRejected`,
-  and `TripChanged`; the container's activation inbox with `interrupting_types`; context paths
-  and lessons learned filed under them; the first run's recording for ch 12
-| Orchestration vs choreography, scatter-gather, barrier, propose-commit, hierarchical context,
-  communication topologies, planning without side effects, the edge observes and the owner
-  commits, interrupting events and their three strategies, experiential lessons in context paths,
-  ACRISS beside the Rental Car Agent
+| W1 slice 3: the proposal negotiated and reserved, ending with the trip reserved and both holds
+  in place; the two Paris runs; the newer-version interrupt
+| Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`),
+  the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
+  `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
+  recording for ch 12
+| The Booking Agent's wait at the barrier before `ProposalReady` and its reservation step
+  (`FlightReserved`, `HotelReserved`, `ReservationFailed`, `CarReserved`, holds with an expiry,
+  fallback to the backup); the partial re-plan (items carried over on a re-request); the
+  Planner's own request type declared interrupting for its key; context paths and lessons filed
+  under them, hydrated by the Planner in the second run
+| Orchestration vs choreography, scatter-gather and the barrier on the broker (argued against
+  the searches, which stay inside), A2A reused, propose-commit (the Planner proposes, the
+  customer commits; the Negotiator proposes, the reservation step commits), the last-room
+  conflict, hierarchical context, communication topologies, planning without side effects, the
+  edge observes and the owner commits, interrupting events and their three strategies,
+  experiential lessons in context paths, ACRISS beside the Rental Car Agent; 7.8's dynamic
+  provisioning stays a horizon with its costs stated
 
 | 8
 | Workflow
 | W4 complete; W1 slice 4 (the policy check, `TripConfirmed` with the customer reference, the
   follow-up nudge); S2; **B2B pivot**
-| Booking Agent extended into the durable owner of the trip's workflow, `WorkflowStateStore`
-  (the Trip's persistence, with the version check as the fence), outbox relay, `EventScheduler`
-  (APScheduler+PG), Policy Gate over seeded rules, approval console in the shell as the writer
-  of the ApprovalRequest, Duty-of-Care Monitor (proactive, stateless, in servicing, with the
-  Travel Advisory Feed sim), Booking Agent follow-up nudge
+| `EventScheduler` (APScheduler+PG), outbox relay, Policy Gate over seeded rules
+  (`PolicyCheckPassed`, `PolicyViolationDetected`), approval console (a policy-context app, the
+  writer of the ApprovalRequest), Duty-of-Care Monitor (proactive, stateless, in servicing, with
+  the Travel Advisory Feed sim), the hotel sim's slow-counter auto-responder
+| The Postgres `WorkflowStateStore` (the Trip's persistence, with the version check as the
+  fence) and the `GuardStateStore`; the Booking Agent's wait for the pass or the manager's
+  decision, `ApprovalRequested` through the outbox, the 48-hour timeout, the follow-up nudge
+  scheduled from `ProposalReady`; the barrier's straggler timeout; a negotiation durable across
+  a slow counter
 | Durable state machines, the aggregate as intent-named operations, agentic outbox,
-  human-in-the-loop, semantic checkpointing, macro-timeouts, ABA, proactive agents, the dual key
-  stated, confirmation with payment offstage, ISO 31030 beside the Monitor
+  human-in-the-loop, semantic checkpointing, macro-timeouts, ABA, proactive agents (the
+  Monitor; proactive re-shopping on a fare drop as a candidate), the dual key stated,
+  confirmation with payment offstage, ISO 31030 beside the Monitor
 
 | 9
 | Workflow
 | W5 complete
-| Cleanup Agent (LangGraph, in servicing), the Booking Agent's deterministic compensation step
-  (`FlightReservationCancelled`, `TripCancelled`), the livelock guard (platform, per correlation
-  id, `system.LivelockDetected`), the Hotel Reservation System sim's callback adapter
-  (`servicing.HotelSoldOut`) with sold-out and negotiation auto-responder injection, the
-  deadlock scenario (the rebooking sub-orchestrator's macro-timeout forcing the Arbiter's
-  defaults)
+| Recovery Agent (ADK, in servicing), the livelock guard (platform, per correlation id in the
+  `GuardStateStore`, `system.LivelockDetected`), the Hotel Reservation System sim's callback
+  adapter (`servicing.HotelSoldOut`) with sold-out injection and its non-converging
+  auto-responder
+| The Policy Gate's `EntitlementDetermined`; the Booking Agent's wait for it, its rebooking
+  request to planning, `RebookingProposed` after the barrier, its compensation step
+  (`FlightReservationCancelled`, `TripCancelled`); the misconfigured rule behind the deadlock and
+  the macro-timeout that breaks it
 | Sagas, semantic rollback, livelock circuit breaker as a guard over the thread, deadlock
-  resolution, the servicing context's second meaning of "trip"
+  resolution (a cycle between two contexts from two locally sensible rules), the servicing
+  context's second meaning of "trip"
 
 | 10
 | Layer (with W6 demos)
-| W6 complete; W1 step 7 (payment) added, idempotent; the refund step joins W5
+| W6 complete; W1 step 10 (payment) added, idempotent; the refund step joins W5
 | DLQ wiring (`dlq.<context>`, key preserved), `IdempotencyStore`, Payment sim (a provider's
   API), payment provider adapter (booking's edge: `booking.PaymentRequested` answered by
   `booking.PaymentAuthorized`, `booking.RefundRequested` by `booking.PaymentRefunded`), the
-  Payment entity on the trip, replacement Hotel Agent (LangGraph), poison-pill scripts
+  Payment entity on the trip, the DLQ replay tool, a faulty prompt version for the Planner
+| The payment step; `promptversion` and `modelversion` stamped by the container; dead-letter
+  routing on contract failure
 | At-least-once reality, deterministic idempotency, internal checkpointing, DLQ, time travel,
-  cross-framework replay, PCI DSS in one sentence beside the adapter
+  the prompt regression replayed by version, PCI DSS in one sentence beside the adapter
 
 | 11
 | Layer
 | cost governance across W1/W5 traffic
-| Token budget guard, economic circuit breaker, LiteLLM fallback chain (cloud to Ollama) and
-  rate-limit configuration as predictive throttling, model fallback callback, supplier circuit
-  breaker on the shared supplier client (opened by the Airline Reservation System sim's
-  slow-vendor mode, its open state an observation to the agent)
+| Token budget guard, model fallback callback
+| The economic circuit breaker on the `GuardStateStore`, the LiteLLM fallback chain (cloud to
+  Ollama) and rate-limit configuration as predictive throttling, the supplier circuit breaker on
+  the shared supplier client (opened by the Airline Reservation System sim's slow-vendor mode,
+  its open state an observation to the agent)
 | Token backpressure, economic circuit breaking, model fallbacks, per-dependency circuit
   breaking with the open state as an observation
 
@@ -163,24 +204,32 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
   `InMemoryBroker`), LLM mock fixtures (pinning the Paris lesson's wording), LLM-as-judge
   scripts, shadow consumer (a V2 Semantic Router classifier beside the live one, routed to the
   evaluation sink)
-| Deterministic testing of non-deterministic agents, semantic regression, shadow processing
+| Shadow routing to the evaluation sink
+| Deterministic testing of non-deterministic agents; two test kinds on the Planner (feasibility
+  as a contract test at the boundary, optimality as a semantic regression over replayed
+  requests); shadow processing
 
 | 13
 | Layer
 | security across W1/W2/W4
+| Guardrail Worker, quarantine DLQ, Egress DLP Interceptor (on the support vendor and the
+  hotels' agents), red-team script (the forged `booking.TripConfirmed`)
 | `identitytoken` (per-component keys, the registry, verification at the boundary), Kafka
-  principals and topic ACLs in compose, Guardrail Worker, quarantine DLQ, Egress DLP
-  Interceptor, Policy Gate hardening, contextual data segregation (traveler documents as the
-  niche), red-team script (the forged `booking.TripConfirmed`)
+  principals and topic ACLs in compose, Policy Gate hardening, contextual data segregation
+  (traveler documents as the niche; the Negotiator's bounded brief and the leakage finding as
+  the reason)
 | Zero trust, agent identity, asynchronous prompt injection defense, confused deputy and the
-  dual key, egress DLP
+  dual key, egress DLP, disclosure (the agent asked whether it is an AI)
 
 | 14
 | Layer
-| observability across W1 end to end; schema evolution on `planning.ItineraryProposed`
-| OTel instrumentation, Jaeger in compose, the V1 (flat, ch 1) to V2 (itemized, ch 7)
-  Translator serving a V1 consumer through a deprecation window while V2 producers run
-| Semantic observability, schema evolution
+| observability across W1 end to end; schema evolution on `booking.TripRequested`
+| OTel instrumentation, Jaeger in compose, the partner adapter writing `booking.TripRequested`
+  V2 (traveller documents, a loyalty programme), the Translator serving V1 to the Booking Agent
+  through a deprecation window
+| Tracing; the deprecation window
+| Semantic observability, schema evolution (a published language evolves as callers appear, and
+  the immutable consumer is the reason the Translator exists)
 
 | 15
 | Layer
@@ -188,8 +237,10 @@ in ch 7, because the customer's acceptance precedes the reservation step, and
 | Broker, scheduler, and store cloud adapters, each against a broker that orders by key (GCP
   primary: Pub/Sub ordering keys, with Eventarc Advanced's push delivery and ordering verified at
   planning; AWS secondary: EventBridge behind FIFO SQS; Azure repo: Service Bus sessions), Redis
-  Streams adapter sharded per key, model swap to Vertex/Bedrock via LiteLLM config, Terraform,
-  load + chaos test; share groups as a sidebar candidate
+  Streams adapter sharded per key, Terraform, load + chaos test; share groups as a sidebar
+  candidate
+| The same components on other brokers and stores; model swap to Vertex/Bedrock via LiteLLM
+  config
 | Ports pay off: zero agent-code changes; serverless scale-to-zero; per-key order kept by
   construction on every supported broker, the lanes the broker's where it serializes per key
   and the adapter's own (reused from Kafka) where it hands out partitions
