@@ -23,12 +23,13 @@ The system does not store aggregate state directly. Instead, every state transit
 an immutable event, the fact that it happened. An aggregate root is the entity whose events are
 the source of truth for that aggregate's state.
 
-* **Aggregates:** the spine has two aggregate roots, the Trip (booking) and the Plan
+* **Aggregates:** the spine has two aggregate roots, the Trip (booking) and the Proposal
   (planning). Each event belongs to exactly one aggregate. A Trip's events name the trip id,
-  which is the id of the `booking.TripRequested` event that created it; the Plan is keyed by
-  the same trip id, one plan per trip, so `planning.ItineraryRequested` (booking's request,
+  which is the id of the `booking.TripRequested` event that created it; a Proposal's id is the
+  id of the `planning.ItineraryRequested` that asked for it, by the same rule, and every
+  proposal is keyed by the trip id, so `planning.ItineraryRequested` (booking's request,
   written in planning's language) and `planning.ItineraryProposed` name the trip id too, both
-  on planning's topic and therefore ordered against each other. A payment is not an aggregate:
+  on planning's topic and therefore ordered against each other. A trip accumulates proposals. A payment is not an aggregate:
   the Payment is an entity inside
   the Trip, and `booking.PaymentRequested` and `booking.PaymentAuthorized` are trip events. The
   other contexts' aggregates (Customer and Conversation, ApprovalRequest, Document) follow the
@@ -61,7 +62,7 @@ used to answer queries* is separate and derived.
 
 Only one component (or one component's replica set, serialized by key) publishes the events
 that change a given aggregate. The Booking Agent is the single writer for Trip events; the
-Itinerary Planner is the single writer for Plan events. Two exceptions are part of the
+Itinerary Planner is the single writer for Proposal events. Two exceptions are part of the
 principle, not violations of it:
 
 * **A context's requests.** A context is an open-host service for the requests it serves: it
@@ -83,12 +84,11 @@ principle, not violations of it:
 
 This principle does not prevent reads. The Audit Consumer reads all events. The Booking Agent
 consumes `planning.ItineraryProposed` to know what has been proposed (a read). But when the
-Itinerary Planner revises its own Plan, only it publishes the next
-`planning.ItineraryProposed`. The customer's decision on a proposal is booking's fact
-(`booking.ItineraryApproved`, `booking.ItineraryRejected`, `booking.TripChanged`), published by
-the Booking Agent; the Planner consumes only the approval, to mark the chosen candidate, and
-learns of a rejection or a change through the next `planning.ItineraryRequested` the Booking
-Agent writes. The two writers share a key value, the trip id, and share neither a topic nor a
+Itinerary Planner answers a request, only it publishes the `planning.ItineraryProposed`. The
+customer's decision on a proposal is booking's fact (`booking.ItineraryApproved`,
+`booking.ItineraryRejected`, `booking.TripChanged`), published by the Booking Agent; the
+Planner consumes only the approval, to mark the chosen itinerary, and learns of a rejection or
+a change through the next `planning.ItineraryRequested` the Booking Agent writes. The two writers share a key value, the trip id, and share neither a topic nor a
 writer.
 
 === Multiple Replicas of the Same Writer
@@ -125,24 +125,24 @@ attributes.
 Causation chains are stored in event `attributes` (see `04_implementation_design.adoc`). They
 enable tracing without requiring real-time synchronous calls between components.
 
-== Aggregate Boundaries: Why Trip and Plan Are Separate
+== Aggregate Boundaries: Why Trip and Proposal Are Separate
 
-A naive design might fold the Plan into the Trip, reasoning that there is exactly one plan per
-trip and it is keyed by the trip anyway. This design is rejected because:
+A naive design might fold the proposals into the Trip, reasoning that they are keyed by the
+trip anyway. This design is rejected because:
 
-* **Different Writers:** the Trip is created and changed by the Booking Agent; the Plan is
-  created and revised by the Planner. One aggregate would have two writers, or one writer
-  relaying the other's decisions.
+* **Different Writers:** the Trip is created and changed by the Booking Agent; a Proposal is
+  written by the Planner. One aggregate would have two writers, or one writer relaying the
+  other's decisions.
 * **Concurrency:** a customer can change the request (`booking.TripChanged`) while the Planner
   is composing a proposal for the original one. In one aggregate the two updates conflict and
   must be serialized by a lock or a consensus step. As separate aggregates both proceed: the
-  Booking Agent commits the change and writes the next request version, the Planner's running
-  activation receives that version through its activation inbox and restarts from its
-  checkpoint, and the pairing of change, request, and proposal is explicit through causation
-  and the version.
-* **Different Lifecycles:** a Proposal is revised, as new versions, until the customer chooses a
-  candidate, and the Plan then holds the chosen one frozen; the Trip lives on through
-  reservation, confirmation, servicing, and cancellation.
+  Booking Agent commits the change and writes a new request, the Planner's running activation
+  takes it from its inbox, answers the older request with `planning.ItineraryRequestSuperseded`,
+  and restarts from its checkpoint, and the pairing of change, request, and proposal is
+  explicit through causation and the proposal's id.
+* **Different Lifecycles:** a Proposal is immutable once published, and a trip accumulates them
+  until the customer chooses an itinerary from one; the Trip lives on through reservation,
+  confirmation, servicing, and cancellation.
 
 The same reasoning decides the other boundaries. The Payment is *not* a separate aggregate: one
 writer (the Booking Agent) records it, the provider adapter only observes, and the idempotency
@@ -151,7 +151,7 @@ would add a lifecycle without adding a writer. The ApprovalRequest *is* separate
 different party (the manager, through the approval console) decides it and its record outlives
 the trip's wait.
 
-By keeping Trip and Plan separate, each maintains a single writer, a clear lifecycle, and
+By keeping Trip and Proposal separate, each maintains a single writer, a clear lifecycle, and
 independent concurrency. Trade-offs:
 
 * **Cross-Aggregate Reads:** the Booking Agent learns the current proposal from
@@ -318,7 +318,7 @@ list; it never ignores the key silently.
 Lanes stop at the topic boundary. The Booking Agent publishes trip events to the `booking` topic
 keyed by the trip id, and the planning request to the `planning` topic keyed by the same id;
 the Planner publishes proposals to the `planning` topic keyed by the same trip id, by design,
-since the Plan is keyed by the trip. Request and proposal share a topic and a key, so a
+since every proposal is keyed by the trip. Request and proposal share a topic and a key, so a
 proposal never overtakes the request it answers. Same key value on different topics: nothing
 orders one against the other, and a read model needing both (e.g., "Trip 123 with its
 current proposal") must join them.
@@ -328,8 +328,8 @@ topics to identical partition counts and one consumer, and an ordering-key broke
 notion at all. In the Travel Agency system **the solution is causation and staging**:
 
 1. The Planner reacts to `planning.ItineraryRequested`; the request carries the validated
-   requirements and, on a re-plan, the prior proposal's id and the reason, so the Planner reads
-   no trip model before proposing.
+   requirements and, on a re-plan, the reason, so the Planner reads no trip model before
+   proposing; what it already proposed it reads from its own store.
 2. The Planner publishes `planning.ItineraryProposed` with `causationid` pointing to the
    request, keyed by the trip id; the request's causation points at the booking fact that led
    to it.
@@ -358,26 +358,28 @@ moving the system keeps the guarantee by construction.
   `booking.ProposalReady` (recording a proposal, and from ch 7 the negotiated rates),
   `booking.TripChanged` (the customer changes the request), `booking.ItineraryApproved` and
   `booking.ItineraryRejected` (the customer's decision on a proposal, the approval naming the
-  proposal's event id and the chosen candidate), `booking.FlightReserved`,
+  proposal's id and the chosen itinerary's rank), `booking.FlightReserved`,
   `booking.HotelReserved`, `booking.ReservationFailed`, and `booking.CarReserved` (recording the
   Rental Car Agent's observation), `booking.ApprovalRequested` and `booking.ApprovalTimedOut`
   (ch 8), `booking.RebookingProposed` (ch 9), `booking.PaymentRequested` with the recording of
   `booking.PaymentAuthorized` (ch 10), and finalized by `booking.TripConfirmed`, or by
   `booking.TripCancelled` after `booking.FlightReservationCancelled` and a refund. State
-  includes the trip request, the current proposal and the accepted candidate, the status
+  includes the trip request, the proposals received as event-carried state, the accepted
+  proposal's id and itinerary rank, the status
   (requested, planning, proposed, approved, awaiting policy approval, reserving, reserved,
   confirmed, cancelled), the Traveler entities, the Reservation entities (status pending,
   hold, confirmed, or cancelled, hold expiry, supplier reference, the negotiated rate), from
   ch 8 the customer reference and the workflow's macro-state (`WorkflowStateStore`) as part of
   this aggregate, and from ch 10 the Payment entity.
-* **Plan:** owned by the Itinerary Planner. Keyed by the trip id, one per trip, with no id of
-  its own. Each `planning.ItineraryRequested` opens a Proposal carrying its version and the
-  requirements as they then stood; each `planning.ItineraryProposed` is an immutable answer
-  identified by its own event id, carrying two or three ranked Candidates with their items and
-  offers; the current proposal is the latest version, and a re-request produces the next,
-  re-planning the items the request does not name as carried over. `booking.ItineraryApproved`
-  marks the chosen candidate. State: the proposals by version, each with its requirements,
-  status, candidates, and chosen candidate (01_system_overview.adoc, The Plan).
+* **Proposal:** owned by the Itinerary Planner. Identified by the id of the
+  `planning.ItineraryRequested` that asked for it, keyed by the trip id; each
+  `planning.ItineraryProposed` is the immutable answer, published under its own event id and
+  carrying two or three ranked Itineraries with their items and offers; a re-request produces
+  another proposal, re-planning the items the request does not name as carried over, and a
+  request interrupted by a newer one is answered with `planning.ItineraryRequestSuperseded`.
+  `booking.ItineraryApproved` marks the chosen itinerary. State: the requirements as they
+  stood, the status (proposed or accepted), the itineraries, the chosen rank
+  (01_system_overview.adoc, The Proposal).
 * **Not aggregates of the spine:** the ApprovalRequest (policy, written by the approval
   console), the Customer and the Conversation (customer, written by the Front Desk), the
   Document (destination, written by the claim-check ingestion). The platform holds no aggregate;
@@ -387,11 +389,15 @@ moving the system keeps the guarantee by construction.
 
 * **Trip Read Model:** maintained by the Booking Agent, in memory until ch 8 and in the
   `WorkflowStateStore` after. Stores the trip id, the request, the status, the reservations, the
-  accepted candidate, and a reference to the current proposal (its event id). Updated by the
-  Trip's own events and by `planning.ItineraryProposed` and the edge observations.
-* **Plan Read Model:** maintained by the Itinerary Planner. Stores, per trip id, the proposals
-  by version, their requirements, candidates, and status. Updated by planning's own events and
-  by `booking.ItineraryApproved`.
+  proposals received through `planning.ItineraryProposed` (event-carried state, immutable, so
+  a copy cannot drift), and the accepted proposal's id and itinerary rank. Updated by the
+  Trip's own events, by planning's answers, and by the edge observations. It never queries
+  planning's store.
+* **Proposal store:** maintained by the Itinerary Planner behind its store port. One table
+  keyed by the proposal's id, with the trip id, the published event id, the request and
+  publish times, the status, the chosen rank, and the requirements and itineraries as
+  documents, indexed on trip id and request time; a trip's proposals are listed in the order
+  of their requests. Updated by planning's own events and by `booking.ItineraryApproved`.
 * **Semantic Views:** maintained by the Observer/Reflector Agent (ch 6) in the
   `SemanticViewStore`: `TripView` per trip, built from every topic and reconciled by causation,
   scoped by `contextpath`.
@@ -407,23 +413,25 @@ Scenario: the customer changes the dates while the Planner is composing the prop
 
 1. **T1:** the Booking Agent commits `booking.TripChanged(trip_id=T-123, dates=14..17)`, key
    `T-123`, correlation id `CID-A`, and writes
-   `planning.ItineraryRequested(trip_id=T-123, version=2, carried_over=[flight])`, causation
-   the change, on the planning topic.
-2. **T2:** the Planner is mid-activation on version 1 (key `T-123`).
+   `planning.ItineraryRequested(id=R2, trip_id=T-123, carried_over=[flight])`, causation the
+   change, on the planning topic.
+2. **T2:** the Planner is mid-activation on request `R1` (key `T-123`).
    `planning.ItineraryRequested` is declared interrupting for that activation, so the running
-   loop receives version 2 through the activation inbox between tool steps and restarts from
-   its checkpoint with the new requirements, re-planning the stay only; had the activation
-   already finished, version 2 would be handled in the next one. Either way the Planner
-   publishes `planning.ItineraryProposed(trip_id=T-123, version=2)`, causation id = the request's
-   id, correlation id `CID-A` (inherited), key `T-123` on the planning topic.
+   loop takes `R2` from its inbox between tool steps, publishes
+   `planning.ItineraryRequestSuperseded(request=R1)` with causation `R2`, and restarts from its
+   checkpoint with the new requirements, re-planning the stay only; had the activation already
+   finished, `R2` would be handled in the next one and the trip would have two proposals.
+   Either way the Planner publishes `planning.ItineraryProposed(proposal=R2, trip_id=T-123)`,
+   causation id `R2`, correlation id `CID-A` (inherited), key `T-123` on the planning topic.
 3. **Projection (Trip Read Model):** at T1, records the new dates and the outstanding request.
-   At T2, receives the proposal whose causation names that request and records version 2 as the
-   current proposal. **No conflict, because Trip and Plan are separate aggregates.**
+   At T2, receives the superseded fact and stops expecting a proposal for `R1`, then receives
+   proposal `R2` and records it. **No conflict, because Trip and Proposal are separate
+   aggregates.**
 
-If Trip and Plan were in the same aggregate, the two updates (one from the Booking Agent at T1,
-one from the Planner at T2) would conflict. One would be rejected, or they would need to be
+If Trip and Proposal were in the same aggregate, the two updates (one from the Booking Agent at
+T1, one from the Planner at T2) would conflict. One would be rejected, or they would need to be
 serialized. Keeping them separate means both proceed independently, and the read model
-reconciles them via causation and the version.
+reconciles them via causation and the proposal's id.
 
 == Design Decisions and Rationale
 

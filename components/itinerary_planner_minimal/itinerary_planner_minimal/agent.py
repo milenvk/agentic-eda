@@ -18,13 +18,13 @@ from travel_agency.event_types import ITINERARY_PROPOSED
 
 SOURCE = "ItineraryPlannerAgent"
 
-# The proposal keeps the shape every later chapter uses: ranked candidates, each
-# with its items in travel order. This Planner proposes one candidate.
+# The proposal keeps the shape every later chapter uses: ranked itineraries, each
+# with its items in travel order. This Planner proposes one itinerary.
 PROMPT = """\
 You are the itinerary planner of a travel agency. Propose one itinerary for the
 trip request below. Answer with a JSON object of the form
-{{"candidates": [{{"label": "...", "rationale": "...", "items": [...]}}]}}
-holding exactly one candidate: a short "label" for what it optimises, a short
+{{"itineraries": [{{"label": "...", "rationale": "...", "items": [...]}}]}}
+holding exactly one itinerary: a short "label" for what it optimises, a short
 "rationale" for your choices, and "items" in travel order, each either
 {{"kind": "flight", "from": "...", "to": "...", "date": "...", "notes": "..."}} or
 {{"kind": "stay", "city": "...", "hotel": "...", "check_in": "...", "check_out": "..."}}.
@@ -53,7 +53,7 @@ async def plan(broker: EventBroker, event: Event) -> None:
     reply_id = await broker.publish(
         ITINERARY_PROPOSED,
         SOURCE,
-        {"request_id": event.id, "candidates": proposal["candidates"]},
+        {"request_id": event.id, "itineraries": proposal["itineraries"]},
     )
     log.info("proposed itinerary %s for trip %s", reply_id, event.id)
 

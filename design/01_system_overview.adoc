@@ -100,7 +100,7 @@ The business evolves in four phases that track the book's parts:
 
 | Consumer booking core
 | Part 1 (ch 1 to 6)
-| Take a trip request, plan it as ranked candidate itineraries, let the customer choose, support
+| Take a trip request, plan it as ranked itineraries, let the customer choose, support
   the customer, inspire the undecided, remember everything that happened.
 
 | Richer products + first B2B client
@@ -148,18 +148,20 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
 
 | Trip Planning (core)
 | `planning`
-| planning request, requirements, plan, proposal, candidate, rank, rationale, item, leg, stay,
-  offer, validity, fare conditions, backup; ItineraryRequested, ItineraryProposed; one
-  aggregate, the Itinerary Planner's: the Plan, keyed by the trip's id, one per trip, holding
-  one Proposal per request version (the requirements as they stood, the status proposed,
-  superseded, accepted, or rejected, and the candidate the customer chose), each Proposal
-  holding two or three ranked Candidates (a label, a total, the Planner's rationale) and each
-  Candidate its items in travel order: a FlightItem per leg (segments, fare conditions) and a
-  StayItem per stop (hotel, room, rate plan, cancellation terms, optionally a backup), every
-  item carrying its Offer (supplier, offer id, price, conditions, validity). A car is never an
-  item: it is reserved by choreography in booking. `ItineraryProposed` is the one completion
-  event, for one-stop and multi-city trips alike; the flight and hotel searches are the
-  Planner's own sub-agents and publish nothing.
+| planning request, requirements, proposal, itinerary, rank, rationale, item, leg, stay,
+  offer, validity, fare conditions, backup; ItineraryRequested, ItineraryProposed,
+  ItineraryRequestSuperseded; one aggregate, the Itinerary Planner's: the Proposal, one answer
+  to one planning request, identified by the id of the `ItineraryRequested` event that asked
+  for it and keyed by the trip's id, holding the requirements as they stood, its status
+  (proposed, then accepted when the customer chooses one of its itineraries), and two or three
+  ranked Itineraries (a rank, a label, a total, the Planner's rationale), each with its items
+  in travel order: a FlightItem per leg (segments, fare conditions) and a StayItem per stop
+  (hotel, room, rate plan, cancellation terms, optionally a backup), every item carrying its
+  Offer (supplier, offer id, price, conditions, validity). A trip accumulates proposals,
+  ordered by the time of their requests, and the customer may choose from any of them. A car is
+  never an item: it is reserved by choreography in booking. `ItineraryProposed` is the one
+  completion event, for one-stop and multi-city trips alike; the flight and hotel searches are
+  the Planner's own sub-agents and publish nothing.
 | Itinerary Planner
 
 | Booking (supporting; the book's spine)
@@ -174,10 +176,11 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   TripConfirmed, RebookingProposed, TripCancelled, FlightReservationCancelled,
   PaymentRequested, PaymentAuthorized, RefundRequested, PaymentRefunded; one aggregate, the
   Booking Agent's: the Trip, created by `TripRequested` and identified by that event's id,
-  holding the trip request, the current proposal (its event id) and the accepted candidate,
+  holding the trip request, the proposals it has consumed (event-carried state, immutable),
+  the accepted proposal's id and the chosen itinerary's rank,
   its status (requested, planning, proposed, approved, awaiting policy approval, reserving,
   reserved, confirmed, cancelled), its Traveler entities, its Reservation entities (one per
-  accepted item: kind, supplier reference, status pending, hold, confirmed, or cancelled, hold
+  item of the accepted itinerary: kind, supplier reference, status pending, hold, confirmed, or cancelled, hold
   expiry, price, the negotiated rate where one was won), from ch 8 the customer reference, and
   from ch 10 a Payment entity (provider reference, amount, status, never card data). The
   `WorkflowStateStore` is the Trip's persistence from ch 8.
@@ -226,24 +229,22 @@ airport or city code), DateRange, PartyComposition (adults, children, infants), 
 The shared kernel is otherwise the event envelope, the identities, and the catalog of event
 types. Every cross-context reference is by id; no context holds a copy of another's aggregate.
 
-==== The Plan
+==== The Proposal
 
 The planning context's one aggregate, drawn because it is the shape every later chapter keys
-off. A trip has one Plan; each planning request produces one Proposal in it; the customer
-chooses one Candidate of the current Proposal or rejects them all.
+off. Each planning request produces one Proposal; a trip accumulates them; the customer
+chooses one Itinerary from any of them.
 
 [source,mermaid]
 ----
 classDiagram
-    class Plan {
-        trip_id
-        current_version
-    }
     class Proposal {
-        version
-        request_event_id
+        proposal_id
+        trip_id
+        published_event_id
+        requested_at
         status
-        chosen_candidate
+        chosen_rank
     }
     class Requirements {
         origin
@@ -252,7 +253,7 @@ classDiagram
         budget
         preferences
     }
-    class Candidate {
+    class Itinerary {
         rank
         label
         total
@@ -277,23 +278,36 @@ classDiagram
         conditions
         validity
     }
-    Plan "1" *-- "1..*" Proposal
     Proposal "1" *-- "1" Requirements
-    Proposal "1" *-- "2..3" Candidate
-    Candidate "1" *-- "1..*" FlightItem
-    Candidate "1" *-- "1..*" StayItem
+    Proposal "1" *-- "2..3" Itinerary
+    Itinerary "1" *-- "1..*" FlightItem
+    Itinerary "1" *-- "1..*" StayItem
     FlightItem "1" --> "1" Offer
     StayItem "1" --> "1" Offer
     StayItem "1" --> "0..1" StayItem : backup
 ----
 
-The Requirements sit on the Proposal, not on the Plan, so a change of dates or budget mid-thread
-keeps every earlier proposal readable against the requirements it answered. Proposal statuses:
-proposed (the current one, awaiting the customer), superseded (a newer version exists),
-accepted (the customer chose a candidate), rejected (the customer rejected them all). The
-Candidate's items carry the supplier offers the Planner found; the negotiated rate a stay item
-later wins is booking's fact, recorded on the Trip's Reservation, never written back into the
-Plan.
+The proposal's id is the id of the `planning.ItineraryRequested` event that asked for it, the
+same rule that makes the `booking.TripRequested` id the trip's; the `ItineraryProposed` it is
+published as has its own id, recorded on the proposal. There is no version and no per-trip
+root: the Booking Agent, or any other caller of planning's published language, asks without
+keeping a counter, the planning topic's per-key lane orders a trip's requests and answers, and
+the store lists a trip's proposals by the time of their requests. There is no current
+proposal either. Every proposal stays choosable, so its statuses are proposed and accepted;
+"superseded" and "rejected" are booking's facts about what the customer was shown, not states
+of the proposal. The Requirements sit on the Proposal, so a change of dates or budget mid-thread
+keeps every earlier proposal readable against the requirements it answered. An itinerary's
+items carry the supplier offers the Planner found; the negotiated rate a stay item later wins
+is booking's fact, recorded on the Trip's Reservation, never written back into the proposal.
+
+The Planner keeps its proposals behind a store port (in-memory until ch 8, Postgres after):
+one `proposals` table keyed by `proposal_id`, with `trip_id`, `published_event_id`,
+`requested_at`, `published_at`, `status`, `chosen_rank`, and the requirements and itineraries
+as documents, indexed on `(trip_id, requested_at)`; the port offers save, get, list by trip,
+and mark accepted, and nothing more. The table is the Planner's own state, rebuildable from the
+`ItineraryProposed` stream. Booking never queries it: what booking needs of a proposal it
+received in the event, and what planning needs of earlier proposals it reads from its own
+store.
 
 ==== Glossary
 
@@ -314,7 +328,7 @@ book.
 
 | trip
 | booking
-| The aggregate, from request to confirmation or cancellation, holding the accepted candidate
+| The aggregate, from request to confirmation or cancellation, holding the accepted itinerary
   and its reservations. Servicing uses the same word for a journey already under way (ch 9), a
   second meaning across a boundary.
 
@@ -354,27 +368,24 @@ book.
 | booking
 | A supplier's confirmation of a reservation, and then the trip's own (`TripConfirmed`).
 
-| plan
-| planning
-| The aggregate: everything planning has proposed for one trip, one per trip, one Proposal per
-  request version.
-
 | proposal
 | planning
-| One answer to one planning request: the requirements it answered, its ranked candidates, and
-  its status. Immutable once published; a new request version produces a new one.
-
-| candidate
-| planning
-| One concrete itinerary inside a proposal, ranked and labelled (cheapest, fastest, best
-  value), with its items in travel order and the Planner's rationale. The customer chooses a
-  candidate; the chosen one is the itinerary of record.
+| The aggregate. One answer to one planning request: the requirements it answered, its ranked
+  itineraries, and its status (proposed, then accepted when the customer chooses one of its
+  itineraries). Identified by its request's event id; immutable once published; a trip
+  accumulates proposals, and the customer may choose from any of them.
 
 | itinerary
 | planning
-| The concrete flights and stays of one candidate, in travel order. The industry says offer or
-  proposal before the sale and itinerary after; the book keeps "itinerary" for the candidate's
-  content and for the event names that carry it.
+| One option inside a proposal: its items in travel order, a rank, a label (cheapest, fastest,
+  best value), a total, and the Planner's rationale. The customer chooses one; the chosen one is
+  marked in its proposal and recorded on the Trip. The industry says offer or proposal before
+  the sale and itinerary after; the book uses one word, and the event names carry it.
+
+| item
+| planning
+| One flight leg or one stay inside an itinerary, carrying its offer; a stay may carry a
+  backup.
 
 | offer
 | planning
@@ -384,8 +395,8 @@ book.
 
 | request
 | planning
-| A planning request (`ItineraryRequested`): the validated trip request, versioned, written by
-  booking in planning's published language.
+| A planning request (`ItineraryRequested`): the validated trip request as it now stands,
+  written by booking in planning's published language; its id becomes the proposal's.
 
 | confirmation
 | planning
@@ -643,10 +654,12 @@ Identity conventions, in the book's order of introduction:
   architecture: the id is a UUID (the ch 2 contract, enforced at the container boundary), and
   the id is not already in the store (idempotent consumption, so a redelivery is skipped and
   never answered with an error event).
-* **The Plan has no id of its own.** It is keyed by the trip's id, one per trip; each
-  `planning.ItineraryProposed` is an immutable proposal identified by its own event id and
-  carrying its version, and `booking.ItineraryApproved` names the approved proposal by that
-  event id and the chosen candidate by its rank.
+* **A proposal's id is the id of the `planning.ItineraryRequested` event that asked for it**,
+  by the same rule as the trip's; the `planning.ItineraryProposed` that answers it has its own
+  id, with causation pointing at the request, and the proposal records it as the id it was
+  published under. `booking.ItineraryApproved` names the proposal by its id and the chosen
+  itinerary by its rank. In ch 1 and 2, with no `TripRequested` yet, the request's id is also
+  the trip's id and the partition key.
 * **`promptversion` and `modelversion`** (from ch 10): stamped by the container on every event
   an agent publishes, from the agent's own configuration. No consumer reads them to act; the
   dead-letter tooling, the replay script, and the audit record read them to answer "which
@@ -668,7 +681,7 @@ Identity conventions, in the book's order of introduction:
 
 Agents exist only where non-deterministic reasoning is genuinely needed: where inputs are
 unstructured or the decision is open-ended. That is intake and classification (the Front Desk's
-classifier, the Router), the Planner's composition of ranked candidates and its sub-agents'
+classifier, the Router), the Planner's composition of ranked itineraries and its sub-agents'
 judgement over routes and hotels, the Negotiator's argument with a hotel's agent, the crew's
 inspiration, the Recovery Agent's compensation plan, the Monitor's impact judgement, and the
 Rental Car Agent joining a flow with no orchestrator behind it. Everything else is deterministic
@@ -735,25 +748,27 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | Tool-Using
 | py (ch 1), LangGraph (from ch 2)
 | 1 (plain), replaced 2
-| The planning context's agent and the Plan's one writer. Consumes `planning.ItineraryRequested`,
-  its only inbound request, and `booking.ItineraryApproved` (to mark the chosen candidate), and
+| The planning context's agent and the Proposal's one writer. Consumes `planning.ItineraryRequested`,
+  its only inbound request, and `booking.ItineraryApproved` (to mark the chosen itinerary), and
   nothing else. Inside one LangGraph graph: a planner node, a flight-search sub-agent that
   decomposes the stops into legs and explores routes, dates, and nearby airports, including
   whether to take a train between two of them when the door-to-door saving justifies it; a
   hotel-search sub-agent that matches the customer's preferences per stop against the hotel
   sim's inventory over MCP and flags an offer as the last room from the sim's rooms-left field;
   a deterministic validator node that rejects anything breaking a hard constraint (never the
-  model); and the join, where the planner node assembles and ranks two or three candidates and
+  model); and the join, where the planner node assembles and ranks two or three itineraries and
   writes a rationale for each. It consults the Destination Research Agent over A2A (ch 3), and
   the flight search reaches the Airline Reservation System sim over REST. It publishes
   `planning.ItineraryProposed`, each proposal immutable and keyed by the trip's id, and places no
   holds. Its checkpoint is private to the graph; its hydration port is empty until ch 6's
-  compose file selects the `SemanticViewStore` adapter. A newer request version arriving while
-  a run is in flight is declared interrupting for its own key, and the run restarts from its
-  checkpoint with the new requirements (ch 7); a partial re-plan carries over the items the
-  request names as unchanged. Its prompts are versioned files selected by compose, the subject
+  compose file selects the `SemanticViewStore` adapter. Its own request type is declared
+  interrupting for its key: a newer request for the same trip arriving mid-run is taken from
+  the lane's pending queue between steps, the run is abandoned, the older request is answered
+  with `planning.ItineraryRequestSuperseded`, and the newer one starts from the checkpoint
+  (ch 7); a partial re-plan carries over the items the request names as unchanged. On a
+  re-request it reads its own store for what it already proposed. Its prompts are versioned files selected by compose, the subject
   of ch 10's replay. The ch 1 Planner is a plain loop over LiteLLM publishing the same shape
-  with one candidate; it stays in the tree as ch 1's artifact.
+  with one itinerary; it stays in the tree as ch 1's artifact.
 
 | Booking Agent
 | Tool-Using; Durable from 8
@@ -764,13 +779,15 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   request (dates in the future and in order, at least one stop, travellers named, a budget or
   an explicit "no limit"), records the Trip under that event's id (in memory until ch 8, in
   the `WorkflowStateStore` after), and either answers `TripRequestRejected` or asks planning
-  with `planning.ItineraryRequested` (version 1). On `planning.ItineraryProposed` it records the
-  proposal and publishes `ProposalReady`, at once until ch 7 and after the barrier collects
-  every `RateNegotiated` from then on. On `CustomerReplied` it commits `ItineraryApproved`,
-  `ItineraryRejected`, or `TripChanged`, and after a rejection or a change asks planning again
-  with the next request version (from ch 7 naming the items that carry over). It runs the
-  deterministic reservation step from ch 7 as intent-named aggregate operations: it reserves
-  what the accepted candidate contains on the Airline and Hotel Reservation System sims
+  with `planning.ItineraryRequested`. On `planning.ItineraryProposed` it records the proposal
+  as received (event-carried state) and publishes `ProposalReady`, at once until ch 7 and after
+  the barrier collects every `RateNegotiated` from then on; on
+  `planning.ItineraryRequestSuperseded` it stops expecting that proposal. On `CustomerReplied`
+  it commits `ItineraryApproved`, `ItineraryRejected`, or `TripChanged`, and after a rejection
+  or a change asks planning again with the requirements as they now stand and the reason (from
+  ch 7 naming the items that carry over). It runs the deterministic reservation step from ch 7
+  as intent-named aggregate operations: it reserves what the accepted itinerary contains, from
+  the proposal it received, on the Airline and Hotel Reservation System sims
   (`FlightReserved`, `HotelReserved`, holds with an expiry, at the negotiated rate where one was
   won), falls back to the stay item's backup when a reservation fails (`ReservationFailed`),
   and records the car (`CarReserved`). From ch 8 it owns the trip's workflow: macro-state in
@@ -793,7 +810,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   customer message; its intent classifier, a single-prompt judgement of what the customer
   wants and the book's first Reflex-trait agent, writes the serving context's request:
   `booking.TripRequested` for a decided customer, `booking.CustomerReplied` (the proposal it
-  answers, the recognised intent: chose candidate two; too expensive; make it the 14th to the
+  answers, the recognised intent: chose itinerary two; too expensive; make it the 14th to the
   17th) when the conversation already concerns a trip, `support.SupportRequested` for a
   question, `destination.InspirationRequested` for a customer who has not decided where to go.
   It records which trips a conversation concerns, subscribes to the booking topic filtered by
@@ -854,8 +871,9 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | ADK (A2A client)
 | 7
 | Booking's edge with the hotels' agents. Consumes `planning.ItineraryProposed` and opens one
-  negotiation per distinct stay across the candidates (the same hotel on the same dates in two
-  candidates is one negotiation), each in its own activation over A2A with that hotel's agent,
+  negotiation per distinct stay across the proposal's itineraries (the same hotel on the same
+  dates in two itineraries is one negotiation), each in its own activation over A2A with that
+  hotel's agent,
   for several turns: ask, counter, push, final. Its brief is narrow by construction: room,
   dates, a target rate, a walk-away ceiling, nothing about the customer, because a buyer agent
   negotiating in natural language leaks the buyer's willingness to pay through the dialogue
@@ -943,7 +961,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | Policy Gate
 | 8, hardened 13
 | Deterministic corporate-policy engine: reads the corporate client's rules from seeded
-  configuration, validates the accepted candidate against them (e.g., flights over $1000 need
+  configuration, validates the accepted itinerary against them (e.g., flights over $1000 need
   approval), and publishes `PolicyCheckPassed` or `PolicyViolationDetected`. Its pass is the
   first of the two keys required by the reservation step; in ch 13 it is the deterministic
   security gate that stops any injected prompt from talking its way through. In ch 9 it

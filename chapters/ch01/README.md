@@ -4,7 +4,7 @@ The booking workflow the chapter watched fail, rebuilt decoupled behind the
 `EventBroker` interface. A demo script publishes `planning.ItineraryRequested`;
 the Itinerary Planner Agent (a plain asyncio loop that calls an LLM, no
 framework) consumes it on its own schedule and answers with
-`planning.ItineraryProposed`, one candidate itinerary in the shape every later
+`planning.ItineraryProposed`, one itinerary in the shape every later
 chapter keeps; the script receives the reply by subscribing. Nothing waits on
 anything.
 

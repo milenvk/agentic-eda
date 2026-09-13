@@ -42,11 +42,12 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    travellers named, a budget or an explicit "no limit"), and records the Trip. A request that
    fails gets `booking.TripRequestRejected` (what is missing or wrong), which the Front Desk
    shows as a question; no itinerary is ever planned for it. A request that passes gets
-   `planning.ItineraryRequested`: the trip id as the key, the request version (1 for a first
-   plan), the validated content, causation pointing at `TripRequested`. Booking asks planning
-   in planning's own language, the open-host pattern one hop in. In ch 1 and 2 the demo script
-   writes `ItineraryRequested` itself and mints the trip id.
-3. **Planning proposes candidates** [1]. The Planner consumes `ItineraryRequested`, its only
+   `planning.ItineraryRequested`: the trip id as the key, the validated requirements, causation
+   pointing at `TripRequested`; that event's id is the proposal's id. Booking asks planning in
+   planning's own language, the open-host pattern one hop in, and keeps no counter: any caller
+   may ask, and the planning topic's per-key lane orders a trip's requests. In ch 1 and 2 the
+   demo script writes `ItineraryRequested` itself, and its id serves as the trip's id too.
+3. **Planning proposes itineraries** [1]. The Planner consumes `ItineraryRequested`, its only
    inbound request, and does all of its work inside: it asks the Research Agent over A2A what
    destination knowledge holds about each stop [3]; the flight-search sub-agent decomposes the
    stops into legs and explores routes, dates, nearby airports, and a train between two stops;
@@ -54,46 +55,48 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    over MCP and flags a last room; the validator rejects anything breaking a hard constraint,
    including a connection that does not fit between one stop's check-out and the next leg; the
    planner node assembles and ranks. It publishes `planning.ItineraryProposed`: the trip id, the
-   proposal version, and two or three ranked candidates, each with a label, its items in travel
-   order with their offers and validity, a total, and a rationale. A multi-city candidate is the
-   same structure with more items.
+   proposal's id (its request's), and two or three ranked itineraries, each with a label, its
+   items in travel order with their offers and validity, a total, and a rationale. A multi-city
+   itinerary is the same structure with more items. A trip accumulates proposals; none is
+   "current", and the customer may choose from any of them.
 4. **The Negotiator argues the rates** [7]. The Hotel Negotiator consumes `ItineraryProposed`
-   and opens one negotiation per distinct stay across the candidates, each in its own activation
+   and opens one negotiation per distinct stay across the proposal's itineraries, each in its own activation
    over A2A with that hotel's agent, several turns each. Each ends in `booking.RateNegotiated`
    (the stay, the hotel, the list rate, the negotiated rate, the terms, the validity). The
    Booking Agent's barrier is set to the number of distinct stays; in ch 7 the simulator's
    auto-responders answer at once, and from ch 8 the `EventScheduler` times out the stragglers.
 5. **Booking declares the proposal ready** [3]. The Booking Agent records the proposal and
-   publishes `booking.ProposalReady`: the trip id, the proposal's event id, and the candidates
-   as the customer should see them, at once until ch 7 and, from ch 7, when the barrier
+   publishes `booking.ProposalReady`: the trip id, the proposal's id, and the itineraries as the
+   customer should see them, at once until ch 7 and, from ch 7, when the barrier
    releases, each stay at its negotiated rate. The Front Desk holds one subscription to the
    booking topic filtered by its trips; `ProposalReady` exists so it never joins two types.
-6. **The customer sees the candidates** [4]. The Front Desk shows the candidates with their
+6. **The customer sees the itineraries** [4]. The Front Desk shows the itineraries with their
    offers' validity and records `customer.CustomerNotified` (the conversation id, the trip id,
    what was shown, when). The Booking Agent never reads a `customer.*` type; from ch 8 it
    schedules `booking.CustomerFollowUpDue` from its own `ProposalReady` and nudges if no reply
-   comes. In ch 1 and 2 the demo script receives `ItineraryProposed` and prints the candidates;
+   comes. In ch 1 and 2 the demo script receives `ItineraryProposed` and prints the itineraries;
    in ch 3 it receives `ProposalReady`.
 7. **The customer chooses** [3]. The customer replies in the chat, another
    `ChatMessageReceived`; the Front Desk knows which trip the conversation concerns, and its
    classifier writes `booking.CustomerReplied` in booking's published language: the trip id,
-   the proposal it answers, the recognised intent with its content (chose candidate two; too
+   the proposal it answers, the recognised intent with its content (chose itinerary two; too
    expensive; make it the 14th to the 17th). The Booking Agent consumes it and, as the Trip's
-   one writer, commits one of three facts: `booking.ItineraryApproved` (the proposal's event id
-   and the chosen candidate, which becomes the itinerary of record),
+   one writer, commits one of three facts: `booking.ItineraryApproved` (the proposal's id and
+   the chosen itinerary's rank, from any of the trip's proposals),
    `booking.ItineraryRejected` (the customer's reason), or `booking.TripChanged` (the changed
    requirements). After a rejection or a change it asks planning again with a new
-   `ItineraryRequested`: the next version, the request as it now stands, the prior proposal's
-   id, the customer's reason, and from ch 7 the items that carry over (the partial re-plan). The
-   Planner has one inbound type and never reacts to booking's facts except `ItineraryApproved`,
-   which marks the chosen candidate in the Plan.
+   `ItineraryRequested`: the requirements as they now stand, the customer's reason, and from
+   ch 7 the items that carry over, named by proposal and rank (the partial re-plan). The Planner
+   reads its own store for what it already proposed, has one inbound type, and never reacts to
+   booking's facts except `ItineraryApproved`, which marks the chosen itinerary in its proposal.
 8. **Policy** [8]. The Policy Gate consumes `ItineraryApproved`, reads the corporate client's
    seeded rules, and publishes `policy.PolicyCheckPassed` or `policy.PolicyViolationDetected`,
    which opens W4. The reservation step runs on the pass or on the manager's decision: two
    independent keys, neither of them the agent's own reasoning. Before ch 8 no Gate runs and the
    Booking Agent's configuration lets the step proceed on `ItineraryApproved` alone.
 9. **Reservation step** [7]. The Booking Agent's deterministic reservation step reserves what
-   the accepted candidate contains, on the Airline and Hotel Reservation System sims, each hold
+   the accepted itinerary contains, from the proposal it received, on the Airline and Hotel
+   Reservation System sims, each hold
    committed as its own fact before the next: `booking.FlightReserved` and
    `booking.HotelReserved` (at the negotiated rate), holds with an expiry. A reservation no
    longer granted by the supplier is `booking.ReservationFailed`; the step falls back to the
@@ -135,7 +138,7 @@ sequenceDiagram
     participant PA as Payment adapter
 
     FD->>BA: booking.TripRequested
-    BA->>PL: planning.ItineraryRequested v1
+    BA->>PL: planning.ItineraryRequested
     PL->>PL: search, validate, rank
     activate PL
     PL->>BA: planning.ItineraryProposed
@@ -167,14 +170,14 @@ lesson early: a lapsing hold is not a saga.
 *First run.* A customer asks for two travelers, New York to Paris, 12 to 15 March, a hotel in
 the 8th arrondissement. The Planner's hotel-search sub-agent finds one room in the 8th and flags
 it as the last room from the sim's rooms-left field; the validator settles arrival against
-check-in; the proposal carries three candidates. The Negotiator argues each candidate's stay
+check-in; the proposal carries three itineraries. The Negotiator argues each itinerary's stay
 with the hotel's agent, the barrier releases, and the customer sees three prices already argued
 down, with their validity. The customer chooses the 8th after twenty-five minutes. The
 reservation step holds the flight, and the hotel reservation fails (`ReservationFailed`): the
 last room is sold. `ProposalReady` tells the customer "sold out, your flight is held until
 18:00, shall I look nearby?"; the customer answers "try the 16th", which the Front Desk writes
 as `CustomerReplied` and the Booking Agent commits as `TripChanged`, asking planning again with
-version 2 and the flight item marked as carried over. The Planner re-plans the stay only; the
+the flight item marked as carried over. The Planner re-plans the stay only; the
 flight hold carries over; the customer chooses; the hotel is reserved; the run ends with the
 trip reserved, both holds in place. The human fixed it.
 
@@ -195,10 +198,10 @@ change; the handling did.
 
 *What the design supplies:* a rooms-left field on hotel inventory; a backup on the stay item;
 the reservation step falling back to a backup on failure; `booking.ReservationFailed`; hold
-expiry as a reservation status; a partial re-plan as a new request version naming the items
-that carry over.
+expiry as a reservation status; a partial re-plan as a new request naming the items that carry
+over.
 
-==== The ch 7 interrupt: a newer request version mid-planning
+==== The ch 7 interrupt: a newer request mid-planning
 
 A relevant fact can arrive while a long activation runs, and the agent should revise its
 beliefs rather than finish on stale ones. The book's vocabulary is *interrupting events*, with
@@ -215,14 +218,20 @@ observations. Per-key ordering makes this safe, since only the running activatio
 Which event types interrupt which activations is declared per subscription in the container,
 never inferred by the model; with the container's one-key-at-a-time rule, deferral is the
 default for every type not declared. The Planner declares its own request type,
-`planning.ItineraryRequested`, as interrupting: a newer version for the key under activation
-supersedes the run in progress.
+`planning.ItineraryRequested`, as interrupting. The delivery loop never stops fetching, so a
+newer request for the trip under activation waits in the lane's queue; the running activation
+takes it from there between reasoning steps, abandons the run, answers the older request with
+`planning.ItineraryRequestSuperseded` (causation: the newer request), and starts the newer one
+from its checkpoint. Both records' offsets commit when the activation returns, so a crash
+redelivers both in order and the rerun supersedes again. A request arriving after the
+activation has finished is an ordinary event and the trip gets a second proposal.
 
 *Demonstration.* The Planner is mid-assembly of a multi-city trip; the customer writes "make it
 the 14th to the 17th"; the Front Desk writes `CustomerReplied`, the Booking Agent commits
-`TripChanged` and asks planning again with version 2; the Planner's running activation receives
-the new version between tool steps, restarts from its checkpoint with the new requirements, and
-carries over the items the request names as unchanged. The book's other cases stay
+`TripChanged` and asks planning again; the Planner's running activation takes the new request
+from its inbox between tool steps, publishes `ItineraryRequestSuperseded` for the old one,
+restarts from its checkpoint with the new requirements, and carries over the items the request
+names as unchanged. The book's other cases stay
 activation-level and are named beside it: hydration at wake-up (6.3), the semantic checkpoint
 resumed with the new fact (8.2), the stale input rejected (8.5), the loop stopped from outside
 (9.1).
@@ -305,7 +314,7 @@ business event from the environment. Entitlements gate the re-plan and the custo
 needs the re-plan, so only part of the work runs in parallel. The Policy Gate determines what
 the customer is owed, first and deterministically, as `policy.EntitlementDetermined`. Then two
 things run at once: the Booking Agent asks planning for a replacement within that envelope
-(`planning.ItineraryRequested`, a new version naming the stay to replace), and the Recovery
+(`planning.ItineraryRequested`, naming the stay to replace), and the Recovery
 Agent (ADK) assesses the trip through the Observer's view and drafts
 `servicing.CompensationDrafted`, the customer's message and a compensation plan computed from
 the entitlement, which does not depend on which replacement is chosen. After the barrier the
@@ -387,7 +396,7 @@ they were learned.
 
 *The scenario ch 6 solves.* Before ch 6 the Planner runs on two things: the request it
 consumes, which carries the requirements as they now stand and the customer's last reason, and
-its own Plan, which holds every earlier proposal. That is enough for a fresh request and for
+its own store of earlier proposals. That is enough for a fresh request and for
 one rejection. It is not enough for a thread that drifts. A customer rejects round one as too
 expensive; changes the dates in round two; says in round three that the hotel from round one
 was fine and only the flight was the problem; and meanwhile tells support, in a separate
@@ -499,16 +508,17 @@ Conventions:
 | CustomerNotified | Front Desk or the email delivery adapter, on delivering a message to the customer | Audit, Observer | ch 4
 | EmailReceived | Email replay script | Semantic Router | ch 4
 
-4+e| planning: trip planning, the Plan and its proposals
-| ItineraryRequested | *open host.* The Booking Agent (the demo script in ch 1 and 2), in planning's published language: the trip id as key, the request version, the validated requirements, and on a re-plan the prior proposal, the reason, and the items carried over | Planner (its only inbound request), audit, Observer | ch 1
-| ItineraryProposed | Planner; every proposal immutable, keyed by the trip's id, carrying its version and two or three ranked candidates; one shape for the whole book | Booking Agent, Hotel Negotiator (from ch 7), Observer; the demo script in ch 1 and 2 | ch 1
+4+e| planning: trip planning, the proposals
+| ItineraryRequested | *open host.* The Booking Agent (the demo script in ch 1 and 2), in planning's published language: the trip id as key, the validated requirements, and on a re-plan the reason and the items carried over; its id is the proposal's id | Planner (its only inbound request), audit, Observer | ch 1
+| ItineraryProposed | Planner; every proposal immutable, keyed by the trip's id, identified by its request's id, carrying two or three ranked itineraries; one shape for the whole book | Booking Agent, Hotel Negotiator (from ch 7), Observer; the demo script in ch 1 and 2 | ch 1
+| ItineraryRequestSuperseded | Planner, when a newer request for the same trip interrupts the run in progress; names the abandoned request, causation the newer one | Booking Agent (stops expecting that proposal), audit | ch 7
 
 4+e| booking: the trip's lifecycle, from request to confirmation or cancellation
 | TripRequested | *open host.* Whoever asks, in booking's published language: the demo script (ch 3), the Front Desk and the Router (ch 4), the partner adapter in V2 (ch 14); the event's id is the trip's id | Booking Agent (validates and records the trip), audit, Observer | ch 3
 | TripRequestRejected | Booking Agent, when validation fails; what is missing or wrong | Front Desk (as a question to the customer), audit | ch 3
 | CustomerReplied | *open host.* Whoever asks: the demo script (ch 3), the Front Desk and the Router (ch 4); the proposal answered and the recognised intent | Booking Agent | ch 3
-| ProposalReady | Booking Agent, on recording a proposal (at once until ch 7, after the barrier from ch 7); the candidates as the customer should see them | Front Desk, email delivery adapter, audit | ch 3
-| ItineraryApproved | Booking Agent, naming the proposal by its event id and the chosen candidate | Planner (marks the candidate), Policy Gate (from ch 8), the reservation step (from ch 7), Observer | ch 3
+| ProposalReady | Booking Agent, on recording a proposal (at once until ch 7, after the barrier from ch 7); the itineraries as the customer should see them | Front Desk, email delivery adapter, audit | ch 3
+| ItineraryApproved | Booking Agent, naming the proposal by its id and the chosen itinerary by its rank | Planner (marks the itinerary), Policy Gate (from ch 8), the reservation step (from ch 7), Observer | ch 3
 | ItineraryRejected | Booking Agent, with the customer's reason; followed by a new `ItineraryRequested` | Observer, audit | ch 3
 | TripChanged | Booking Agent, with the changed requirements; followed by a new `ItineraryRequested` | Observer, audit | ch 3
 | RateNegotiated | Hotel Negotiator, one per distinct stay, an edge observation | Booking Agent (the barrier), audit | ch 7
@@ -567,7 +577,7 @@ Notes:
   and audit) and `planning.ItineraryProposed` (Planner to the script), the reply carrying the
   request event's id as a `request_id` payload field, promoted to a `causationid` extension
   attribute in `ch02_correlation_id`. Both keep their shape for the whole book: the ch 1
-  Planner publishes one candidate with items and no offers, and the ch 2 Planner fills the same
+  Planner publishes one itinerary with items and no offers, and the ch 2 Planner fills the same
   shape.
 * The customer's decision (`CustomerReplied`, `ItineraryApproved`, `ItineraryRejected`,
   `TripChanged`) debuts in ch 3 with the Booking Agent: acceptance is a fact whether or not

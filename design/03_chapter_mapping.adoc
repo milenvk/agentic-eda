@@ -39,7 +39,7 @@ payment offstage until ch 10.
 | W1 slice 1: the `planning.ItineraryRequested` to `planning.ItineraryProposed` round trip,
   decoupled
 | Demo script as planning's caller (the Booking Agent's stand-in), the plain Planner (a loop
-  over LiteLLM publishing the book's proposal shape with one candidate), `EventBroker` port,
+  over LiteLLM publishing the book's proposal shape with one itinerary), `EventBroker` port,
   Kafka adapter (one topic per context, per-key lanes with watermark commits, a null record key
   until ch 2), audit consumer, first compose file
 | The round trip
@@ -123,7 +123,7 @@ payment offstage until ch 10.
 | 7
 | Workflow
 | W1 slice 3: the proposal negotiated and reserved, ending with the trip reserved and both holds
-  in place; the two Paris runs; the newer-version interrupt
+  in place; the two Paris runs; the newer-request interrupt
 | Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
   `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
@@ -131,7 +131,8 @@ payment offstage until ch 10.
 | The Booking Agent's wait at the barrier before `ProposalReady` and its reservation step
   (`FlightReserved`, `HotelReserved`, `ReservationFailed`, `CarReserved`, holds with an expiry,
   fallback to the backup); the partial re-plan (items carried over on a re-request); the
-  Planner's own request type declared interrupting for its key; context paths and lessons filed
+  Planner's own request type declared interrupting for its key, the older request answered with
+  `planning.ItineraryRequestSuperseded`; context paths and lessons filed
   under them, hydrated by the Planner in the second run
 | Orchestration vs choreography, scatter-gather and the barrier on the broker (argued against
   the searches, which stay inside), A2A reused, propose-commit (the Planner proposes, the

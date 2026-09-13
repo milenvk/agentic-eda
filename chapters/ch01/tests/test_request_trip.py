@@ -10,7 +10,7 @@ def proposal(request_id: str) -> Event:
         id="reply-1",
         type=ITINERARY_PROPOSED,
         source="ItineraryPlannerAgent",
-        payload={"request_id": request_id, "candidates": [{"label": "best value", "items": []}]},
+        payload={"request_id": request_id, "itineraries": [{"label": "best value", "items": []}]},
     )
 
 

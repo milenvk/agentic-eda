@@ -274,19 +274,22 @@ model an adapter concern. The container owns four things.
   watermark. Deferral to the next activation is the default for anything that arrives on the
   key while a handler runs.
 * **The activation inbox** (ch 7). An activation can run for minutes, and a relevant fact can
-  land meanwhile. Records for the key under activation, of a type declared interrupting by the
-  subscription, are not queued behind the handler: the container hands them to the running
-  loop as observations, checked between reasoning steps, and the loop revises its beliefs
-  rather than finishing on stale ones. Per-key ordering makes this safe, because only the
+  land meanwhile. The delivery loop never stops fetching, so a record for the key under
+  activation waits in that key's lane; a record of a type declared interrupting by the
+  subscription is not left there behind the handler: the running activation takes it from the
+  lane's pending queue between reasoning steps, as an observation, and revises its beliefs
+  rather than finishing on stale ones. Container and adapter share one process and one event
+  loop, so this is a peek into the lane, not a second consumer. Per-key ordering makes this safe, because only the
   running activation can see that key's events; the interrupting events' offsets are
   committed with the activation's when it returns. Which types interrupt which activations is
   declared in the container's subscription configuration (`interrupting_types` per
   subscription, next to the handler), never inferred by the model, and the port surface is
   unchanged. An interrupting type arriving when no activation holds its key is handled as an
   ordinary event in its own activation. The Planner declares its own request type,
-  `planning.ItineraryRequested`, as interrupting for its planning activations: a newer version
-  for the key under activation supersedes the run in progress, which restarts from its
-  checkpoint with the new requirements. Nothing else declares anything in the book.
+  `planning.ItineraryRequested`, as interrupting for its planning activations: a newer request
+  for the trip under activation supersedes the run in progress, which is abandoned, answered
+  with `planning.ItineraryRequestSuperseded`, and restarted from its checkpoint with the new
+  requirements. Nothing else declares anything in the book.
 * **No defer, no nack.** The port offers neither, and the container adds neither. Staging an
   event until its prerequisite arrives is the `InboxStore` (the Agentic Inbox, ch 4):
   activation gated on the completeness of its context, verified deterministically before any

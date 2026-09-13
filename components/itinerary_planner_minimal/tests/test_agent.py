@@ -9,7 +9,7 @@ from itinerary_planner_minimal import agent
 from travel_agency.broker import Event
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
-FAKE_CANDIDATES = [
+FAKE_ITINERARIES = [
     {
         "label": "best value",
         "rationale": "Direct flights, three nights in Madrid on the way out.",
@@ -26,7 +26,7 @@ FAKE_CANDIDATES = [
         ],
     }
 ]
-FAKE_REPLY = json.dumps({"candidates": FAKE_CANDIDATES})
+FAKE_REPLY = json.dumps({"itineraries": FAKE_ITINERARIES})
 
 
 @pytest.fixture
@@ -60,7 +60,7 @@ async def test_replies_with_a_proposal_carrying_the_request_id(broker, llm):
     (reply,) = broker.published
     assert reply.type == ITINERARY_PROPOSED
     assert reply.source == agent.SOURCE
-    assert reply.payload == {"request_id": "req-42", "candidates": FAKE_CANDIDATES}
+    assert reply.payload == {"request_id": "req-42", "itineraries": FAKE_ITINERARIES}
 
 
 async def test_reasons_over_the_request_with_the_configured_model(broker, llm):
