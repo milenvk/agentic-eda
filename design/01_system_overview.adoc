@@ -677,12 +677,14 @@ Gate, the payment provider adapter, the Planner's validator node, the projection
 simulator. Reasoning proposes; a deterministic owner commits.
 
 Chapter 1's request-response scenario and its cascade figure use design-true components only:
-the Booking Agent calls the Itinerary Planner Agent, the Planner calls the airlines' and
-hotels' independent reservation systems and then its model, and the Planner's inference is the
-slow or dead callee. Deterministic vendors are present from the first chapter, the reader's
-mental picture of the cast never changes as the book progresses, and the durability example
-of 1.3 (the Planner comes back after 20 minutes and the event is still there) is the failure
-1.6's demo then runs; the connection-explosion figures stay deliberately generic.
+the Booking Agent calls the Itinerary Planner Agent, the Planner calls the Airline Reservation
+System and the Hotel Reservation System in parallel, and a slow Airline Reservation System is
+the callee that blocks the healthy chain above it (the slow-vendor mode ch 11's supplier breaker
+later answers). The outage is the Planner's: dead for 20 minutes, it is the subscriber that
+comes back in 1.3's durability example and the process 1.6's demo kills. Deterministic vendors
+are present from the first chapter under their canonical names, the reader's mental picture of
+the cast never changes as the book progresses, and the connection-explosion figures stay
+deliberately generic.
 
 === Realism kept as texture
 
