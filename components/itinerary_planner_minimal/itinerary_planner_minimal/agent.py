@@ -1,11 +1,12 @@
 """The Itinerary Planner Agent, in its chapter 1 form.
 
-An agent is a loop that calls an LLM: this one consumes a trip request, reasons
-over it once, and publishes the proposed itinerary. No framework — the
+An agent is a loop that calls an LLM: this one consumes a planning request,
+reasons over it once, and publishes the proposed itinerary. No framework — the
 EventBroker interface is all it knows about the world outside the model.
 """
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -17,10 +18,16 @@ from travel_agency.event_types import ITINERARY_PROPOSED
 
 SOURCE = "ItineraryPlannerAgent"
 
+# The proposal keeps the shape every later chapter uses: ranked candidates, each
+# with its items in travel order. This Planner proposes one candidate.
 PROMPT = """\
-You are the itinerary planner of a travel agency. Propose a day-by-day itinerary
-for the following trip request, with flight and hotel suggestions and a short
-rationale for your choices:
+You are the itinerary planner of a travel agency. Propose one itinerary for the
+trip request below. Answer with a JSON object of the form
+{{"candidates": [{{"label": "...", "rationale": "...", "items": [...]}}]}}
+holding exactly one candidate: a short "label" for what it optimises, a short
+"rationale" for your choices, and "items" in travel order, each either
+{{"kind": "flight", "from": "...", "to": "...", "date": "...", "notes": "..."}} or
+{{"kind": "stay", "city": "...", "hotel": "...", "check_in": "...", "check_out": "..."}}.
 
 {request}
 """
@@ -29,7 +36,7 @@ log = logging.getLogger(SOURCE)
 
 
 async def plan(broker: EventBroker, event: Event) -> None:
-    """Handle one TripRequested event: reason, then answer with a proposal.
+    """Handle one ItineraryRequested event: reason, then answer with a proposal.
 
     The reply carries the request event's id, which is how the requester matches
     the answer to its question.
@@ -39,13 +46,14 @@ async def plan(broker: EventBroker, event: Event) -> None:
     response = await litellm.acompletion(
         model=os.environ["LLM_MODEL"],
         messages=[{"role": "user", "content": PROMPT.format(request=event.payload)}],
+        response_format={"type": "json_object"},
     )
-    itinerary = response.choices[0].message.content
+    proposal = json.loads(response.choices[0].message.content)
     await _hold_until_planning_time(started)
     reply_id = await broker.publish(
         ITINERARY_PROPOSED,
         SOURCE,
-        {"request_id": event.id, "itinerary": itinerary},
+        {"request_id": event.id, "candidates": proposal["candidates"]},
     )
     log.info("proposed itinerary %s for trip %s", reply_id, event.id)
 

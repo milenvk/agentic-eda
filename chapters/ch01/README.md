@@ -1,16 +1,18 @@
 # Chapter 1: The Case for Agentic Event-Driven Architecture
 
 The booking workflow the chapter watched fail, rebuilt decoupled behind the
-`EventBroker` interface. A demo script publishes `booking.TripRequested`; the
-Itinerary Planner Agent (a plain asyncio loop that calls an LLM, no framework)
-consumes it on its own schedule and answers with `planning.ItineraryProposed`;
-the script receives the reply by subscribing. Nothing waits on anything.
+`EventBroker` interface. A demo script publishes `planning.ItineraryRequested`;
+the Itinerary Planner Agent (a plain asyncio loop that calls an LLM, no
+framework) consumes it on its own schedule and answers with
+`planning.ItineraryProposed`, one candidate itinerary in the shape every later
+chapter keeps; the script receives the reply by subscribing. Nothing waits on
+anything.
 
 Components in play: Kafka (single KRaft container), the Itinerary Planner Agent
 ([components/itinerary_planner_minimal](../../components/itinerary_planner_minimal)),
 and the audit consumer ([components/audit_consumer](../../components/audit_consumer)).
-The demo script stands in for the front door until the Booking Agent arrives in
-chapter 3.
+The demo script stands in for the Booking Agent, planning's caller, until it
+arrives in chapter 3.
 
 ## Setup
 
@@ -96,7 +98,7 @@ docker compose --profile demo up -d --build --force-recreate demo
 
 Observe in the watch terminal, in order:
 
-1. `demo-1` prints a PUBLISHED card for `booking.TripRequested`, then
+1. `demo-1` prints a PUBLISHED card for `planning.ItineraryRequested`, then
    "waiting for the reply event...". The script is free the moment it has
    published.
 2. `itinerary-planner-1` prints a RECEIVED card with the same event id, then

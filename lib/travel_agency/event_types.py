@@ -4,8 +4,6 @@ Components import these constants and never retype the strings. The catalog in
 design/02_workflows_and_events.adoc is the authority on names and ownership.
 """
 
-# booking — the front door and the booking lifecycle
-TRIP_REQUESTED = "booking.TripRequested"
-
-# planning — trip planning and assembly
+# planning — the request planning serves, written by whoever asks, and its answer
+ITINERARY_REQUESTED = "planning.ItineraryRequested"
 ITINERARY_PROPOSED = "planning.ItineraryProposed"

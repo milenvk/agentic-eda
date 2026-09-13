@@ -676,13 +676,13 @@ code or a simulated vendor: the Booking Agent's validation and its reservation s
 Gate, the payment provider adapter, the Planner's validator node, the projections, and every
 simulator. Reasoning proposes; a deterministic owner commits.
 
-Chapter 1's request-response scenario and its cascade figure use six design-true components,
-the Booking Agent, the Itinerary Planner Agent, an Airline Agent, a Hotel Agent, and the
-airlines' and hotels' independent reservation systems, so deterministic vendors are present
-from the first chapter and the reader's mental picture of the cast never changes as the book
-progresses; the connection-explosion figures stay deliberately generic. In the event-driven
-design the flight and hotel searches are the Planner's sub-agents rather than components on the
-broker, and section 2.2 says why, with the ch 1 picture as its starting point.
+Chapter 1's request-response scenario and its cascade figure use design-true components only:
+the Booking Agent calls the Itinerary Planner Agent, the Planner calls the airlines' and
+hotels' independent reservation systems and then its model, and the Planner's inference is the
+slow or dead callee. Deterministic vendors are present from the first chapter, the reader's
+mental picture of the cast never changes as the book progresses, and the durability example
+of 1.3 (the Planner comes back after 20 minutes and the event is still there) is the failure
+1.6's demo then runs; the connection-explosion figures stay deliberately generic.
 
 === Realism kept as texture
 

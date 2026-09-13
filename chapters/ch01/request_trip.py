@@ -1,8 +1,8 @@
-"""Plays the customer at the front door: requests a trip, then waits — without
-blocking anything — for the itinerary to arrive as an event.
+"""Plays planning's caller: asks for an itinerary, then waits — without
+blocking anything — for the proposal to arrive as an event.
 
-Chapter 3's Booking Agent takes over this front-door role; until then, this
-script stands in for it.
+Chapter 3's Booking Agent takes over this role; until then, this script stands
+in for it.
 """
 
 import asyncio
@@ -10,7 +10,7 @@ import asyncio
 from travel_agency import console
 from travel_agency.broker import Event
 from travel_agency.connect import event_broker
-from travel_agency.event_types import ITINERARY_PROPOSED, TRIP_REQUESTED
+from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
 SOURCE = "RequestTripScript"
 
@@ -35,8 +35,8 @@ def is_reply_to(request_id: str, event: Event) -> bool:
 
 async def main() -> None:
     async with event_broker(SOURCE) as broker:
-        request_id = await broker.publish(TRIP_REQUESTED, SOURCE, TRIP)
-        console.show("PUBLISHED", Event(request_id, TRIP_REQUESTED, SOURCE, TRIP))
+        request_id = await broker.publish(ITINERARY_REQUESTED, SOURCE, TRIP)
+        console.show("PUBLISHED", Event(request_id, ITINERARY_REQUESTED, SOURCE, TRIP))
         print("\nNothing is blocked; waiting for the reply event...\n", flush=True)
 
         received = asyncio.Event()
