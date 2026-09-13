@@ -348,7 +348,10 @@ compose file selects the version by environment (`PROMPT_VERSION`), and the cont
 selects a faulty version and replays the dead-lettered events after a bump; ch 12's optimality
 regression replays recorded requests through a new version. A behaviour switch a later chapter
 enables (the reservation step, the barrier wait, the policy wait) is the same kind of
-configuration, an environment flag read by the component at start.
+configuration, a flag read by the component at start, off by default, and absent from every
+compose and configuration file until the chapter that switches it on. A flag is the default
+mechanism; a new version of the component (`<name>_v2`, selected by compose) is used only where
+the added behaviour cannot be segregated cleanly behind a flag inside one version.
 
 == Repository Layout Conventions
 

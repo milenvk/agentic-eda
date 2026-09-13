@@ -68,12 +68,16 @@ reconciliation of 2026-09-11:
   configuration (the trip store is in-memory in ch 3 and Postgres from ch 8, both adapters
   present from ch 3). A chapter differs from the one before only in its compose file: the
   infrastructure fragments it includes, the components it selects, and the configuration it
-  applies. Replacement happens there and only there; the book has one, the LangGraph Planner
-  selected in ch 2 in place of ch 1's plain one, and the superseded component stays in the tree
-  as its chapter's artifact. New workflows arrive as new components; a new agent that
-  duplicates an existing one with different sub-agents is avoided. Prompts are configuration,
-  not code: every prompt is a versioned file the compose file selects, and the container stamps
-  its version on every event. Two consequences: the design is complete before the first
+  applies. Every behaviour flag defaults to off, so a chapter's compose and configuration
+  files mention only what that chapter switches on and an early chapter's files never name a
+  later chapter's feature. A new version of a component (`<name>_v2` beside `<name>_v1`,
+  selected by compose, the superseded one staying in the tree as its chapter's artifact) is
+  the exception, used only where the added behaviour cannot be segregated cleanly behind a
+  flag inside one version; the LangGraph Planner selected in ch 2 in place of ch 1's plain one
+  is the one planned case. New workflows arrive as new components; a new agent that duplicates
+  an existing one with different sub-agents is avoided. Prompts and agent configuration are
+  not code: every prompt is a versioned file the compose file selects, and the container
+  stamps its version on every event. Two consequences: the design is complete before the first
   component is written, and a component is finished before its chapter's prose is written,
   since the prose describes code that exists. The prose introduces a component progressively,
   showing the part its chapter's pattern needs; the code does not wait for it.
