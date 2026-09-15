@@ -475,9 +475,10 @@ Conventions:
   below (`customer`, `planning`, `booking`, `policy`, `servicing`, `support`, `destination`);
   the domain map in 01_system_overview.adoc is the authority, and `system` is the technical
   namespace outside it. The book's prose uses the same qualified form. Payload schemas are
-  Pydantic models (`ch02_semantic_data_contracts`); this catalog fixes names and ownership,
-  not field lists, since full contract detail would be invalidated by chapter-level
-  discoveries.
+  Pydantic models (`ch02_semantic_data_contracts`), one per event in
+  `lib/travel_agency/facts/`, each bound to its type and its key (`04_implementation_design.adoc`,
+  The Agent Container); this catalog fixes names and ownership, not field lists, since full
+  contract detail would be invalidated by chapter-level discoveries.
 * Every event carries `correlationid` and `partitionkey` (both from ch 2), `contextpath` (from
   ch 7), `promptversion` and `modelversion` on what an agent publishes (from ch 10), and
   `identitytoken` (from ch 13) as CloudEvents extension attributes. `correlationid` is the

@@ -53,14 +53,17 @@ payment offstage until ch 10.
   new inside; a planner node, flight-search and hotel-search sub-agents, a validator node, the
   join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
   (REST) and the Hotel Reservation System sim (inventory over MCP), CloudEvents + Pydantic
-  contract models, the validating boundary at the container (inbound and outbound)
+  contract models as the fact catalog in code, the container's `publish(fact)` replacing ch 1's
+  hand-rolled JSON reply, the validating boundary at the container (inbound and outbound)
 | `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` becoming
   the adapter's record key
 | Agent traits, the domain map (seven contexts and the platform beside it), the glossary's two
   meanings of "trip", "request", and "confirmation", the component boundary and the ten
   criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, the
-  open-host request, agent container, data contracts, correlation and causation, at-least-once
-  floor, ordering by key in the contract; 2.8 shows the graph's shape and the two events only
+  open-host request, agent container (the model never touches the broker; structured output
+  and publish tools as the two ways an agent states a fact), data contracts, correlation and
+  causation, at-least-once floor, ordering by key in the contract; 2.8 shows the graph's shape
+  and the two events only
 
 | 3
 | Component
@@ -82,12 +85,14 @@ payment offstage until ch 10.
 | Workflow
 | W1 step 1 for chat and email; W2 complete; W3's inspiration path
 | Front Desk (the Customer Relations agent: chat shell out of the page budget, intent classifier
-  and publishing code in it, writer of Customer and Conversation, delivery by subscription),
+  and publishing code in it, the classifier's structured output, writer of Customer and
+  Conversation, delivery by subscription),
   email replay script + seeded dataset (`customer.EmailReceived`), Semantic Router at two
   replicas (writing booking's, support's, and destination's requests directly, and
   `booking.SupplierUpdateReceived`; the time window sorted by sender timestamp), email delivery
   adapter, Token Defense Filter, `InboxStore` (the Agentic Inbox staging an early supplier
-  update), Destination Inspiration crew (CrewAI, the target of routing by meaning), the lanes
+  update), Destination Inspiration crew (CrewAI, the target of routing by meaning, its pack
+  through `output_pydantic`), the lanes
   demonstration (a burst of trip requests into one Planner process, every inference in flight,
   order kept per trip, a kill mid-burst replayed from the watermark)
 | `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end
@@ -124,7 +129,8 @@ payment offstage until ch 10.
 | Workflow
 | W1 slice 3: the proposal negotiated and reserved, ending with the trip reserved and both holds
   in place; the two Paris runs; the newer-request interrupt
-| Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`),
+| Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`
+  through the book's first publish tool),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
   `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
   recording for ch 12
@@ -163,7 +169,8 @@ payment offstage until ch 10.
 | 9
 | Workflow
 | W5 complete
-| Recovery Agent (ADK, in servicing), the livelock guard (platform, per correlation id in the
+| Recovery Agent (ADK, in servicing, `CompensationDrafted` through a publish tool), the livelock
+  guard (platform, per correlation id in the
   `GuardStateStore`, `system.LivelockDetected`), the Hotel Reservation System sim's callback
   adapter (`servicing.HotelSoldOut`) with sold-out injection and its non-converging
   auto-responder
@@ -244,5 +251,6 @@ payment offstage until ch 10.
   config
 | Ports pay off: zero agent-code changes; serverless scale-to-zero; per-key order kept by
   construction on every supported broker, the lanes the broker's where it serializes per key
-  and the adapter's own (reused from Kafka) where it hands out partitions
+  and the adapter's own (reused from Kafka) where it hands out partitions; ADK's Eventarc
+  toolset named as the same idea as the container's publish tools, on GCP
 |===

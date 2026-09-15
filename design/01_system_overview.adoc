@@ -760,7 +760,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   writes a rationale for each. It consults the Destination Research Agent over A2A (ch 3), and
   the flight search reaches the Airline Reservation System sim over REST. It publishes
   `planning.ItineraryProposed`, each proposal immutable and keyed by the trip's id, and places no
-  holds. Its checkpoint is private to the graph; its hydration port is empty until ch 6's
+  holds; the join's typed answer is the fact, published through the container's `publish`
+  (structured output). Its checkpoint is private to the graph; its hydration port is empty until ch 6's
   compose file selects the `SemanticViewStore` adapter. Its own request type is declared
   interrupting for its key: a newer request for the same trip arriving mid-run is taken from
   the lane's pending queue between steps, the run is abandoned, the older request is answered
@@ -775,7 +776,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | py
 | 3
 | The booking context's agent and the Trip's one writer, event-only: it has no HTTP surface and
-  consumes only `booking.*` types. On `TripRequested` it validates the request as a business
+  consumes only `booking.*` types. Its choices among facts are deterministic code, never the
+  model's, so it calls the container's `publish` directly. On `TripRequested` it validates the request as a business
   request (dates in the future and in order, at least one stop, travellers named, a budget or
   an explicit "no limit"), records the Trip under that event's id (in memory until ch 8, in
   the `WorkflowStateStore` after), and either answers `TripRequestRejected` or asks planning
@@ -808,8 +810,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | The Customer Relations context's agent and the writer of its Customer and Conversation
   aggregates. Records `customer.ChatMessageReceived` (conversation id, customer id) for each
   customer message; its intent classifier, a single-prompt judgement of what the customer
-  wants and the book's first Reflex-trait agent, writes the serving context's request:
-  `booking.TripRequested` for a decided customer, `booking.CustomerReplied` (the proposal it
+  wants and the book's first Reflex-trait agent, writes the serving context's request as its
+  one turn's typed answer (structured output): `booking.TripRequested` for a decided customer, `booking.CustomerReplied` (the proposal it
   answers, the recognised intent: chose itinerary two; too expensive; make it the 14th to the
   17th) when the conversation already concerns a trip, `support.SupportRequested` for a
   question, `destination.InspirationRequested` for a customer who has not decided where to go.
@@ -851,7 +853,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | Divergent ideation as its own component in the destination context: on
   `destination.InspirationRequested` ("somewhere warm in March") several personas turn the
   indexed brochures into a themed suggestion pack ("three ways to spend a week in Portugal"),
-  published as `destination.SuggestionPackReady`, a proposal set with no side effects. Routed to
+  published as `destination.SuggestionPackReady` from the crew's `output_pydantic` result
+  through the container's `publish`, a proposal set with no side effects. Routed to
   by meaning by the Front Desk's classifier and the Router; the Front Desk shows the pack. It
   touches nothing in planning or booking.
 
@@ -879,8 +882,10 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   negotiating in natural language leaks the buyer's willingness to pay through the dialogue
   itself (ch 13's contextual segregation). Each negotiation ends in `booking.RateNegotiated`
   (the stay, the hotel, the list rate, the negotiated rate, the terms, the validity), an edge
-  observation the Booking Agent records at the barrier. A checkpoint between turns (ADK
-  session state) lets ch 8 run a negotiation across a slow counter. Nobody negotiates after an
+  observation the Booking Agent records at the barrier. The fact is stated from inside the A2A
+  loop through the container's publish tool, the book's first, once, at the loop's end. A
+  checkpoint between turns (ADK session state) lets ch 8 run a negotiation across a slow
+  counter. Nobody negotiates after an
   approval.
 
 | Rental Car Agent
@@ -902,7 +907,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | 9
 | Semantic rollback in the servicing context: catches the failure event (`HotelSoldOut`, or
   the platform's `LivelockDetected`), assesses the disrupted trip through the Observer's view,
-  and drafts `servicing.CompensationDrafted`: the customer's message and a compensation plan
+  and drafts `servicing.CompensationDrafted` through the container's publish tool: the
+  customer's message and a compensation plan
   computed from the entitlement, an immutable payload superseded by a new draft if rejected.
   Its sub-agents and tools are organised by ADK (the framework's second appearance, for its
   sub-agent and tool organisation, not for GCP); its working state is its private session. The

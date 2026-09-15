@@ -124,7 +124,9 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
   prefix adds length without adding meaning inside one system.
 * Every type is declared exactly once, as a constant in
   `lib/travel_agency/event_types.py`, grown additively by later chapters. Components import
-  the constant, never retype the string.
+  the constant, never retype the string. From ch 2 the type's fact model binds to that
+  constant (The Agent Container, below), so the type is still spelled once and its model is
+  found from it.
 * The producer is **never** part of the type. Its identity is carried by the CloudEvents
   `source` attribute; the Single Writer Principle assigns one owning context per type, a
   producer stands in that context, and a relay publishing for an owner (the `EventScheduler`,
@@ -262,13 +264,66 @@ both). The Kafka adapter keeps the promise as follows.
 
 The container wraps the port around one agent (`ch02_agent_container`). Its handler signature
 is the same under the pull loop and under a push endpoint, which is what makes the invocation
-model an adapter concern. The container owns four things.
+model an adapter concern. The container owns five things.
 
 * **The validating boundary.** Inbound: the envelope's schema, the UUID `id`, the required
-  attributes, the payload's Pydantic contract, and from ch 13 the producer's identity; a
-  rejected event is logged and, from ch 10, dead-lettered, and never reaches the handler.
-  Outbound: the same contract on every publish, including the presence of `partitionkey`
-  (from the ch 2 practical).
+  attributes, the payload against the fact model bound to its type (below), which the handler
+  receives parsed beside the event, and from ch 13 the producer's identity; a rejected event
+  is logged and, from ch 10, dead-lettered, and never reaches the handler. Outbound: the same
+  contract on every publish, including the presence of `partitionkey` (from the ch 2
+  practical).
+* **How an agent states a fact.** The model never touches the port and never sets an envelope
+  attribute. It chooses which fact to state, from the facts the container offers it, and the
+  container carries the fact across. The facts are code: one Pydantic model per event payload
+  in `lib/travel_agency/facts/`, one module per context mirroring the catalog in
+  `02_workflows_and_events.adoc`, each bound once to its type constant and to the field
+  holding its aggregate id (`@fact(ITINERARY_PROPOSED, key="trip_id")`), so the type is still
+  spelled once and the model is found from the type. On that catalog the container offers
+  every agent two calls, and nothing framework-specific:
+** `publish(fact)`: type and key from the binding; `id` and `time` minted; `correlationid`
+   and `causationid` copied from the activation's inbound event; `promptversion` and
+   `modelversion` from configuration (ch 10); the payload validated; then the port's
+   `publish`. Every outbound event passes through it, so the outbound boundary is one
+   function.
+** `publish_tool(Fact)`: a plain async Python function named and documented from the model,
+   whose parameters are the model's fields, flattened, and whose body builds the model and
+   calls `publish`. Flattened because that is the form every framework's tool wrapper reads
+   natively (LangChain's `@tool`, ADK's automatic `FunctionTool`, CrewAI's `@tool`,
+   LlamaIndex's `FunctionTool.from_defaults`) and the one ADK recommends over custom classes;
+   ADK's own Eventarc toolset binds a `payload_schema` the same way. The agent wraps the
+   function in its framework's way, in its own code; the kernel imports no framework.
++
+Both calls are available to every agent. Which one a turn uses follows from whether that
+turn runs tools:
+** *Structured output*, for a turn with no tools in it: the loop asks the model for a typed
+   answer with the fact model as the response schema (LiteLLM `response_format`, LangChain
+   `response_format`, ADK `output_schema`, CrewAI `output_pydantic`, LlamaIndex
+   `structured_predict`) and calls `publish` with it between turns, feeding the event's id
+   back as the next turn's observation where the loop continues. One turn is the Planner's
+   case at the join, the Front Desk classifier's (one prompt, one of four typed requests),
+   and the Inspiration crew's pack.
+** *Publish tools*, for a turn that runs tools: the container's tool is one more tool in the
+   loop, it publishes when called, inside the turn, and the model may state several facts in
+   one turn and read each id at once. This is the only reliable form for a tool-using ADK
+   agent (`output_schema` beside tools in one request is supported by specific models only,
+   with a fallback ADK's own documentation calls unreliable), and the natural one everywhere
+   else, since stating a fact becomes one tool call. The Hotel Negotiator states
+   `booking.RateNegotiated` this way from inside its A2A loop (ch 7, the book's first publish
+   tool); the Recovery Agent states `servicing.CompensationDrafted` the same way (ch 9).
++
+Neither mechanism restricts when a fact is stated: an orchestrating agent states facts as its
+workflow advances, mid-activation, and the test for each fact is the boundary test of
+`ch02_agentic_boundaries`, never timing. What both share is at-least-once. A fact stated
+mid-activation is out, and if the activation dies afterwards and its inbound event is
+redelivered, the rerun states it again under a new id, which no consumer can deduplicate. A
+durable agent resumes from its checkpoint past the fact (ch 8); until then the design's
+agents state their facts at the end of the activation (the Planner at the join, the
+classifier's one request, the Negotiator's one `RateNegotiated` at the end of its loop, made
+durable in ch 8), and the Booking Agent's steps are deterministic code that calls `publish`
+directly. The one thing ruled out is the generic publish tool, a free `type`, `source`, or
+attribute for the model to fill, for the reason ADK's documentation gives: hallucinated
+destinations and malformed schemas. To confirm in code before ch 7: that ADK accepts the
+flattened function with Pydantic-typed fields (dates, enums, nested items).
 * **One key at a time.** The container handles the events of one key sequentially and
   acknowledges each by returning; the adapter runs keys concurrently in lanes and commits by
   watermark. Deferral to the next activation is the default for anything that arrives on the
@@ -358,7 +413,8 @@ the added behaviour cannot be segregated cleanly behind a flag inside one versio
 
 == Repository Layout Conventions
 
-* `lib/travel_agency/`: the shared kernel (port, adapters, event-type constants, the container,
+* `lib/travel_agency/`: the shared kernel (port, adapters, event-type constants, the fact
+  models, the container,
   the identity registry, the replay module, and the `console` event renderer) every component
   installs; its own pyproject and tests.
 * `components/<book_component_name>/`: one self-contained directory per component, named
