@@ -642,7 +642,7 @@ Identity conventions, in the book's order of introduction:
   conversation's. Ordering by key is part of the broker contract: events sharing a
   `partitionkey` are delivered in publish order, one at a time, to one consumer. The adapter
   maps the attribute to whatever its broker orders by (Kafka's record key, Pub/Sub's ordering
-  key, a message group id), and a broker that cannot order by key is unsupported or reached
+  key, a message group id), and a broker that cannot order per key is unsupported or reached
   through a workaround. The contract's three conditions (one topic per context, one key at a
   time, a version check in the store) and the supported brokers are in
   `05_data_consistency_and_state_model.adoc`; the mapping is in `04_implementation_design.adoc`.
@@ -760,8 +760,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   writes a rationale for each. It consults the Destination Research Agent over A2A (ch 3), and
   the flight search reaches the Airline Reservation System sim over REST. It publishes
   `planning.ItineraryProposed`, each proposal immutable and keyed by the trip's id, and places no
-  holds; the join's typed answer is the fact, published through the container's `publish`
-  (structured output). Its checkpoint is private to the graph; its hydration port is empty until ch 6's
+  holds; the container publishes the join's typed answer, the one class in its `produces`
+  (`04_implementation_design.adoc`, The Agent Container). Its checkpoint is private to the graph; its hydration port is empty until ch 6's
   compose file selects the `SemanticViewStore` adapter. Its own request type is declared
   interrupting for its key: a newer request for the same trip arriving mid-run is taken from
   the lane's pending queue between steps, the run is abandoned, the older request is answered
@@ -777,7 +777,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | 3
 | The booking context's agent and the Trip's one writer, event-only: it has no HTTP surface and
   consumes only `booking.*` types. Its choices among facts are deterministic code, never the
-  model's, so it calls the container's `publish` directly. On `TripRequested` it validates the request as a business
+  model's: its activation returns the facts it commits and the container publishes them. On
+  `TripRequested` it validates the request as a business
   request (dates in the future and in order, at least one stop, travellers named, a budget or
   an explicit "no limit"), records the Trip under that event's id (in memory until ch 8, in
   the `WorkflowStateStore` after), and either answers `TripRequestRejected` or asks planning
@@ -853,8 +854,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | Divergent ideation as its own component in the destination context: on
   `destination.InspirationRequested` ("somewhere warm in March") several personas turn the
   indexed brochures into a themed suggestion pack ("three ways to spend a week in Portugal"),
-  published as `destination.SuggestionPackReady` from the crew's `output_pydantic` result
-  through the container's `publish`, a proposal set with no side effects. Routed to
+  published by the container as `destination.SuggestionPackReady` from the crew's
+  `output_pydantic` result, a proposal set with no side effects. Routed to
   by meaning by the Front Desk's classifier and the Router; the Front Desk shows the pack. It
   touches nothing in planning or booking.
 
@@ -883,9 +884,10 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   itself (ch 13's contextual segregation). Each negotiation ends in `booking.RateNegotiated`
   (the stay, the hotel, the list rate, the negotiated rate, the terms, the validity), an edge
   observation the Booking Agent records at the barrier. The fact is stated from inside the A2A
-  loop through the container's publish tool, the book's first, once, at the loop's end. A
-  checkpoint between turns (ADK session state) lets ch 8 run a negotiation across a slow
-  counter. Nobody negotiates after an
+  loop through the container's publish tool, the book's first, once, at the loop's end; the
+  agent runs inside ADK's own FastAPI app with the container attached in its lifespan, the
+  book's first attachment inside a framework's own app, so ADK's sessions and UI apply to it. A checkpoint
+  between turns (ADK session state) lets ch 8 run a negotiation across a slow counter. Nobody negotiates after an
   approval.
 
 | Rental Car Agent

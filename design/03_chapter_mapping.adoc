@@ -53,17 +53,20 @@ payment offstage until ch 10.
   new inside; a planner node, flight-search and hotel-search sub-agents, a validator node, the
   join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
   (REST) and the Hotel Reservation System sim (inventory over MCP), CloudEvents + Pydantic
-  contract models as the fact catalog in code, the container's `publish(fact)` replacing ch 1's
-  hand-rolled JSON reply, the validating boundary at the container (inbound and outbound)
+  contract models as the event catalog in code (`@event`), the container attached to the app
+  hosting the Planner (`langgraph dev` if it runs cleanly in the stack, else a FastAPI app),
+  `consumes`, `produces`, and one `attach` line replacing ch 1's hand-rolled subscribe and
+  publish, the validating boundary at the container (inbound and outbound)
 | `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` becoming
   the adapter's record key
 | Agent traits, the domain map (seven contexts and the platform beside it), the glossary's two
   meanings of "trip", "request", and "confirmation", the component boundary and the ten
   criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, the
-  open-host request, agent container (the model never touches the broker; structured output
-  and publish tools as the two ways an agent states a fact), data contracts, correlation and
-  causation, at-least-once floor, ordering by key in the contract; 2.8 shows the graph's shape
-  and the two events only
+  open-host request, agent container (the agent never learns a broker exists; the typed
+  answer as the way an agent states a fact; publish tools, the attachment inside a
+  framework's own app, and the push route as forward promises), data contracts, correlation and causation,
+  at-least-once floor, ordering per key in the contract; 2.8 shows the graph's shape and the
+  two events only
 
 | 3
 | Component
@@ -130,7 +133,8 @@ payment offstage until ch 10.
 | W1 slice 3: the proposal negotiated and reserved, ending with the trip reserved and both holds
   in place; the two Paris runs; the newer-request interrupt
 | Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`
-  through the book's first publish tool),
+  through the book's first publish tool; running inside ADK's FastAPI app with the container
+  attached in its lifespan, the first attachment inside a framework's own app),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
   `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
   recording for ch 12
@@ -251,6 +255,8 @@ payment offstage until ch 10.
   config
 | Ports pay off: zero agent-code changes; serverless scale-to-zero; per-key order kept by
   construction on every supported broker, the lanes the broker's where it serializes per key
-  and the adapter's own (reused from Kafka) where it hands out partitions; ADK's Eventarc
-  toolset named as the same idea as the container's publish tools, on GCP
+  and the adapter's own (reused from Kafka) where it hands out partitions; the push
+  attachment, a CloudEvents route on the ADK app of ch 7 with Eventarc Advanced delivering
+  into it and no agent code changed; ADK's Eventarc toolset named as the same idea as the
+  container's publish tools, on GCP
 |===

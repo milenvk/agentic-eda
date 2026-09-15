@@ -13,7 +13,7 @@
 This document describes how the Travel Agency system ensures consistency across its components
 without requiring synchronous coordination. The strategy rests on four pillars: **Event
 Sourcing** as the write model (immutable facts), **CQRS** (Command Query Responsibility
-Segregation) to separate writes from reads, **ordering by key** as part of the broker contract
+Segregation) to separate writes from reads, **ordering per key** as part of the broker contract
 (an aggregate's events arrive in publish order), and **eventual consistency** across aggregates
 enforced through causation tracking, staging, and idempotent read model updates.
 
@@ -296,7 +296,7 @@ scoped to a topic. On either, a slow activation holds up only its own key.
 The backends available to the book's adapters. Agents never learn which adapter is
 underneath, and the guarantee is the same on every supported one.
 
-* **Supported, ordering by key:** Kafka and Redpanda (record key); Azure Event Hubs (partition
+* **Supported, ordering per key:** Kafka and Redpanda (record key); Azure Event Hubs (partition
   key; Kafka-compatible); RabbitMQ Streams (partitioning by key); Google Pub/Sub (ordering keys,
   enabled on the subscription); Azure Service Bus (sessions); AWS EventBridge only behind a FIFO
   SQS queue (message group id), at the cost of a hop; Redis Streams by sharding streams per key
@@ -309,7 +309,7 @@ underneath, and the guarantee is the same on every supported one.
   confirmed in the first list, and the book's list of replacement brokers (ch 1.5) is
   restricted to them.
 
-**An adapter that cannot order by key is not an adapter of this book.** The port promises order
+**An adapter that cannot order per key is not an adapter of this book.** The port promises order
 per key, so a backend without it is unsupported or reached through a workaround from the first
 list; it never ignores the key silently.
 
@@ -470,7 +470,7 @@ acts on, or must be able to replay, goes on the broker.
 An order-free design is possible: the writer assigns a sequence number per subject at commit
 under a version check, state-carrying inputs resolve by highest sequence, and delta consumers
 stage gaps. It is portable to any broker, and it is four mechanisms for the reader to hold at once.
-Mandating brokers that order by key costs one condition on the topic mapping, one on the
+Mandating brokers that order per key costs one condition on the topic mapping, one on the
 consumer, and one fence in the store, and every broker likely to be found in an enterprise
 qualifies.
 

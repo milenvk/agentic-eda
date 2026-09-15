@@ -57,9 +57,10 @@ idiom: agents depend on the port, adapters depend on nothing from the agents' wo
 === Opening a broker
 
 `connect.event_broker(client_name, start="now")` is an async context manager and the only
-place any component names an implementation. Entry points call it; none of them imports an adapter,
-reads a broker address, or closes a connection. A second broker, or a test double, is a
-change to that one function.
+place any component names an implementation. The container calls it when the app it is
+attached to starts (The Agent Container, below), and ch 1's components, which predate the
+container, call it in their own entry points; none of them imports an adapter, reads a broker address, or closes a
+connection. A second broker, or a test double, is a change to that one function.
 
 It yields an `EventBrokerConnection`: the frozen `EventBroker` surface plus `run()`, the delivery
 loop; a process hands control to it after subscribing. The split is the dependency
@@ -78,10 +79,13 @@ little is passed:
 * `time`: now, UTC, RFC 3339, unless supplied in `attributes`.
 * `datacontenttype`: `application/json` unless supplied in `attributes`.
 * `specversion`: supplied by the wire codec, never by callers.
-* `partitionkey` is never minted. The producer sets it, because only the producer knows the
-  aggregate; a key unique per event would be no order at all. From the ch 2 practical the
-  outbound validation at the container boundary rejects an event without one; ch 1's events
-  carry none and are published with a null key.
+* `partitionkey` is never minted from nothing. It is the value of the field the event's class
+  declares with `order_per` (The Agent Container, below), because only the producer's side
+  knows the aggregate; a key unique per event would be no order at all. From the ch 2
+  practical the container fills it on every publish and `attach` refuses a class that
+  declares nothing; a class declaring `order_per=None` is published with a null key, as ch
+  1's events are, and `order_per=OWN_ID` keys the event that starts a sequence on its own
+  minted id.
 
 === `attributes` semantics
 
@@ -124,8 +128,8 @@ stamps `specversion: "1.0"`. Decoding reverses it: everything that is not
   prefix adds length without adding meaning inside one system.
 * Every type is declared exactly once, as a constant in
   `lib/travel_agency/event_types.py`, grown additively by later chapters. Components import
-  the constant, never retype the string. From ch 2 the type's fact model binds to that
-  constant (The Agent Container, below), so the type is still spelled once and its model is
+  the constant, never retype the string. From ch 2 the type's `@event` class binds to that
+  constant (The Agent Container, below), so the type is still spelled once and its class is
   found from it.
 * The producer is **never** part of the type. Its identity is carried by the CloudEvents
   `source` attribute; the Single Writer Principle assigns one owning context per type, a
@@ -205,7 +209,7 @@ from then on the component resumes from its own committed position.
 The contract (ch 2.3, from the ch 2 practical on): events sharing a `partitionkey` are
 delivered in publish order, one at a time, to one consumer. It promises order per key, never
 partitions: a Kafka adapter keeps it with the record key, a Pub/Sub adapter with the ordering
-key, a Service Bus adapter with the session id. A broker that cannot order by key is
+key, a Service Bus adapter with the session id. A broker that cannot order per key is
 unsupported or reached through a workaround (`05_data_consistency_and_state_model.adoc` lists
 both). The Kafka adapter keeps the promise as follows.
 
@@ -267,63 +271,113 @@ is the same under the pull loop and under a push endpoint, which is what makes t
 model an adapter concern. The container owns five things.
 
 * **The validating boundary.** Inbound: the envelope's schema, the UUID `id`, the required
-  attributes, the payload against the fact model bound to its type (below), which the handler
-  receives parsed beside the event, and from ch 13 the producer's identity; a rejected event
+  attributes, the payload against the `@event` class bound to its type (below), which the
+  agent receives as that class and never as an `Event`, and from ch 13 the producer's
+  identity; a rejected event
   is logged and, from ch 10, dead-lettered, and never reaches the handler. Outbound: the same
   contract on every publish, including the presence of `partitionkey` (from the ch 2
   practical).
-* **How an agent states a fact.** The model never touches the port and never sets an envelope
-  attribute. It chooses which fact to state, from the facts the container offers it, and the
-  container carries the fact across. The facts are code: one Pydantic model per event payload
-  in `lib/travel_agency/facts/`, one module per context mirroring the catalog in
-  `02_workflows_and_events.adoc`, each bound once to its type constant and to the field
-  holding its aggregate id (`@fact(ITINERARY_PROPOSED, key="trip_id")`), so the type is still
-  spelled once and the model is found from the type. On that catalog the container offers
-  every agent two calls, and nothing framework-specific:
-** `publish(fact)`: type and key from the binding; `id` and `time` minted; `correlationid`
-   and `causationid` copied from the activation's inbound event; `promptversion` and
-   `modelversion` from configuration (ch 10); the payload validated; then the port's
-   `publish`. Every outbound event passes through it, so the outbound boundary is one
-   function.
-** `publish_tool(Fact)`: a plain async Python function named and documented from the model,
-   whose parameters are the model's fields, flattened, and whose body builds the model and
-   calls `publish`. Flattened because that is the form every framework's tool wrapper reads
-   natively (LangChain's `@tool`, ADK's automatic `FunctionTool`, CrewAI's `@tool`,
-   LlamaIndex's `FunctionTool.from_defaults`) and the one ADK recommends over custom classes;
-   ADK's own Eventarc toolset binds a `payload_schema` the same way. The agent wraps the
-   function in its framework's way, in its own code; the kernel imports no framework.
+* **How an agent is hosted, and how it states a fact.** The container is a library, never a
+  competing host, and the agent never learns that a broker exists. Its developer writes the
+  agent as the framework's own documentation would have it, plus two lists of `@event`
+  classes, `consumes` and `produces`, and one `attach` line on the app that hosts the agent;
+  the container does the rest.
+** *The catalog as code.* One Pydantic model per event payload in `lib/travel_agency/events/`,
+   one module per context mirroring the catalog in `02_workflows_and_events.adoc`, each bound
+   once to its type constant and to the field its order is kept within:
+   `@event(ITINERARY_PROPOSED, order_per="trip_id")`, events sharing that field's value
+   delivered in publish order, one at a time, and nothing promised across values. The two
+   other forms are written out, never implied: `order_per=OWN_ID` on the event that starts
+   a sequence (`booking.TripRequested`, keyed on its own id, which the events of the trip
+   then share), and `order_per=None` on an event nothing orders
+   (`system.DutyOfCareSweepDue`), published with a null key and handled in a lane of its
+   own. A class that declares nothing is refused at `attach`, at startup, because an
+   inherited or guessed key breaks order per key without a symptom. The function form,
+   `event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")`, binds a class the
+   developer does not own, so an existing agent's own models become the contract with no
+   edit to the agent.
+   The `Event` dataclass keeps its name and its job: it is one occurrence on the wire, the
+   envelope, and an `@event` class is the contract for a kind of event
+   (`ch02_semantic_data_contracts` says so in one sentence). The binding adds a `type`
+   literal to the class, which is what makes a union of event classes discriminated.
+** *One activation.* For each inbound event the container validates the payload into the
+   class bound to the event's type, hands that instance to the framework adapter with the
+   key (or the event id, when there is none) as the activation's thread or session id,
+   reduces what comes back to zero or more instances of the classes in `produces` (an
+   instance, a dict that validates as one, or JSON text parsed against the discriminated
+   union of `produces`), rejects anything else at the boundary, and publishes each with its
+   envelope: type and key from the binding, `id` and `time` minted, `correlationid` and
+   `causationid` from the inbound event, `promptversion` and `modelversion` from
+   configuration (ch 10). Returning from the activation acknowledges. Every outbound event
+   passes through this one path, so the outbound boundary is one function.
+** *Framework adapters*, one module each under `travel_agency.container`, selected by the
+   agent object's class module (`langgraph`, `google.adk`, `crewai`, `llama_index`, or a
+   plain coroutine function), so no framework is imported until it is matched and a
+   component's image still carries only its own. An adapter takes the agent as built (a
+   compiled graph with whatever checkpointer it was compiled with, an ADK agent as
+   constructed, a crew as assembled) and owns one `invoke`: LangGraph, `ainvoke` with the
+   request under the input field of its type and `thread_id` in the config; ADK, a `Runner`
+   over the app's session service, the request as the user message, the final response out;
+   CrewAI, `kickoff_async` with the request's fields as inputs, `CrewOutput.pydantic` or
+   `.raw` out; LlamaIndex, the agent's `run`, its response out; a plain function, its return
+   value. A framework the book does not cover is one more adapter with one `invoke`. The
+   developer's one obligation is that the agent answers with a class in `produces`, which
+   every framework's own typed-output feature provides (`with_structured_output` or a
+   graph's `output_schema`, ADK's `output_schema`, a task's `output_pydantic`, LiteLLM's
+   `response_format`); the adapter also appends the schema of `produces` to the request it
+   hands in, so an agent with none configured still knows what it may answer.
+** *One attachment, three positions.* The container is a lifespan task on an ASGI app, and
+   `eda.attach(app, agent, consumes=..., produces=...)` is the developer's one line, in the
+   module that already defines the app; the compose file runs the app as the framework's
+   documentation says. It opens the broker through `connect.event_broker` when the app
+   starts and closes it when the app stops. Where the framework has a self-hostable app, the
+   container attaches *inside* it and invokes through the host's own runner or runs API, so
+   the host's sessions, tracing, UI, and persistence apply to event-triggered runs and
+   nothing the host offers is lost: ADK's `get_fast_api_app`, LangGraph Server's custom app
+   through `langgraph.json`'s `http.app`, Pydantic AI's AG-UI app. Where the framework has no
+   host, the container attaches inside *the component's own* FastAPI app, which is where the
+   plain-Python agents live (the Front Desk is one already) and the CrewAI and LlamaIndex
+   agents with them. Where the host is managed (LangGraph Cloud, CrewAI AMP), the container
+   runs *beside* it in a small app of its own and invokes over the host's API; named once in
+   the book, never built. Push (ch 15) is a route on the same app in every position, the
+   CloudEvents HTTP binding in and the same core behind it. The ch 7 Negotiator is the first
+   attachment inside a framework's own app (ADK's); the ch 4 Front Desk and Inspiration crew
+   attach inside their own apps; the ch 2 Planner's host is verified before the practical is
+   written: `langgraph dev`, the in-memory LangGraph server, if it runs cleanly in the
+   compose stack, else a FastAPI app hosting the graph, since LangGraph's production server
+   brings a Postgres and a Redis of its own.
+** *Publish tools* (ch 7), for a turn that runs tools: `publish_tool(EventClass)` returns a
+   plain async function named and documented from the class, whose parameters are its
+   fields, flattened (the form every framework's tool wrapper reads natively, LangChain's
+   `@tool`, ADK's automatic `FunctionTool`, CrewAI's `@tool`, LlamaIndex's
+   `FunctionTool.from_defaults`, and the one ADK recommends over custom classes; ADK's own
+   Eventarc toolset binds a `payload_schema` the same way), and whose body validates and
+   publishes through the same path. The tool publishes when called, inside the turn, and the
+   model may state several facts in one turn and read each id at once. It is the only
+   reliable form for a tool-using ADK agent (`output_schema` beside tools in one request is
+   supported by specific models only, with a fallback ADK's own documentation calls
+   unreliable) and the natural one everywhere else, since stating a fact becomes one tool
+   call. The Hotel Negotiator states `booking.RateNegotiated` this way from inside its A2A
+   loop (ch 7, the book's first publish tool); the Recovery Agent states
+   `servicing.CompensationDrafted` the same way (ch 9). The generic publish tool, a free
+   `type`, `source`, or attribute for the model to fill, is the one thing ruled out, for the
+   reason ADK's documentation gives: hallucinated destinations and malformed schemas.
 +
-Both calls are available to every agent. Which one a turn uses follows from whether that
-turn runs tools:
-** *Structured output*, for a turn with no tools in it: the loop asks the model for a typed
-   answer with the fact model as the response schema (LiteLLM `response_format`, LangChain
-   `response_format`, ADK `output_schema`, CrewAI `output_pydantic`, LlamaIndex
-   `structured_predict`) and calls `publish` with it between turns, feeding the event's id
-   back as the next turn's observation where the loop continues. One turn is the Planner's
-   case at the join, the Front Desk classifier's (one prompt, one of four typed requests),
-   and the Inspiration crew's pack.
-** *Publish tools*, for a turn that runs tools: the container's tool is one more tool in the
-   loop, it publishes when called, inside the turn, and the model may state several facts in
-   one turn and read each id at once. This is the only reliable form for a tool-using ADK
-   agent (`output_schema` beside tools in one request is supported by specific models only,
-   with a fallback ADK's own documentation calls unreliable), and the natural one everywhere
-   else, since stating a fact becomes one tool call. The Hotel Negotiator states
-   `booking.RateNegotiated` this way from inside its A2A loop (ch 7, the book's first publish
-   tool); the Recovery Agent states `servicing.CompensationDrafted` the same way (ch 9).
-+
-Neither mechanism restricts when a fact is stated: an orchestrating agent states facts as its
-workflow advances, mid-activation, and the test for each fact is the boundary test of
-`ch02_agentic_boundaries`, never timing. What both share is at-least-once. A fact stated
-mid-activation is out, and if the activation dies afterwards and its inbound event is
-redelivered, the rerun states it again under a new id, which no consumer can deduplicate. A
-durable agent resumes from its checkpoint past the fact (ch 8); until then the design's
-agents state their facts at the end of the activation (the Planner at the join, the
-classifier's one request, the Negotiator's one `RateNegotiated` at the end of its loop, made
-durable in ch 8), and the Booking Agent's steps are deterministic code that calls `publish`
-directly. The one thing ruled out is the generic publish tool, a free `type`, `source`, or
-attribute for the model to fill, for the reason ADK's documentation gives: hallucinated
-destinations and malformed schemas. To confirm in code before ch 7: that ADK accepts the
-flattened function with Pydantic-typed fields (dates, enums, nested items).
+Neither the typed answer nor a publish tool restricts when a fact is stated: an
+orchestrating agent states facts as its workflow advances, mid-activation, and the test for
+each fact is the boundary test of `ch02_agentic_boundaries`, never timing. What both share
+is at-least-once. A fact stated mid-activation is out, and if the activation dies afterwards
+and its inbound event is redelivered, the rerun states it again under a new id, which no
+consumer can deduplicate. A durable agent resumes from its checkpoint past the fact (ch 8);
+until then the design's agents state their facts at the end of the activation (the Planner's
+typed answer, the classifier's one request, the Negotiator's one `RateNegotiated` at the end
+of its loop, made durable in ch 8), and the Booking Agent's steps are deterministic code
+whose activation returns the facts it commits. To confirm in code before ch 2: the Planner's
+host (above), that `ainvoke` on a compiled graph accepts the request under a field found by
+type, and that the discriminated union of `produces` is accepted as `response_format` by
+the readers' four model choices; before ch 7: that a lifespan task in ADK's app can obtain
+a `Runner` on the app's session service, and that ADK accepts the flattened function with
+Pydantic-typed fields (dates, enums, nested items).
 * **One key at a time.** The container handles the events of one key sequentially and
   acknowledges each by returning; the adapter runs keys concurrently in lanes and commits by
   watermark. Deferral to the next activation is the default for anything that arrives on the
@@ -413,8 +467,9 @@ the added behaviour cannot be segregated cleanly behind a flag inside one versio
 
 == Repository Layout Conventions
 
-* `lib/travel_agency/`: the shared kernel (port, adapters, event-type constants, the fact
-  models, the container,
+* `lib/travel_agency/`: the shared kernel (port, adapters, event-type constants, the `events`
+  package that is the catalog as code, the container library with its `attach` and its
+  framework adapters,
   the identity registry, the replay module, and the `console` event renderer) every component
   installs; its own pyproject and tests.
 * `components/<book_component_name>/`: one self-contained directory per component, named
