@@ -1080,8 +1080,9 @@ event-type-to-topic registry; on GCP (ch 15) the mechanism moves into infrastruc
 Eventarc Advanced enrollment feeds a pipeline that pushes to the consumer's ingestion
 endpoint, so the consumer does not subscribe at all. From ch 1 the adapter maps one topic per
 context and filters each subscription by type, and agents see neither. Consumers
-therefore come in both invocation models the container supports (`ch02_agent_container`): a
-pull loop, or a push endpoint the infrastructure delivers into. The audit consumer is the
+therefore come in both invocation models the container supports: a pull loop, or a push
+endpoint the infrastructure delivers into (`ch02_agent_container` promises the second,
+`ch04_topic_vs_content_routing` teaches it, and ch 15 demonstrates it). The audit consumer is the
 standing beneficiary: it sees every event, including types added chapters later, with no code
 change.
 
