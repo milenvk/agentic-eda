@@ -16,15 +16,19 @@ class StubBroker:
         self,
         event_type: str,
         source: str,
-        payload: dict,
+        data: dict,
         id: str | None = None,
         attributes: dict[str, str] | None = None,
-    ) -> str:
-        event_id = id or f"stub-{len(self.published)}"
-        self.published.append(
-            Event(event_id, event_type, source, payload, dict(attributes or {}))
+    ) -> Event:
+        event = Event(
+            id=id or f"stub-{len(self.published)}",
+            type=event_type,
+            source=source,
+            data=data,
+            **(attributes or {}),
         )
-        return event_id
+        self.published.append(event)
+        return event
 
     async def subscribe(self, event_type, handler, mode="broadcast") -> None:
         pass

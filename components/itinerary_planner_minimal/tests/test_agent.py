@@ -50,7 +50,7 @@ def itinerary_requested() -> Event:
         id="req-42",
         type=ITINERARY_REQUESTED,
         source="RequestTripScript",
-        payload={"destination": "Lisbon", "travelers": 2},
+        data={"destination": "Lisbon", "travelers": 2},
     )
 
 
@@ -60,7 +60,7 @@ async def test_replies_with_a_proposal_carrying_the_request_id(broker, llm):
     (reply,) = broker.published
     assert reply.type == ITINERARY_PROPOSED
     assert reply.source == agent.SOURCE
-    assert reply.payload == {"request_id": "req-42", "itineraries": FAKE_ITINERARIES}
+    assert reply.data == {"request_id": "req-42", "itineraries": FAKE_ITINERARIES}
 
 
 async def test_reasons_over_the_request_with_the_configured_model(broker, llm):

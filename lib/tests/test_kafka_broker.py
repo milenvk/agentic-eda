@@ -29,7 +29,7 @@ class FakeProducer:
 
     def __init__(self, **config: object) -> None:
         self.config = config
-        self.sent: list[tuple[str, bytes, bytes | None]] = []
+        self.sent: list[tuple[str, bytes, bytes | None, list]] = []
         FakeProducer.last = self
 
     async def start(self) -> None:
@@ -38,8 +38,10 @@ class FakeProducer:
     async def stop(self) -> None:
         pass
 
-    async def send_and_wait(self, topic: str, value: bytes, key: bytes | None = None) -> None:
-        self.sent.append((topic, value, key))
+    async def send_and_wait(
+        self, topic: str, value: bytes, key: bytes | None = None, headers: list | None = None
+    ) -> None:
+        self.sent.append((topic, value, key, headers or []))
 
 
 class FakeConsumer:
@@ -112,15 +114,19 @@ def make_event(**overrides) -> Event:
         id="event-1",
         type="booking.TripRequested",
         source="test",
-        payload={"destination": "Lisbon"},
-        attributes={"time": "2026-08-16T00:00:00+00:00", "subject": "trip"},
+        data={"destination": "Lisbon"},
+        time="2026-08-16T00:00:00+00:00",
+        subject="trip",
     )
     fields.update(overrides)
     return Event(**fields)
 
 
 def record(offset: int, event: Event, key: bytes | None = None) -> SimpleNamespace:
-    return SimpleNamespace(offset=offset, key=key, value=encode(event))
+    message = encode(event)
+    return SimpleNamespace(
+        offset=offset, key=key, value=message.value, headers=list(message.headers.items())
+    )
 
 
 async def until(condition: Callable[[], object], timeout: float = 2.0) -> None:
@@ -156,12 +162,35 @@ def test_the_topic_is_the_event_types_context():
 
 
 def test_encode_decode_round_trip():
-    event = make_event(attributes={"time": "t", "subject": "s", "myextension": "x"})
-    assert decode(encode(event)) == event
+    event = make_event(myextension="x")
+    assert decode(record(0, event)) == event
+
+
+def test_an_event_in_binary_mode_decodes_the_same_way():
+    # A producer outside this system may send binary mode, where the attributes
+    # travel as headers and the value holds the data alone.
+    event = make_event()
+    binary = SimpleNamespace(
+        offset=0,
+        key=None,
+        headers=[
+            ("ce_specversion", b"1.0"),
+            ("ce_id", b"event-1"),
+            ("ce_type", b"booking.TripRequested"),
+            ("ce_source", b"test"),
+            ("ce_time", b"2026-08-16T00:00:00+00:00"),
+            ("ce_subject", b"trip"),
+        ],
+        value=json.dumps(event.data).encode(),
+    )
+
+    assert decode(binary) == event
 
 
 def test_envelope_is_cloudevents_structured_json():
-    envelope = json.loads(encode(make_event()))
+    message = encode(make_event())
+    assert message.headers["content-type"] == b"application/cloudevents+json"
+    envelope = json.loads(message.value)
     assert envelope["specversion"] == "1.0"
     assert envelope["id"] == "event-1"
     assert envelope["type"] == "booking.TripRequested"
@@ -173,32 +202,32 @@ def test_envelope_is_cloudevents_structured_json():
 
 async def test_publish_mints_id_time_and_datacontenttype(fake_kafka):
     async with KafkaEventBroker("kafka:9092", client_name="test") as broker:
-        event_id = await broker.publish("booking.SomethingHappened", "test", {"a": 1})
+        published = await broker.publish("booking.SomethingHappened", "test", {"a": 1})
 
-    uuid.UUID(event_id)  # a real UUID was minted
-    topic, raw, key = FakeProducer.last.sent[0]
+    uuid.UUID(published.id)  # a real UUID was minted
+    topic, raw, key, _headers = FakeProducer.last.sent[0]
     envelope = json.loads(raw)
     assert topic == "booking"
     assert key is None  # nothing asked for order
-    assert envelope["id"] == event_id
+    assert envelope["id"] == published.id
     assert envelope["datacontenttype"] == "application/json"
     assert "time" in envelope
 
 
 async def test_publish_keeps_what_the_caller_supplies(fake_kafka):
     async with KafkaEventBroker("kafka:9092", client_name="test") as broker:
-        event_id = await broker.publish(
+        published = await broker.publish(
             "booking.SomethingHappened",
             "test",
             {"a": 1},
             id="chosen-id",
-            attributes={"time": "chosen-time", "subject": "chosen"},
+            attributes={"time": "2026-08-16T00:00:00+00:00", "subject": "chosen"},
         )
 
-    assert event_id == "chosen-id"
+    assert published.id == "chosen-id"
     envelope = json.loads(FakeProducer.last.sent[0][1])
     assert envelope["id"] == "chosen-id"
-    assert envelope["time"] == "chosen-time"
+    assert envelope["time"].startswith("2026-08-16T00:00:00")
     assert envelope["subject"] == "chosen"
 
 

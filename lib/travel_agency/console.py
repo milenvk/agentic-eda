@@ -1,7 +1,7 @@
 """Console rendering and log hygiene for demo scripts and components.
 
 The demos exist to show events moving between components, so what gets printed
-is the event: id, type, source, attributes, and payload, with long values
+is the event: its attributes and its data, with long values
 truncated. Harness tooling for every chapter's scripts — never a book listing.
 """
 
@@ -52,10 +52,14 @@ def format_event(action: str, event: Event) -> str:
         f"  {_paint('id', '2')}      {event.id}",
         f"  {_paint('source', '2')}  {event.source}",
     ]
-    for name, value in event.attributes.items():
-        lines.append(f"  {_paint(name, '2')}  {_clip(value)}")
-    lines.append(f"  {_paint('payload', '2')}")
-    for name, value in event.payload.items():
+    # Every other attribute the event carries, in the order it declares them:
+    # the optional standard ones first, then the extensions (chapter 2 onward).
+    attributes = event.model_dump(mode="json", exclude={"data"}, exclude_none=True)
+    for name, value in attributes.items():
+        if name not in ("id", "source", "type", "specversion"):
+            lines.append(f"  {_paint(name, '2')}  {_clip(value)}")
+    lines.append(f"  {_paint('data', '2')}")
+    for name, value in event.data.items():
         lines.append(f"    {_paint(name, '2')}  {_clip(value)}")
     lines.append(_RULE)
     return "\n".join(lines)

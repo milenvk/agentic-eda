@@ -16,15 +16,7 @@ log = logging.getLogger(SOURCE)
 
 def audit_line(event: Event) -> str:
     """One JSON line per event — the full fact, exactly as received."""
-    return json.dumps(
-        {
-            "id": event.id,
-            "type": event.type,
-            "source": event.source,
-            "attributes": event.attributes,
-            "payload": event.payload,
-        }
-    )
+    return json.dumps(event.model_dump(mode="json", exclude_none=True))
 
 
 async def record(log_path: str, event: Event) -> None:

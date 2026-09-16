@@ -10,7 +10,7 @@ def proposal(request_id: str) -> Event:
         id="reply-1",
         type=ITINERARY_PROPOSED,
         source="ItineraryPlannerAgent",
-        payload={"request_id": request_id, "itineraries": [{"label": "best value", "items": []}]},
+        data={"request_id": request_id, "itineraries": [{"label": "best value", "items": []}]},
     )
 
 
@@ -23,7 +23,7 @@ def test_ignores_replies_to_other_requests():
 
 
 def test_ignores_events_that_reference_no_request():
-    stray = Event(id="x", type=ITINERARY_PROPOSED, source="s", payload={})
+    stray = Event(id="x", type=ITINERARY_PROPOSED, source="s", data={})
     assert not is_reply_to("req-1", stray)
 
 

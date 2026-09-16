@@ -4,7 +4,6 @@ Everything Kafka-specific lives here: topic naming, the CloudEvents wire codec,
 consumer groups, and offset commits. No component imports aiokafka.
 """
 
-import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -14,18 +13,16 @@ from functools import partial
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.abc import ConsumerRebalanceListener
 from aiokafka.structs import ConsumerRecord, TopicPartition
+from cloudevents.core.bindings import kafka
+from cloudevents.core.v1.event import CloudEvent
 
-from .broker import PARTITION_KEY, Event, EventHandler
+from .broker import Event, EventHandler
 from .console import format_event
 from .lanes import Lanes, Watermark
 
 # Every event a component publishes or receives passes through this adapter,
 # so this one logger shows each component's side of the conversation.
 log = logging.getLogger("EventBroker")
-
-# The CloudEvents attributes that are fields of Event rather than entries in
-# Event.attributes; everything else in an envelope is an attribute.
-_ROOT_KEYS = frozenset({"specversion", "id", "source", "type", "data"})
 
 
 def topic_for(event_type: str) -> str:
@@ -41,28 +38,28 @@ def topic_for(event_type: str) -> str:
     return context
 
 
-def encode(event: Event) -> bytes:
-    """CloudEvents 1.0 structured JSON."""
-    envelope = {
-        "specversion": "1.0",
-        "id": event.id,
-        "source": event.source,
-        "type": event.type,
-        **event.attributes,
-        "data": event.payload,
-    }
-    return json.dumps(envelope).encode()
+def encode(event: Event) -> kafka.KafkaMessage:
+    """CloudEvents 1.0 structured JSON, written by the CloudEvents SDK.
+
+    The binding puts the whole event in the record's value, marks it with the
+    format's content type, and takes the record key from the ``partitionkey``
+    attribute, which is the ordering rule this adapter keeps.
+    """
+    # Python objects, not their JSON forms: the SDK wants `time` as a datetime and
+    # writes the RFC 3339 string itself.
+    attributes = event.model_dump(exclude={"data"}, exclude_none=True)
+    return kafka.to_structured_event(CloudEvent(attributes, event.data))
 
 
-def decode(raw: bytes) -> Event:
-    envelope = json.loads(raw)
-    return Event(
-        id=envelope["id"],
-        type=envelope["type"],
-        source=envelope["source"],
-        payload=envelope["data"],
-        attributes={k: v for k, v in envelope.items() if k not in _ROOT_KEYS},
-    )
+def decode(record: ConsumerRecord) -> Event:
+    """Read a record as an event, whichever content mode it arrived in.
+
+    A producer outside this system may send binary mode (``ce_`` headers); the
+    binding detects the mode, and the attributes and data map one to one.
+    """
+    message = kafka.KafkaMessage(dict(record.headers or ()), record.key, record.value)
+    envelope = kafka.from_kafka_event(message)
+    return Event(**envelope.get_attributes(), data=envelope.get_data())
 
 
 class _PartitionListener(ConsumerRebalanceListener):
@@ -148,10 +145,10 @@ class KafkaEventBroker:
         self,
         event_type: str,
         source: str,
-        payload: dict,
+        data: dict,
         id: str | None = None,
         attributes: dict[str, str] | None = None,
-    ) -> str:
+    ) -> Event:
         attributes = dict(attributes or {})
         attributes.setdefault("time", datetime.now(timezone.utc).isoformat())
         attributes.setdefault("datacontenttype", "application/json")
@@ -159,17 +156,20 @@ class KafkaEventBroker:
             id=id or str(uuid.uuid4()),
             type=event_type,
             source=source,
-            payload=payload,
-            attributes=attributes,
+            data=data,
+            **attributes,
         )
-        # The partition key becomes the record key: events sharing one land on one
-        # partition, and the broker keeps a partition in order.
-        key = attributes.get(PARTITION_KEY)
+        # The codec takes the record key from the partition key: events sharing one
+        # land on one partition, and the broker keeps a partition in order.
+        message = encode(event)
         await self._producer.send_and_wait(
-            topic_for(event.type), encode(event), key=key.encode() if key else None
+            topic_for(event.type),
+            message.value,
+            key=message.key.encode() if isinstance(message.key, str) else message.key,
+            headers=list(message.headers.items()),
         )
         log.info("\n%s", format_event("PUBLISHED", event))
-        return event.id
+        return event
 
     async def subscribe(
         self,
@@ -232,7 +232,7 @@ class KafkaEventBroker:
     async def _handle(
         self, watermark: Watermark, partition: TopicPartition, record: ConsumerRecord
     ) -> None:
-        event = decode(record.value)
+        event = decode(record)
         handlers = self._handlers.get(event.type, [])
         if handlers:  # a topic carries its whole context; other types pass by untouched
             log.info("\n%s", format_event("RECEIVED", event))

@@ -5,10 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "travel-agency"
 version = "0.1.0"
-description = "Shared kernel of the Travel Agency application: the EventBroker port, its Kafka adapter, and the event-type constants."
+description = "Shared kernel of the Travel Agency application: the EventBroker port, its CloudEvents-backed Kafka adapter, and the event-type constants."
 requires-python = ">=3.13"
 dependencies = [
     "aiokafka==0.14.0",
+    "cloudevents==2.2.0",
+    "pydantic==2.13.5",
 ]
 
 [project.optional-dependencies]

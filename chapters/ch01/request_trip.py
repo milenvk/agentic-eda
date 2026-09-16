@@ -30,19 +30,19 @@ TRIP = {
 
 def is_reply_to(request_id: str, event: Event) -> bool:
     """A reply names the event it answers — chapter 2 calls this causation."""
-    return event.payload.get("request_id") == request_id
+    return event.data.get("request_id") == request_id
 
 
 async def main() -> None:
     async with event_broker(SOURCE) as broker:
-        request_id = await broker.publish(ITINERARY_REQUESTED, SOURCE, TRIP)
-        console.show("PUBLISHED", Event(request_id, ITINERARY_REQUESTED, SOURCE, TRIP))
+        request = await broker.publish(ITINERARY_REQUESTED, SOURCE, TRIP)
+        console.show("PUBLISHED", request)
         print("\nNothing is blocked; waiting for the reply event...\n", flush=True)
 
         received = asyncio.Event()
 
         async def show_reply(event: Event) -> None:
-            if is_reply_to(request_id, event):
+            if is_reply_to(request.id, event):
                 print(flush=True)
                 console.show("RECEIVED", event)
                 print(flush=True)

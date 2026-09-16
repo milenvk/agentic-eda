@@ -45,17 +45,17 @@ async def plan(broker: EventBroker, event: Event) -> None:
     started = time.monotonic()
     response = await litellm.acompletion(
         model=os.environ["LLM_MODEL"],
-        messages=[{"role": "user", "content": PROMPT.format(request=event.payload)}],
+        messages=[{"role": "user", "content": PROMPT.format(request=event.data)}],
         response_format={"type": "json_object"},
     )
     proposal = json.loads(response.choices[0].message.content)
     await _hold_until_planning_time(started)
-    reply_id = await broker.publish(
+    reply = await broker.publish(
         ITINERARY_PROPOSED,
         SOURCE,
         {"request_id": event.id, "itineraries": proposal["itineraries"]},
     )
-    log.info("proposed itinerary %s for trip %s", reply_id, event.id)
+    log.info("proposed itinerary %s for trip %s", reply.id, event.id)
 
 
 async def _hold_until_planning_time(started: float) -> None:

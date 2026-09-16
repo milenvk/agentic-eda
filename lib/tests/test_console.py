@@ -10,38 +10,38 @@ def make_event(**overrides) -> Event:
         id="event-1",
         type="booking.TripRequested",
         source="RequestTripScript",
-        payload={"destination": "Lisbon", "travelers": 2},
-        attributes={"time": "2026-08-16T00:00:00+00:00"},
+        data={"destination": "Lisbon", "travelers": 2},
+        time="2026-08-16T00:00:00+00:00",
     )
     fields.update(overrides)
     return Event(**fields)
 
 
-def test_the_card_shows_the_event_not_the_payload_prose():
+def test_the_card_shows_the_event_not_the_data_prose():
     card = format_event("PUBLISHED", make_event())
     assert "PUBLISHED" in card
     assert "booking.TripRequested" in card
     assert "event-1" in card
     assert "RequestTripScript" in card
-    assert "2026-08-16T00:00:00+00:00" in card
+    assert "2026-08-16T00:00:00" in card
     assert "Lisbon" in card
 
 
-def test_long_payload_values_are_truncated_with_their_size():
+def test_long_data_values_are_truncated_with_their_size():
     essay = "Day 1: fly JFK-LIS. " * 200
-    card = format_event("RECEIVED", make_event(payload={"itinerary": essay}))
+    card = format_event("RECEIVED", make_event(data={"itinerary": essay}))
     assert f"[truncated: {len(essay):,} chars total]" in card
     assert essay not in card
 
 
 def test_short_values_are_printed_whole():
-    card = format_event("RECEIVED", make_event(payload={"request_id": "req-1"}))
+    card = format_event("RECEIVED", make_event(data={"request_id": "req-1"}))
     assert "req-1" in card
     assert "truncated" not in card
 
 
 def test_multiline_values_stay_on_one_card_row():
-    card = format_event("RECEIVED", make_event(payload={"note": "Day 1\n\nDay 2"}))
+    card = format_event("RECEIVED", make_event(data={"note": "Day 1\n\nDay 2"}))
     assert "Day 1 Day 2" in card
     assert "Day 1\n" not in card
 

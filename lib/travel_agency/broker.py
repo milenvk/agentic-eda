@@ -1,25 +1,40 @@
 """The EventBroker port — the only thing a component knows about the world outside itself."""
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
-from typing import Protocol
+from datetime import datetime
+from typing import Literal, Protocol
+
+from pydantic import BaseModel, Field
 
 
-@dataclass(frozen=True)
-class Event:
-    """A business fact: something that happened.
+class EventAttributes(BaseModel, extra="allow", frozen=True):
+    """What a CloudEvent says about itself: everything but the fact.
 
-    The first three fields and ``payload`` map to the CloudEvents core attributes
-    (``id``, ``type``, ``source``, ``data``). ``attributes`` holds every other
-    CloudEvents attribute — optional standard ones such as ``time``, and extension
-    ones such as ``correlationid`` (introduced in chapter 2).
+    The declared fields are the spec's context attributes. Anything else on the
+    wire is an extension attribute, kept by ``extra="allow"`` and read by its own
+    name (``event.correlationid`` from chapter 2). Extensions may be strings,
+    integers or booleans by the spec; this system's own are strings.
     """
 
+    specversion: Literal["1.0"] = "1.0"
     id: str
     type: str
     source: str
-    payload: dict
-    attributes: dict[str, str] = field(default_factory=dict)
+    time: datetime | None = None
+    datacontenttype: str | None = None
+    dataschema: str | None = None
+    subject: str | None = None
+    __pydantic_extra__: dict[str, str | int | bool] = Field(init=False)
+
+
+class Event(EventAttributes):
+    """A business fact: something that happened, and what it says about itself.
+
+    An event is its attributes plus its data, which is the shape a CloudEvent
+    takes on the wire, so the record here and the JSON out there are one thing.
+    """
+
+    data: dict
 
 
 EventHandler = Callable[[Event], Awaitable[None]]
@@ -37,11 +52,15 @@ class EventBroker(Protocol):
         self,
         event_type: str,
         source: str,
-        payload: dict,
+        data: dict,
         id: str | None = None,
         attributes: dict[str, str] | None = None,
-    ) -> str:
-        """Record that something happened. Returns the event's unique id."""
+    ) -> Event:
+        """Record that something happened.
+
+        Returns the event as published, with whatever the caller left to the
+        broker filled in: its id, the time, and the rest of the envelope.
+        """
         ...
 
     async def subscribe(

@@ -55,8 +55,8 @@ it again. The **second terminal acts**: every command in the acts below runs
 there, from sending requests to killing processes and starting new consumers.
 In the watch stream, every line is prefixed with the component it came from
 (`demo-1` is the customer's script, `itinerary-planner-1` is the agent), and
-every event appears as a card (id, type, source, attributes, and payload,
-with long values truncated) because the events moving between components are
+every event appears as a card (its attributes and its data, with long values
+truncated) because the events moving between components are
 the show, not the itinerary text.
 
 ### Terminal 1: start the system and watch

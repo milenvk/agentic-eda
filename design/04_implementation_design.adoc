@@ -34,14 +34,15 @@ class EventBroker(Protocol):
     async def publish(
         self, event_type: str, source: str, data: dict,
         id: str | None = None, attributes: dict[str, str] | None = None,
-    ) -> str: ...
+    ) -> Event: ...
     async def subscribe(
         self, event_type: str, handler: EventHandler, mode: str = "broadcast"
     ) -> None: ...
 ----
 
-* `publish` returns the event's id, whether passed or minted. Its `attributes` argument carries
-  the optional and extension attributes a caller supplies.
+* `publish` returns the event as published, so a caller sees what the broker filled in as well
+  as what it passed: the id whether minted or supplied, the time, and the rest of the envelope.
+  Its `attributes` argument carries the optional and extension attributes a caller supplies.
 * `handler` is an async callable receiving an `Event`, which reads every attribute by name:
   `event.id`, `event.time`, an extension as `event.correlationid`, and the business fact as
   `event.data`.
@@ -388,8 +389,10 @@ model an adapter concern. The container owns five things.
    `@tool`, ADK's automatic `FunctionTool`, CrewAI's `@tool`, LlamaIndex's
    `FunctionTool.from_defaults`, and the one ADK recommends over custom classes; ADK's own
    Eventarc toolset binds a `payload_schema` the same way), and whose body validates and
-   publishes through the same path. The tool publishes when called, inside the turn, and the
-   model may state several facts in one turn and read each id at once. It is the only
+   publishes through the same path, returning the published event's id as the tool's result,
+   which is the one thing an agent's loop is ever told about the broker and is there because
+   a tool call must return something. The tool publishes when called, inside the turn, and
+   the model may state several facts in one turn and read each id at once. It is the only
    reliable form for a tool-using ADK agent (`output_schema` beside tools in one request is
    supported by specific models only, with a fallback ADK's own documentation calls
    unreliable) and the natural one everywhere else, since stating a fact becomes one tool
