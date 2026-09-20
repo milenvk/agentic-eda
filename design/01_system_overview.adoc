@@ -80,7 +80,10 @@ reconciliation of 2026-09-11:
   stamps its version on every event. Two consequences: the design is complete before the first
   component is written, and a component is finished before its chapter's prose is written,
   since the prose describes code that exists. The prose introduces a component progressively,
-  showing the part its chapter's pattern needs; the code does not wait for it.
+  showing the part its chapter's pattern needs; the code does not wait for it, and the prose
+  never mentions a port or a behaviour that is present and switched off before the chapter
+  that switches it on, since naming it early is the forward reference the progressive
+  introduction exists to avoid.
 
 == The Business
 
@@ -1015,6 +1018,15 @@ Each simulator's surface is a printable subset of the real supplier's, endpoints
 names, never schemas. Planning queries a simulator for availability and offers; booking places
 reservations on it. A simulator is a component: every face it has is present from the chapter
 it first appears in, and a later chapter's compose file switches on a face or a script.
+
+Every simulator draws on one world seed in the kernel (`lib/travel_agency/sims/`): about
+thirty cities on every inhabited continent, each with its IATA airports, a handful of hotels
+with their neighbourhoods and rate plans, and a route graph of direct and one-stop
+connections, so a request from São Paulo to Nairobi or Tokyo to Sydney resolves as well as
+New York to Lisbon. Offers, fares, and availability are generated for any dates from the seed
+by a seeded pseudo-random generator, so a run is reproducible and a later chapter picks a
+fresh example without new data. The running example's cities are in the seed, not privileged
+by it.
 
 [cols="2,1,3", options="header"]
 |===

@@ -310,17 +310,19 @@ model an adapter concern. The container owns five things.
   carries `@event` and its `order_per`, and that what `produces` names survives the strict
   schema subset below), so a mistake fails at import. `produces` is also the schema the
   developer hands to the framework's typed-output line: with one class it returns that class
-  itself, with several it returns a wrapper model holding their discriminated union under one
-  field, because the OpenAI-family strict subset requires an object at the root and refuses a
-  root-level `anyOf`. The developer never sees the difference; `output_schema=produces` works
-  either way. Options are keyword arguments after the classes, and each says what it applies
-  to: an option about the activation applies to the whole declaration
-  (`produces(TravelRiskDetected, required=False)` declares an agent whose silence is
-  legitimate, An activation that answers nothing, below), and an option about particular
-  classes names them (`consumes(ItineraryRequested, ItineraryApproved,
-  interrupting=[ItineraryRequested])`, ch 7, the helper checking at import that the named
-  classes are among the declared ones). No per-class option exists on `produces` until a
-  chapter needs one.
+  itself, and wherever there is a choice, several classes or a class and `Nothing`, it
+  returns a wrapper model holding their discriminated union under one field, because the
+  OpenAI-family strict subset requires an object at the root and refuses a root-level
+  `anyOf`. The developer never sees the difference; `output_schema=produces` works either
+  way. An agent that may decide not to publish declares `produces(A, B, eda.Nothing)`:
+  `Nothing` is a kernel class with one field, `reason`, which the model returns as a
+  positive answer and the container logs and never publishes, so silence stays a failure
+  for every agent (An activation that answers nothing, below). `produces()` with no classes
+  declares a pure consumer, whose return value is ignored. Options are keyword arguments
+  after the classes and name the classes they apply to (`consumes(ItineraryRequested,
+  ItineraryApproved, interrupting=[ItineraryRequested])`, ch 7, the helper checking at
+  import that the named classes are among the declared ones). No option exists on
+  `produces` until a chapter needs one.
 ** *The catalog as code.* One Pydantic model per event payload in `lib/travel_agency/events/`,
    one module per context mirroring the catalog in `02_workflows_and_events.adoc`, each bound
    once to its type constant and to the field its order is kept within:
@@ -361,18 +363,26 @@ model an adapter concern. The container owns five things.
    envelope: type and key from the binding, `id` and `time` minted, `correlationid` and
    `causationid` from the inbound event, `promptversion` and `modelversion` from
    configuration (ch 10). Returning from the activation acknowledges. Every outbound event
-   passes through this one path, so the outbound boundary is one function.
+   passes through this one path, so the outbound boundary is one function. The container
+   sets the activation in a context variable before it invokes the agent, which asyncio
+   carries into every task a framework spawns and into a worker thread, and that is how
+   anything publishing from inside the activation, a publish tool or code, finds the inbound
+   event, the source, and `produces` without being handed them.
 ** *An activation that answers nothing.* Because that one path is the only way out, the
    container knows what an activation published, and silence is the failure an event-driven
    system has nobody waiting to notice: a model may answer in prose instead of calling a
    publish tool, or return an answer that is not a registered class, and nothing in a
-   framework treats either as an error. So `produces` declares whether an activation must
-   answer (it must, unless declared `required=False`), and where one must and none was
-   published the container raises: the event is never acknowledged, the broker
-   redelivers it, and the activation runs again, which is the right treatment for a model
-   that declined once in ten; repeated failure dead-letters in ch 10. Silence is legitimate
-   where `produces` says so, as the Duty-of-Care Monitor's sweep finding no risk does, so
-   this is per agent and never a blanket rule. Three nets, each at its
+   framework treats either as an error. So every activation of an agent with a non-empty
+   `produces` must answer, and where none was published the container raises: the event is
+   never acknowledged, the broker redelivers it, and the activation runs again, which is the
+   right treatment for a model that declined once in ten; repeated failure dead-letters in
+   ch 10. An agent that may legitimately have nothing to say declares `eda.Nothing` among
+   its `produces` and answers with it, reason included, as the Duty-of-Care Monitor's sweep
+   does when no advisory affects a reserved destination: a positive answer, never silence,
+   which is what keeps "decided nothing" apart from "drifted". Where code rather than a
+   model answers (a plain function, a graph's final state), `None` or no produced instance
+   maps to `Nothing` when it is declared, since code cannot drift the way a model can and
+   the explicit form would be ceremony. Three nets, each at its
    own level: the validating boundary rejects a malformed answer, the container catches a
    missing one, and ch 8's scheduler catches a fact that never reaches the component waiting
    for it. Taught with the publish tools in ch 7, where a model choosing not to call one is
@@ -478,6 +488,18 @@ promised.
    `servicing.CompensationDrafted` the same way (ch 9). The generic publish tool, a free
    `type`, `source`, or attribute for the model to fill, is the one thing ruled out, for the
    reason ADK's documentation gives: hallucinated destinations and malformed schemas.
+** *`eda.publish(fact)`*, the code twin of the publish tool: callable from anywhere inside an
+   activation, through the activation's context variable, and the same path (the class is
+   one of `produces`, the answer is validated, the envelope is minted from the inbound event,
+   the publish counts toward the activation's answer). It exists because a typed answer
+   returned at the end cannot commit each of several facts before the next: the Booking
+   Agent's reservation step (ch 7) publishes `FlightReserved` before it places the hotel
+   hold, so a crash between the two loses nothing. Ch 7 introduces both twins together,
+   `publish_tool` for a model and `eda.publish` for code. Agent code never receives
+   `subscribe` or the broker connection, and the book's rule is that an agent publishes only
+   through the container: a raw publish would bypass validation, the envelope, the answer
+   accounting, and from ch 10 and ch 13 the version stamps and the identity token. Demo
+   scripts and tests, which are not agents, keep the port.
 +
 Neither the typed answer nor a publish tool restricts when a fact is stated: an
 orchestrating agent states facts as its workflow advances, mid-activation, and the test for
@@ -578,13 +600,18 @@ enables (the reservation step, the barrier wait, the policy wait) is the same ki
 configuration, a flag read by the component at start, off by default, and absent from every
 compose and configuration file until the chapter that switches it on. A flag is the default
 mechanism; a new version of the component (`<name>_v2`, selected by compose) is used only where
-the added behaviour cannot be segregated cleanly behind a flag inside one version.
+the added behaviour cannot be segregated cleanly behind a flag inside one version. A port
+present and switched off is the same kind of setting: the Planner's hydration adapter is
+`HYDRATION_ADAPTER` (default `none`, an adapter that loads nothing) and its A2A client is
+`RESEARCH_AGENT_URL` (unset by default, meaning off), each read at start, switched on by the
+compose file of the chapter that teaches it, and mentioned by no earlier chapter's compose
+file, configuration file, or prose.
 
 == Repository Layout Conventions
 
 * `lib/travel_agency/`: the shared kernel (port, adapters, event-type constants, the `events`
   package that is the catalog as code, the container library with its `attach` and its
-  framework adapters,
+  framework adapters, the `sims` package holding the world seed every simulator draws from,
   the identity registry, the replay module, and the `console` event renderer) every component
   installs; its own pyproject and tests.
 * `components/<book_component_name>/`: one self-contained directory per component, named
@@ -678,4 +705,6 @@ the added behaviour cannot be segregated cleanly behind a flag inside one versio
   edits reader configuration.
 * **Comments clarify.** All code is read and judged by humans; comments explain what the
   code cannot say itself, and listings printed in the book are extracts of this working
-  code, never parallel snippets.
+  code, never parallel snippets. A comment on a setting says what the setting does and never
+  which chapter switches it on: the code belongs to the whole book, and the chapter that
+  uses a setting names it in its own compose file.
