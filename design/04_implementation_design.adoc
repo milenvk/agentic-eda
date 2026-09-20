@@ -337,7 +337,10 @@ model an adapter concern. The container owns five things.
    `event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")`, binds a class the
    developer does not own, so an existing agent's own models become the contract with no
    edit to the agent: it returns a subclass of that class with `EventModel` mixed in, and
-   the agent still receives an instance of its own class.
+   the agent still receives an instance of its own class. `events.data_of(fact)` is the one
+   definition of what an event class puts on the wire (its own fields as JSON values,
+   without its attributes or its type tag), used by the container on the way out and by a
+   demo script publishing through the port.
    Every `@event` class subclasses `EventModel`, whose one field,
    `attributes_: SkipJsonSchema[EventAttributes | None] = None`, carries the event's
    attributes in the same `EventAttributes` class as the envelope's. The container fills it
@@ -676,6 +679,25 @@ file, configuration file, or prose.
   `tests-<component>` services plus `tests-chapter` in the chapter's own
   `compose.tests.yaml`, looped by the chapter's `test.sh`, the CI gate. Tests have a
   separate compose file deliberately: they must run with no Kafka, no model, and no `.env`.
+  A component's own suite tests its side of a conversation against a stand-in (the Planner's
+  clients against recorded supplier replies, a simulator through a test client). Where two
+  components meet over a protocol, one more suite in the chapter's directory runs the
+  caller's image against the running callee: from ch 2, `tests-planner-with-suppliers` runs
+  the Planner's clients, and the whole graph with a scripted model, against both simulators.
+  Its tests are located in `chapters/chNN/supplier_tests/`, apart from `tests/`, because they
+  need the caller's image and the chapter's own tests need only the kernel's.
+* Simulators: a simulator stores nothing it can generate. Its offers come from the world
+  seed and a generator seeded by the question asked (`world.dice`), so the same question
+  gets the same answer on every run and every machine; only what a caller creates (an offer
+  made, an order held) is kept, in memory. Every simulator prices in US dollars and keeps
+  time in UTC, so no component converts a currency or a time zone. A simulator's behaviour
+  switches are settings read at start with an off default (`RESPONSE_DELAY_SECONDS=0` on the
+  airline, its slow-vendor mode), switched on by the compose file of the chapter that needs
+  them. A simulator's image carries a `HEALTHCHECK` on its port, so a compose file waits for
+  it with `service_healthy`. A caller reaches a supplier at an address read from a setting
+  (on the Planner, `AIRLINE_URL` and `HOTEL_INVENTORY_URL`), set by the chapter's compose
+  file; unset, the client raises an error naming the setting. The caller's client translates: it asks in the supplier's terms
+  and answers in the caller's own, so no supplier field name reaches an agent's code.
 
 == House Style
 

@@ -8,7 +8,15 @@ cd "$(dirname "$0")"
 suites=(
     tests-travel-agency
     tests-itinerary-planner
+    tests-airline-reservation-system
+    tests-hotel-reservation-system
+    tests-audit-consumer
+    tests-chapter
+    tests-planner-with-suppliers
 )
+
+# The last suite starts both simulators; stop them however the run ends.
+trap 'docker compose -f compose.tests.yaml down --remove-orphans' EXIT
 
 for suite in "${suites[@]}"; do
     echo "== ${suite}"

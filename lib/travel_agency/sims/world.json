@@ -1,0 +1,378 @@
+{
+  "cities": [
+    {
+      "name": "New York", "country": "United States", "continent": "North America",
+      "code": "NYC", "airports": ["JFK", "EWR"], "hub": true,
+      "latitude": 40.71, "longitude": -74.01,
+      "hotels": [
+        {"name": "The Bowery Lantern", "area": "Lower East Side, lively streets, bars and late nights", "stars": 3, "nightly": 210},
+        {"name": "Hudson Row House", "area": "West Village, quiet brownstone blocks, walkable", "stars": 4, "nightly": 340},
+        {"name": "Midtown Meridian", "area": "Midtown, next to the theatres, busy and central", "stars": 4, "nightly": 290},
+        {"name": "The Carnegie Park", "area": "Upper East Side, by Central Park and the museums", "stars": 5, "nightly": 620}
+      ]
+    },
+    {
+      "name": "Toronto", "country": "Canada", "continent": "North America",
+      "code": "YTO", "airports": ["YYZ"],
+      "latitude": 43.65, "longitude": -79.38,
+      "hotels": [
+        {"name": "Kensington Loft Inn", "area": "Kensington Market, street food and vintage shops", "stars": 3, "nightly": 150},
+        {"name": "The Distillery House", "area": "Distillery District, cobbled lanes, galleries, walkable", "stars": 4, "nightly": 230},
+        {"name": "Harbourfront Suites", "area": "Harbourfront, lake views, family friendly", "stars": 4, "nightly": 260},
+        {"name": "The Yorkville Crest", "area": "Yorkville, designer shops and fine dining", "stars": 5, "nightly": 480}
+      ]
+    },
+    {
+      "name": "San Francisco", "country": "United States", "continent": "North America",
+      "code": "SFO", "airports": ["SFO"],
+      "latitude": 37.77, "longitude": -122.42,
+      "hotels": [
+        {"name": "Mission Mural Hostel", "area": "Mission District, murals, taquerias, young crowd", "stars": 2, "nightly": 120},
+        {"name": "Hayes Valley Inn", "area": "Hayes Valley, quiet side streets, cafes, walkable", "stars": 3, "nightly": 220},
+        {"name": "The Embarcadero Pier", "area": "Embarcadero, bay views, near the ferry building", "stars": 4, "nightly": 330},
+        {"name": "Nob Hill Grand", "area": "Nob Hill, classic luxury, cable cars at the door", "stars": 5, "nightly": 560}
+      ]
+    },
+    {
+      "name": "Mexico City", "country": "Mexico", "continent": "North America",
+      "code": "MEX", "airports": ["MEX"],
+      "latitude": 19.43, "longitude": -99.13,
+      "hotels": [
+        {"name": "Casa Jacaranda", "area": "Roma Norte, leafy streets, cafes and galleries, walkable", "stars": 3, "nightly": 95},
+        {"name": "Hotel Patio Condesa", "area": "Condesa, parks, quiet at night, good restaurants", "stars": 4, "nightly": 150},
+        {"name": "Zócalo Central", "area": "Centro Histórico, on the main square, busy and historic", "stars": 3, "nightly": 80},
+        {"name": "Polanco Reforma Tower", "area": "Polanco, upscale shopping, business district", "stars": 5, "nightly": 310}
+      ]
+    },
+    {
+      "name": "São Paulo", "country": "Brazil", "continent": "South America",
+      "code": "SAO", "airports": ["GRU", "CGH"], "hub": true,
+      "latitude": -23.55, "longitude": -46.63,
+      "hotels": [
+        {"name": "Vila Madalena Studio", "area": "Vila Madalena, street art, bars and live music", "stars": 3, "nightly": 85},
+        {"name": "Pousada Jardins", "area": "Jardins, tree-lined, quiet, fine restaurants, walkable", "stars": 4, "nightly": 160},
+        {"name": "Paulista Business Hotel", "area": "Avenida Paulista, central, museums, busy", "stars": 4, "nightly": 130},
+        {"name": "Palácio Ibirapuera", "area": "Ibirapuera, beside the park, spa and pool", "stars": 5, "nightly": 340}
+      ]
+    },
+    {
+      "name": "Rio de Janeiro", "country": "Brazil", "continent": "South America",
+      "code": "RIO", "airports": ["GIG"],
+      "latitude": -22.91, "longitude": -43.17,
+      "hotels": [
+        {"name": "Santa Teresa Hillside", "area": "Santa Teresa, artists' quarter on a hill, quiet, views", "stars": 3, "nightly": 90},
+        {"name": "Ipanema Breeze", "area": "Ipanema, a block from the beach, walkable", "stars": 4, "nightly": 190},
+        {"name": "Copacabana Atlântico", "area": "Copacabana, beachfront, lively promenade", "stars": 4, "nightly": 170},
+        {"name": "Leblon Imperial", "area": "Leblon, the quiet end of the beach, upscale", "stars": 5, "nightly": 420}
+      ]
+    },
+    {
+      "name": "Buenos Aires", "country": "Argentina", "continent": "South America",
+      "code": "BUE", "airports": ["EZE", "AEP"],
+      "latitude": -34.60, "longitude": -58.38,
+      "hotels": [
+        {"name": "San Telmo Tango House", "area": "San Telmo, antique markets, tango bars, cobbled streets", "stars": 3, "nightly": 70},
+        {"name": "Palermo Soho Patio", "area": "Palermo Soho, boutiques, cafes, walkable, lively evenings", "stars": 4, "nightly": 130},
+        {"name": "Recoleta Plaza", "area": "Recoleta, elegant avenues, museums, quiet", "stars": 4, "nightly": 150},
+        {"name": "Puerto Madero Grand", "area": "Puerto Madero, waterfront towers, steakhouses", "stars": 5, "nightly": 290}
+      ]
+    },
+    {
+      "name": "Lima", "country": "Peru", "continent": "South America",
+      "code": "LIM", "airports": ["LIM"],
+      "latitude": -12.05, "longitude": -77.04,
+      "hotels": [
+        {"name": "Barranco Arts Inn", "area": "Barranco, bohemian, ocean cliffs, galleries, walkable", "stars": 3, "nightly": 75},
+        {"name": "Miraflores Malecón", "area": "Miraflores, clifftop parks, restaurants, safe and central", "stars": 4, "nightly": 140},
+        {"name": "Casa Colonial Centro", "area": "Historic centre, colonial squares, busy by day", "stars": 3, "nightly": 60},
+        {"name": "San Isidro Olivar", "area": "San Isidro, olive grove park, quiet, business district", "stars": 5, "nightly": 260}
+      ]
+    },
+    {
+      "name": "Bogotá", "country": "Colombia", "continent": "South America",
+      "code": "BOG", "airports": ["BOG"],
+      "latitude": 4.71, "longitude": -74.07,
+      "hotels": [
+        {"name": "La Candelaria Courtyard", "area": "La Candelaria, colonial old town, museums, street art", "stars": 3, "nightly": 55},
+        {"name": "Chapinero Alto Lofts", "area": "Chapinero, cafes and restaurants, young crowd", "stars": 3, "nightly": 80},
+        {"name": "Usaquén Garden Hotel", "area": "Usaquén, village feel, Sunday market, quiet", "stars": 4, "nightly": 120},
+        {"name": "Zona Rosa Andino", "area": "Zona Rosa, shopping and nightlife, upscale", "stars": 5, "nightly": 230}
+      ]
+    },
+    {
+      "name": "London", "country": "United Kingdom", "continent": "Europe",
+      "code": "LON", "airports": ["LHR", "LGW"], "hub": true,
+      "latitude": 51.51, "longitude": -0.13,
+      "hotels": [
+        {"name": "The Shoreditch Works", "area": "Shoreditch, street art, markets, late nights", "stars": 3, "nightly": 180},
+        {"name": "Bloomsbury Square Hotel", "area": "Bloomsbury, garden squares, by the British Museum, quiet", "stars": 4, "nightly": 260},
+        {"name": "South Bank Wharf", "area": "South Bank, riverside walks, theatres, central", "stars": 4, "nightly": 300},
+        {"name": "The Mayfair Regent", "area": "Mayfair, classic luxury, near Hyde Park", "stars": 5, "nightly": 690}
+      ]
+    },
+    {
+      "name": "Paris", "country": "France", "continent": "Europe",
+      "code": "PAR", "airports": ["CDG", "ORY"], "hub": true,
+      "latitude": 48.86, "longitude": 2.35,
+      "hotels": [
+        {"name": "Hôtel du Canal", "area": "Canal Saint-Martin, cafes on the water, young crowd", "stars": 3, "nightly": 160},
+        {"name": "Le Marais Cour Pavée", "area": "Le Marais, medieval lanes, galleries, walkable", "stars": 4, "nightly": 280},
+        {"name": "Rive Gauche Lettres", "area": "Saint-Germain, bookshops, quiet streets, classic cafes", "stars": 4, "nightly": 320},
+        {"name": "Palais Vendôme", "area": "1st arrondissement, by the Louvre, grand luxury", "stars": 5, "nightly": 850}
+      ]
+    },
+    {
+      "name": "Lisbon", "country": "Portugal", "continent": "Europe",
+      "code": "LIS", "airports": ["LIS"],
+      "latitude": 38.72, "longitude": -9.14,
+      "hotels": [
+        {"name": "Pátio das Andorinhas", "area": "Alfama, quiet hillside lanes, fado houses, walkable", "stars": 3, "nightly": 140},
+        {"name": "Bairro Alto Nights", "area": "Bairro Alto, bars and music until late, noisy", "stars": 3, "nightly": 110},
+        {"name": "Grande Avenida Lisboa", "area": "Avenida da Liberdade, grand boulevard, shopping, central", "stars": 5, "nightly": 380},
+        {"name": "Miradouro Chiado", "area": "Chiado, cafes and theatres, river views, walkable", "stars": 4, "nightly": 230}
+      ]
+    },
+    {
+      "name": "Porto", "country": "Portugal", "continent": "Europe",
+      "code": "OPO", "airports": ["OPO"],
+      "latitude": 41.15, "longitude": -8.61,
+      "hotels": [
+        {"name": "Ribeira Cais", "area": "Ribeira, riverside old town, steep lanes, lively", "stars": 3, "nightly": 105},
+        {"name": "Casa da Cedofeita", "area": "Cedofeita, galleries and cafes, quiet, walkable", "stars": 3, "nightly": 95},
+        {"name": "Foz do Douro Mar", "area": "Foz, by the ocean, calm, a tram ride from the centre", "stars": 4, "nightly": 170},
+        {"name": "Palacete dos Aliados", "area": "Aliados, the grand central avenue, near the station", "stars": 5, "nightly": 290}
+      ]
+    },
+    {
+      "name": "Madrid", "country": "Spain", "continent": "Europe",
+      "code": "MAD", "airports": ["MAD"],
+      "latitude": 40.42, "longitude": -3.70,
+      "hotels": [
+        {"name": "Hostal de las Letras", "area": "Barrio de las Letras, literary quarter, tapas bars, walkable", "stars": 3, "nightly": 120},
+        {"name": "Malasaña Verbena", "area": "Malasaña, vintage shops, bars and music until late, noisy", "stars": 3, "nightly": 105},
+        {"name": "Casa del Retiro", "area": "Retiro, beside the park and the Prado, quiet and leafy", "stars": 4, "nightly": 210},
+        {"name": "Gran Hotel Castellana", "area": "Salamanca, designer shops, grand avenues, upscale", "stars": 5, "nightly": 430}
+      ]
+    },
+    {
+      "name": "Barcelona", "country": "Spain", "continent": "Europe",
+      "code": "BCN", "airports": ["BCN"],
+      "latitude": 41.39, "longitude": 2.17,
+      "hotels": [
+        {"name": "Hostal del Born", "area": "El Born, medieval lanes, tapas bars, lively evenings", "stars": 3, "nightly": 130},
+        {"name": "Casa Gràcia", "area": "Gràcia, village squares, quiet, local life, walkable", "stars": 3, "nightly": 145},
+        {"name": "Eixample Modernista", "area": "Eixample, wide avenues, Gaudí houses, central", "stars": 4, "nightly": 240},
+        {"name": "Barceloneta Mirador", "area": "Barceloneta, on the beach, seafood, busy in summer", "stars": 5, "nightly": 410}
+      ]
+    },
+    {
+      "name": "Rome", "country": "Italy", "continent": "Europe",
+      "code": "ROM", "airports": ["FCO"],
+      "latitude": 41.90, "longitude": 12.50,
+      "hotels": [
+        {"name": "Locanda Trastevere", "area": "Trastevere, ivy-covered lanes, trattorias, lively at night", "stars": 3, "nightly": 150},
+        {"name": "Albergo Monti", "area": "Monti, artisan shops, quiet corners, by the Colosseum", "stars": 3, "nightly": 170},
+        {"name": "Palazzo Navona", "area": "Centro Storico, steps from Piazza Navona, walkable", "stars": 4, "nightly": 310},
+        {"name": "Villa Borghese Grand", "area": "Via Veneto, beside the park, classic luxury", "stars": 5, "nightly": 590}
+      ]
+    },
+    {
+      "name": "Istanbul", "country": "Türkiye", "continent": "Europe",
+      "code": "IST", "airports": ["IST", "SAW"], "hub": true,
+      "latitude": 41.01, "longitude": 28.98,
+      "hotels": [
+        {"name": "Sultanahmet Konak", "area": "Sultanahmet, the old city, mosques and bazaars, walkable", "stars": 3, "nightly": 90},
+        {"name": "Galata Tower House", "area": "Galata, steep streets, cafes, views of the Golden Horn", "stars": 4, "nightly": 140},
+        {"name": "Kadıköy Pier Hotel", "area": "Kadıköy, the Asian side, markets, local and relaxed", "stars": 3, "nightly": 75},
+        {"name": "Bosphorus Palace", "area": "Beşiktaş, on the water, grand and quiet", "stars": 5, "nightly": 450}
+      ]
+    },
+    {
+      "name": "Reykjavik", "country": "Iceland", "continent": "Europe",
+      "code": "REK", "airports": ["KEF"],
+      "latitude": 64.15, "longitude": -21.94,
+      "hotels": [
+        {"name": "Harbour Guesthouse", "area": "Old Harbour, whale-watching boats, seafood, walkable", "stars": 3, "nightly": 190},
+        {"name": "Laugavegur Central", "area": "Laugavegur, the main street, shops and bars", "stars": 3, "nightly": 210},
+        {"name": "Tjörnin Lake Hotel", "area": "By the city pond, quiet, near the museums", "stars": 4, "nightly": 280},
+        {"name": "Aurora Spa Retreat", "area": "Edge of town, geothermal pools, dark skies", "stars": 5, "nightly": 460}
+      ]
+    },
+    {
+      "name": "Cairo", "country": "Egypt", "continent": "Africa",
+      "code": "CAI", "airports": ["CAI"],
+      "latitude": 30.04, "longitude": 31.24,
+      "hotels": [
+        {"name": "Downtown Talaat House", "area": "Downtown, belle époque streets, busy, near the museum", "stars": 3, "nightly": 55},
+        {"name": "Zamalek Garden Residence", "area": "Zamalek, island in the Nile, leafy, quiet, galleries", "stars": 4, "nightly": 120},
+        {"name": "Pyramids View Inn", "area": "Giza, rooftop views of the pyramids, far from the centre", "stars": 3, "nightly": 70},
+        {"name": "Nile Corniche Palace", "area": "Garden City, on the river, grand luxury", "stars": 5, "nightly": 280}
+      ]
+    },
+    {
+      "name": "Marrakech", "country": "Morocco", "continent": "Africa",
+      "code": "RAK", "airports": ["RAK"],
+      "latitude": 31.63, "longitude": -7.99,
+      "hotels": [
+        {"name": "Riad Zitoun", "area": "Medina, courtyard house near the souks, walkable, calls to prayer", "stars": 3, "nightly": 85},
+        {"name": "Riad des Orangers", "area": "Kasbah, quieter corner of the old city, rooftop terrace", "stars": 4, "nightly": 150},
+        {"name": "Gueliz Moderne", "area": "Gueliz, the new town, cafes and galleries", "stars": 3, "nightly": 80},
+        {"name": "Palmeraie Oasis Resort", "area": "Palmeraie, palm grove outside the city, pools, very quiet", "stars": 5, "nightly": 390}
+      ]
+    },
+    {
+      "name": "Nairobi", "country": "Kenya", "continent": "Africa",
+      "code": "NBO", "airports": ["NBO"],
+      "latitude": -1.29, "longitude": 36.82,
+      "hotels": [
+        {"name": "Westlands Terrace", "area": "Westlands, restaurants and nightlife, central", "stars": 3, "nightly": 90},
+        {"name": "Karen Country Lodge", "area": "Karen, leafy suburb, gardens, quiet, near the giraffe centre", "stars": 4, "nightly": 180},
+        {"name": "Savanna Gate Camp", "area": "Beside Nairobi National Park, tented rooms, wildlife at dawn", "stars": 4, "nightly": 240},
+        {"name": "The Muthaiga Club House", "area": "Muthaiga, colonial-era estate, very quiet, upscale", "stars": 5, "nightly": 350}
+      ]
+    },
+    {
+      "name": "Johannesburg", "country": "South Africa", "continent": "Africa",
+      "code": "JNB", "airports": ["JNB"], "hub": true,
+      "latitude": -26.20, "longitude": 28.05,
+      "hotels": [
+        {"name": "Maboneng Precinct Lofts", "area": "Maboneng, art studios, weekend markets, urban", "stars": 3, "nightly": 70},
+        {"name": "Melville Koppies Guesthouse", "area": "Melville, bohemian cafes, bookshops, walkable", "stars": 3, "nightly": 85},
+        {"name": "Rosebank Gallery Hotel", "area": "Rosebank, galleries and malls, by the train to the airport", "stars": 4, "nightly": 140},
+        {"name": "Sandton Skyline", "area": "Sandton, business district, shopping, upscale", "stars": 5, "nightly": 270}
+      ]
+    },
+    {
+      "name": "Cape Town", "country": "South Africa", "continent": "Africa",
+      "code": "CPT", "airports": ["CPT"],
+      "latitude": -33.92, "longitude": 18.42,
+      "hotels": [
+        {"name": "Bo-Kaap Colours", "area": "Bo-Kaap, painted houses, steep cobbled streets, walkable", "stars": 3, "nightly": 95},
+        {"name": "Kloof Street House", "area": "Gardens, cafes under Table Mountain, lively", "stars": 4, "nightly": 160},
+        {"name": "Waterfront Quay Hotel", "area": "V&A Waterfront, harbour, shops, family friendly", "stars": 4, "nightly": 230},
+        {"name": "Camps Bay Horizon", "area": "Camps Bay, beachfront, sunsets, quiet at night", "stars": 5, "nightly": 440}
+      ]
+    },
+    {
+      "name": "Dubai", "country": "United Arab Emirates", "continent": "Asia",
+      "code": "DXB", "airports": ["DXB"], "hub": true,
+      "latitude": 25.20, "longitude": 55.27,
+      "hotels": [
+        {"name": "Al Fahidi Heritage House", "area": "Old Dubai, wind-tower lanes by the creek, souks, walkable", "stars": 3, "nightly": 110},
+        {"name": "Marina Promenade Hotel", "area": "Dubai Marina, waterfront towers, restaurants, lively", "stars": 4, "nightly": 210},
+        {"name": "Downtown Fountain View", "area": "Downtown, beside the tallest tower and the mall", "stars": 5, "nightly": 430},
+        {"name": "Palm Crescent Resort", "area": "Palm Jumeirah, private beach, pools, very quiet", "stars": 5, "nightly": 620}
+      ]
+    },
+    {
+      "name": "Mumbai", "country": "India", "continent": "Asia",
+      "code": "BOM", "airports": ["BOM"],
+      "latitude": 19.08, "longitude": 72.88,
+      "hotels": [
+        {"name": "Colaba Causeway Inn", "area": "Colaba, by the Gateway of India, markets, busy", "stars": 3, "nightly": 70},
+        {"name": "Bandra Bungalow", "area": "Bandra West, cafes, sea-facing promenade, relaxed", "stars": 4, "nightly": 130},
+        {"name": "Fort Heritage Rooms", "area": "Fort, Victorian buildings, galleries, walkable", "stars": 3, "nightly": 85},
+        {"name": "Marine Drive Palace", "area": "Marine Drive, the bay at sunset, grand luxury", "stars": 5, "nightly": 320}
+      ]
+    },
+    {
+      "name": "Bangkok", "country": "Thailand", "continent": "Asia",
+      "code": "BKK", "airports": ["BKK"],
+      "latitude": 13.76, "longitude": 100.50,
+      "hotels": [
+        {"name": "Old Town Canal House", "area": "Rattanakosin, temples and canals, quiet at night, walkable", "stars": 3, "nightly": 60},
+        {"name": "Sukhumvit Soi Hotel", "area": "Sukhumvit, skytrain, street food, nightlife", "stars": 4, "nightly": 110},
+        {"name": "Riverside Teak Residence", "area": "Chao Phraya riverside, boat piers, calm, views", "stars": 4, "nightly": 170},
+        {"name": "Sathorn Sky Tower", "area": "Sathorn, rooftop bars, business district, upscale", "stars": 5, "nightly": 290}
+      ]
+    },
+    {
+      "name": "Singapore", "country": "Singapore", "continent": "Asia",
+      "code": "SIN", "airports": ["SIN"], "hub": true,
+      "latitude": 1.35, "longitude": 103.82,
+      "hotels": [
+        {"name": "Tiong Bahru Shophouse", "area": "Tiong Bahru, art deco estate, bakeries, quiet, walkable", "stars": 3, "nightly": 160},
+        {"name": "Kampong Glam Lodge", "area": "Kampong Glam, textile shops, cafes, lively lanes", "stars": 3, "nightly": 140},
+        {"name": "Clarke Quay Riverside", "area": "Clarke Quay, riverside dining and nightlife, central", "stars": 4, "nightly": 250},
+        {"name": "Marina Bay Gardens Hotel", "area": "Marina Bay, skyline views, beside the gardens", "stars": 5, "nightly": 520}
+      ]
+    },
+    {
+      "name": "Hong Kong", "country": "China", "continent": "Asia",
+      "code": "HKG", "airports": ["HKG"],
+      "latitude": 22.32, "longitude": 114.17,
+      "hotels": [
+        {"name": "Sheung Wan Stairs", "area": "Sheung Wan, antique shops, cafes on steep lanes, walkable", "stars": 3, "nightly": 150},
+        {"name": "Mong Kok Night Market Inn", "area": "Mong Kok, neon, street markets, crowded and loud", "stars": 3, "nightly": 100},
+        {"name": "Harbour City Kowloon", "area": "Tsim Sha Tsui, harbour views, shopping, central", "stars": 4, "nightly": 270},
+        {"name": "The Peak Residence", "area": "Mid-Levels, above the city, quiet, skyline views", "stars": 5, "nightly": 540}
+      ]
+    },
+    {
+      "name": "Seoul", "country": "South Korea", "continent": "Asia",
+      "code": "SEL", "airports": ["ICN", "GMP"],
+      "latitude": 37.57, "longitude": 126.98,
+      "hotels": [
+        {"name": "Bukchon Hanok Stay", "area": "Bukchon, traditional wooden houses, quiet lanes, palaces nearby", "stars": 3, "nightly": 130},
+        {"name": "Hongdae Beat Hotel", "area": "Hongdae, student quarter, live music, late nights", "stars": 3, "nightly": 90},
+        {"name": "Myeongdong Central", "area": "Myeongdong, shopping streets, street food, busy", "stars": 4, "nightly": 180},
+        {"name": "Gangnam Tower Suites", "area": "Gangnam, upscale shopping, business district", "stars": 5, "nightly": 360}
+      ]
+    },
+    {
+      "name": "Tokyo", "country": "Japan", "continent": "Asia",
+      "code": "TYO", "airports": ["HND", "NRT"], "hub": true,
+      "latitude": 35.68, "longitude": 139.69,
+      "hotels": [
+        {"name": "Yanaka Ryokan Hanami", "area": "Yanaka, old Tokyo, temples, quiet lanes, walkable", "stars": 3, "nightly": 140},
+        {"name": "Shimokitazawa Record Inn", "area": "Shimokitazawa, vintage shops, small theatres, young crowd", "stars": 3, "nightly": 120},
+        {"name": "Shinjuku Crossing Hotel", "area": "Shinjuku, neon, the busiest station, nightlife", "stars": 4, "nightly": 220},
+        {"name": "Marunouchi Imperial View", "area": "Marunouchi, beside the palace gardens, refined and calm", "stars": 5, "nightly": 580}
+      ]
+    },
+    {
+      "name": "Bali", "country": "Indonesia", "continent": "Asia",
+      "code": "DPS", "airports": ["DPS"],
+      "latitude": -8.41, "longitude": 115.19,
+      "hotels": [
+        {"name": "Ubud Rice Terrace Bungalows", "area": "Ubud, rice fields, yoga, very quiet, inland", "stars": 3, "nightly": 65},
+        {"name": "Canggu Surf Lodge", "area": "Canggu, surf beach, cafes, young crowd", "stars": 3, "nightly": 80},
+        {"name": "Seminyak Sunset Villas", "area": "Seminyak, beach clubs, boutiques, lively", "stars": 4, "nightly": 180},
+        {"name": "Uluwatu Cliff Resort", "area": "Uluwatu, clifftop over the ocean, secluded, pools", "stars": 5, "nightly": 410}
+      ]
+    },
+    {
+      "name": "Sydney", "country": "Australia", "continent": "Oceania",
+      "code": "SYD", "airports": ["SYD"],
+      "latitude": -33.87, "longitude": 151.21,
+      "hotels": [
+        {"name": "Newtown Terrace", "area": "Newtown, live music, thrift shops, young crowd", "stars": 3, "nightly": 130},
+        {"name": "The Rocks Sandstone Inn", "area": "The Rocks, colonial lanes by the harbour bridge, walkable", "stars": 4, "nightly": 250},
+        {"name": "Bondi Pavilion Hotel", "area": "Bondi Beach, surf, coastal walk, busy in summer", "stars": 4, "nightly": 270},
+        {"name": "Circular Quay Grand", "area": "Circular Quay, opera house views, ferries at the door", "stars": 5, "nightly": 560}
+      ]
+    },
+    {
+      "name": "Melbourne", "country": "Australia", "continent": "Oceania",
+      "code": "MEL", "airports": ["MEL"],
+      "latitude": -37.81, "longitude": 144.96,
+      "hotels": [
+        {"name": "Fitzroy Laneway Rooms", "area": "Fitzroy, street art, coffee, live music", "stars": 3, "nightly": 120},
+        {"name": "Flinders Lane Hotel", "area": "City centre, laneway cafes, trams, walkable", "stars": 4, "nightly": 210},
+        {"name": "St Kilda Esplanade", "area": "St Kilda, bayside, the pier at sunset, relaxed", "stars": 3, "nightly": 140},
+        {"name": "Southbank Yarra Tower", "area": "Southbank, river promenade, galleries, upscale", "stars": 5, "nightly": 390}
+      ]
+    },
+    {
+      "name": "Auckland", "country": "New Zealand", "continent": "Oceania",
+      "code": "AKL", "airports": ["AKL"],
+      "latitude": -36.85, "longitude": 174.76,
+      "hotels": [
+        {"name": "Ponsonby Villa", "area": "Ponsonby, cafes and boutiques, wooden villas, walkable", "stars": 3, "nightly": 125},
+        {"name": "Viaduct Harbour Hotel", "area": "Viaduct, yachts, waterfront restaurants, central", "stars": 4, "nightly": 230},
+        {"name": "Devonport Seaside Inn", "area": "Devonport, a ferry ride away, village feel, very quiet", "stars": 3, "nightly": 135},
+        {"name": "Waiheke Vineyard Lodge", "area": "Waiheke Island, vineyards and beaches, secluded", "stars": 5, "nightly": 480}
+      ]
+    }
+  ]
+}

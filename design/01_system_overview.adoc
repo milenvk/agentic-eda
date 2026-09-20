@@ -1036,7 +1036,10 @@ connections, so a request from São Paulo to Nairobi or Tokyo to Sydney resolves
 New York to Lisbon. Offers, fares, and availability are generated for any dates from the seed
 by a seeded pseudo-random generator, so a run is reproducible and a later chapter picks a
 fresh example without new data. The running example's cities are in the seed, not privileged
-by it.
+by it. The route graph is a rule, not a list: a route is flown nonstop within a continent,
+and between a hub and any city within 14,000 km; every other pair connects through one hub,
+the shortest detour first. A city has one IATA city code covering its airports, which is the
+code a flight search takes, so nearby airports (JFK and Newark) appear in one search.
 
 [cols="2,1,3", options="header"]
 |===
@@ -1044,15 +1047,23 @@ by it.
 
 | Airline Reservation System sim
 | 2
-| REST flight supplier on the Amadeus self-service shape (NDC in plain REST): offer search
-  with seeded prices, fare conditions (change and refund penalties), and a validity; confirm an
-  offer's price; create an order as a time-limited hold; retrieve; cancel; scriptable
-  slow-vendor mode (the trigger of ch 11's supplier breaker). Ch 3 teaches it as the REST edge.
+| REST flight supplier on the Amadeus self-service shape (NDC in plain REST), with Amadeus's
+  paths and camelCase field names: find a city's code (`/v1/reference-data/locations`);
+  offer search (`/v2/shopping/flight-offers`) with seeded prices, two branded fares with
+  their fare rules (change and refund penalties), and an expiry; confirm an offer's price
+  (`/v1/shopping/flight-offers/pricing`); create an order as a time-limited hold
+  (`/v1/booking/flight-orders`, `HOLD_MINUTES`); retrieve; cancel. The airline honours only
+  the offers it made, at the price it quoted, until they expire. Slow-vendor mode
+  (`RESPONSE_DELAY_SECONDS`, off by default; the trigger of ch 11's supplier breaker).
+  Ch 3 teaches it as the REST edge.
 
 | Hotel Reservation System sim
 | 2
-| Hotel supplier with two faces. Its inventory over MCP (ch 2, taught in ch 3): availability
-  with a rooms-left field, rate plan with its cancellation policy. Its agent face over A2A
+| Hotel supplier with two faces. Its inventory over MCP (ch 2, taught in ch 3), one tool,
+  `search_availability`, on the MCP SDK's streamable HTTP transport at `/mcp`: one offer per
+  hotel and rate plan (flexible, or advance purchase at a discount) with a rooms-left field,
+  the plan's cancellation policy, and the total for the stay; a hotel without rooms enough
+  for the party is left out. Its agent face over A2A
   (ch 7): a hotel's agent that negotiates a rate, with three auto-responder configurations
   (instant, slow counter for ch 8, non-converging for ch 9's livelock). REST for the
   reservation step (ch 7): reservation with a confirmation number, cancellation. Scriptable

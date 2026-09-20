@@ -41,6 +41,7 @@ class FakeAirline:
 
     def __init__(self) -> None:
         self.searches: list[int] = []
+        self.flies_nonstop = True
 
     async def search(self, origin, destination, on: date, travellers, max_stops):
         self.searches.append(max_stops)
@@ -60,7 +61,9 @@ class FakeAirline:
                 valid_until=SOON,
             )
 
-        offers = [offer("nonstop", 0, 7, 1400), offer("flex", 0, 7, 1600)]
+        offers = []
+        if self.flies_nonstop:
+            offers += [offer("nonstop", 0, 7, 1400), offer("flex", 0, 7, 1600)]
         if max_stops >= 1:
             offers.append(offer("onestop", 1, 11, 700))
         return offers

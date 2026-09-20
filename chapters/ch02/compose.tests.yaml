@@ -12,3 +12,57 @@ services:
       context: ../..
       dockerfile: components/itinerary_planner/Dockerfile
     command: ["pytest", "tests", "-q"]
+
+  tests-airline-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/airline_reservation_system_sim/Dockerfile
+    command: ["pytest", "tests", "-q"]
+
+  tests-hotel-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/hotel_reservation_system_sim/Dockerfile
+    command: ["pytest", "tests", "-q"]
+
+  tests-audit-consumer:
+    build:
+      context: ../..
+      dockerfile: components/audit_consumer/Dockerfile
+    command: ["pytest", "component/tests", "-q"]
+
+  tests-chapter:
+    build:
+      context: ../..
+      dockerfile: docker/python.Dockerfile
+    volumes:
+      - .:/chapter
+    command: ["pytest", "/chapter/tests", "-q"]
+
+  # Where the Planner and its suppliers meet: its clients against both running simulators.
+  tests-planner-with-suppliers:
+    build:
+      context: ../..
+      dockerfile: components/itinerary_planner/Dockerfile
+    environment:
+      AIRLINE_URL: http://airline-reservation-system:8000
+      HOTEL_INVENTORY_URL: http://hotel-reservation-system:8000/mcp
+      PYTHONPATH: /app/component/tests  # the Planner's own fakes, reused here
+    volumes:
+      - .:/chapter
+    command: ["pytest", "/chapter/supplier_tests", "-q"]
+    depends_on:
+      airline-reservation-system:
+        condition: service_healthy
+      hotel-reservation-system:
+        condition: service_healthy
+
+  airline-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/airline_reservation_system_sim/Dockerfile
+
+  hotel-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/hotel_reservation_system_sim/Dockerfile

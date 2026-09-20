@@ -1,0 +1,185 @@
+# Chapter 2: Core Messaging Mechanics
+
+Chapter 1's round trip, on a real agent. The plain Itinerary Planner is replaced by a
+LangGraph graph, and nothing outside it changes: the same two events, the same broker,
+the same audit consumer. The new Planner knows nothing about events. A container, attached
+to the app hosting it with one line, validates each `planning.ItineraryRequested` against
+its contract, hands the agent a typed request, validates the agent's answer, and publishes
+it as `planning.ItineraryProposed` with the request's `correlationid`, its `causationid`,
+and the trip's `partitionkey`.
+
+Components in play: Kafka, the Itinerary Planner Agent
+([components/itinerary_planner](../../components/itinerary_planner)), its two suppliers,
+the Airline Reservation System simulator
+([components/airline_reservation_system_sim](../../components/airline_reservation_system_sim),
+REST) and the Hotel Reservation System simulator
+([components/hotel_reservation_system_sim](../../components/hotel_reservation_system_sim),
+MCP), and the audit consumer ([components/audit_consumer](../../components/audit_consumer)).
+The demo scripts stand in for the Booking Agent, planning's caller, until it arrives in
+chapter 3.
+
+Where to read the code, in the order the chapter teaches it:
+
+- [agent.py](../../components/itinerary_planner/itinerary_planner/agent.py) and
+  [app.py](../../components/itinerary_planner/itinerary_planner/app.py): what the agent
+  consumes, what it produces, and the one line attaching the container.
+- [events/planning.py](../../lib/travel_agency/events/planning.py): the two contracts, as code.
+- [graph.py](../../components/itinerary_planner/itinerary_planner/graph.py): the agent
+  itself, with no event, broker, or attribute anywhere in it.
+- [request_trip.py](request_trip.py): a request published with its thread's label and its
+  trip's key.
+
+## Setup
+
+The same `.env` as chapter 1, in the repository root. If you skipped chapter 1, follow
+[its Setup section](../ch01/README.md#setup) first.
+
+The Planner asks its model for a typed answer several times per request. The smallest
+model in `.env.example`, `llama3.2` on Ollama, is enough for it.
+
+## The demo, in two terminals
+
+Open two terminals, both in `chapters/ch02`. The **first terminal watches** for the whole
+demo. The **second terminal acts**: every command in the acts below runs there. In the
+watch stream, every line is prefixed with the component it came from, and every event
+appears as a card: its attributes first, then its data, with long values truncated.
+
+### Terminal 1: start the system and watch
+
+Build and start the stack: Kafka, the Planner, the two simulators, and the audit
+consumer. The first run builds four images and can take several minutes; later runs
+reuse the build cache:
+
+```sh
+docker compose up -d --build
+```
+
+Then follow the conversation for the rest of the demo. Ctrl-C detaches without stopping
+anything:
+
+```sh
+docker compose --profile demo logs -f demo demo-malformed demo-overlapping itinerary-planner audit-consumer
+```
+
+Wait for `ItineraryPlannerAgent is subscribed and waiting for events` and the same line
+from `AuditConsumer` before the first act. Kafka's routine fresh-start reports, explained
+in chapter 1's README, may precede them.
+
+The airline simulator's API is browsable while the stack runs, at
+<http://localhost:8001/docs>. Every flight and every room is generated from one seeded
+world of cities on six continents, so the same search finds the same offers at the same
+prices on every run, on any machine.
+
+## Act 1: the same round trip, on a real agent
+
+In the second terminal, send the running example's request: New York to Lisbon for two,
+with three days in Madrid on the way, on a budget of 2,800 US dollars:
+
+```sh
+docker compose --profile demo up -d --build --force-recreate demo
+```
+
+Observe in the watch terminal, in order:
+
+1. `demo-1` prints a PUBLISHED card for `planning.ItineraryRequested`. Two attributes are
+   new since chapter 1: a `correlationid`, minted by the script as the label of this
+   thread, and a `partitionkey`, the trip's id.
+2. `itinerary-planner-1` prints a RECEIVED card with the same event id. Between this card
+   and the next, the graph runs: the planner node briefs two searches, each search
+   queries its simulator and asks the model which offers to keep, a validator checks the
+   budget in code, and the planner ranks what survived.
+3. `itinerary-planner-1` prints a PUBLISHED card for `planning.ItineraryProposed`. Its
+   `correlationid` is the request's, its `causationid` is the request's event id, and its
+   `partitionkey` is the trip's id. The agent set none of them: the container did.
+4. `demo-1` receives the proposal, matched by `correlationid`, lists the ranked
+   itineraries with their totals, and prints a green ✔.
+
+Chapter 1's script matched its reply by a `request_id` field inside the data. That
+convention is gone: the thread's label now travels in the envelope, where every
+component can read it without knowing any event's data.
+
+## Act 2: a malformed request stops at the boundary
+
+Send a request that breaks its contract in three places: no stops, no travellers, and a
+budget that is not money:
+
+```sh
+docker compose --profile demo up -d --build --force-recreate demo-malformed
+```
+
+Observe in the watch terminal:
+
+1. `demo-malformed-1` prints a PUBLISHED card. The broker takes the event: a broker moves
+   bytes, and no contract is checked there.
+2. `itinerary-planner-1` prints a RECEIVED card, then
+   `ItineraryPlannerAgent rejected planning.ItineraryRequested ...` with three validation
+   errors, one per broken field. The graph never ran and the model was never called.
+3. `audit-consumer-1` records the event all the same. The audit record keeps what was
+   published, valid or not.
+4. After 30 seconds without a proposal, `demo-malformed-1` prints a green ✔.
+
+The container acknowledged the malformed event: an event that fails its contract fails it
+on every redelivery, so redelivering it would help nobody.
+
+## Act 3: two threads at once, one record
+
+Send two requests back to back, from two customers on the far side of the world from the
+running example: São Paulo to Nairobi, and a family flying Tokyo to Sydney and Auckland:
+
+```sh
+docker compose --profile demo up -d --build --force-recreate demo-overlapping
+```
+
+Observe in the watch terminal:
+
+1. `demo-overlapping-1` prints two PUBLISHED cards, each with a `correlationid` and a
+   `partitionkey` of its own, then a `grep` command for each thread.
+2. `itinerary-planner-1` prints both RECEIVED cards before either PUBLISHED card. The two
+   trips have different partition keys, so neither waits for the other.
+3. Both proposals arrive, in whichever order the planning finished, and each is matched
+   to its own request.
+
+The audit record now holds the two threads interleaved. Pull one of them out by copying
+the command printed for it by `demo-overlapping-1` (a `grep` for the thread's
+`correlationid` in `data/audit.log`) into the second terminal.
+
+The two lines returned are one request and the proposal answering it, and the proposal's
+`causationid` is the request's `id`. A longer thread is read the same way:
+`correlationid` says which thread an event belongs to, and `causationid` says what caused
+what within it.
+
+## Shutting down
+
+Stop and remove all of the chapter's containers. Add `--volumes` to also discard Kafka's
+stored events and Ollama's downloaded models:
+
+```sh
+docker compose --profile demo down
+```
+
+## Tests
+
+Run every chapter 2 test suite, each inside its component's own image, with no Kafka, no
+model, no API key, and no `.env`:
+
+```sh
+./test.sh
+```
+
+Each component's suite tests its own side against a stand-in. The last suite,
+`tests-planner-with-suppliers`, is where the sides meet: it runs the Planner's clients,
+and then the whole graph with a scripted model, against both running simulators.
+
+## Troubleshooting
+
+- **No proposal arrives in Act 1.** Look at the `itinerary-planner-1` lines in the
+  stream. An invalid or missing API key shows up there, and so does a model's answer
+  that failed validation.
+- **The same request is planned again and again.** An activation that fails is
+  redelivered, which is the broker doing its job. Stop the Planner, fix the cause named
+  in its log, and start it again.
+- **Port 8001 is taken.** Change the published port of `airline-reservation-system` in
+  `compose.yaml`. Nothing inside the stack uses it.
+- **Ollama is slow.** A request is several model calls. See
+  [Local models with Ollama](../../README.md#local-models-with-ollama) in the repository
+  README for the GPU options.

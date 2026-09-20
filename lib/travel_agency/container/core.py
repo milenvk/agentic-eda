@@ -20,7 +20,7 @@ from pydantic import ValidationError
 
 from .. import connect
 from ..broker import PARTITION_KEY, Event, EventAttributes, EventBroker
-from ..events import OWN_ID, EventModel, Nothing, binding_of
+from ..events import OWN_ID, EventModel, Nothing, binding_of, data_of
 from .adapters import adapter_for
 from .declarations import Consumes, produced_classes
 
@@ -185,7 +185,7 @@ class Container:
         published = await self._broker.publish(
             binding.type,
             self.source,
-            fact.model_dump(mode="json", exclude={"attributes_", "event_type"}),
+            data_of(fact),
             id=event_id,
             attributes=attributes,
         )

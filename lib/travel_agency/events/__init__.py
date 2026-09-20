@@ -57,6 +57,11 @@ class Binding:
     order_per: str | _OwnId | None
 
 
+def data_of(fact: EventModel) -> dict:
+    """An event's data as it is published: its own fields, as JSON values."""
+    return fact.model_dump(mode="json", exclude={"attributes_", "event_type"})
+
+
 def binding_of(subject: object) -> Binding | None:
     """The binding of an event class or of an instance of one, if it has one."""
     cls = subject if isinstance(subject, type) else type(subject)

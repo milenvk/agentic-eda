@@ -1,0 +1,96 @@
+# Chapter 2: the round trip on a real Planner, contracted, correlated, and keyed.
+# Kafka, the LangGraph Itinerary Planner Agent in place of chapter 1's, its two
+# suppliers, and the audit consumer. See README.md for the walkthrough.
+
+include:
+  - ../../compose/kafka.yaml
+  - path: ../../compose/ollama.yaml
+    env_file: ../../.env
+
+x-demo: &demo
+  profiles: [demo]
+  build:
+    context: ../..
+    dockerfile: docker/python.Dockerfile
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    FORCE_COLOR: "1"
+  volumes:
+    - .:/chapter
+  working_dir: /chapter
+  depends_on:
+    kafka:
+      condition: service_healthy
+
+services:
+  # The same events as chapter 1's Planner, and a new inside: the book's one replacement.
+  itinerary-planner:
+    build:
+      context: ../..
+      dockerfile: components/itinerary_planner/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AIRLINE_URL: http://airline-reservation-system:8000
+      HOTEL_INVENTORY_URL: http://hotel-reservation-system:8000/mcp
+      FORCE_COLOR: "1"  # the event cards keep their colors in `docker compose logs`
+    env_file:
+      - path: ../../.env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # host-Ollama variant works on Linux too
+    depends_on:
+      kafka:
+        condition: service_healthy
+      airline-reservation-system:
+        condition: service_healthy
+      hotel-reservation-system:
+        condition: service_healthy
+      # Waits for the local model only when an Ollama flavor is enabled in .env.
+      ollama:
+        condition: service_healthy
+        required: false
+      ollama-gpu:
+        condition: service_healthy
+        required: false
+
+  # A REST flight supplier. Its API is browsable at http://localhost:8001/docs
+  airline-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/airline_reservation_system_sim/Dockerfile
+    ports:
+      - "8001:8000"
+
+  # A hotel supplier, its inventory served over MCP.
+  hotel-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/hotel_reservation_system_sim/Dockerfile
+
+  audit-consumer:
+    build:
+      context: ../..
+      dockerfile: components/audit_consumer/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_LOG: /data/audit.log
+      FORCE_COLOR: "1"
+    volumes:
+      - ./data:/data
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # The customer's seat, one service per act, each triggered with:
+  #   docker compose --profile demo up -d --build --force-recreate <service>
+  demo:
+    <<: *demo
+    command: ["python", "request_trip.py"]
+
+  demo-malformed:
+    <<: *demo
+    command: ["python", "malformed_request.py"]
+
+  demo-overlapping:
+    <<: *demo
+    command: ["python", "overlapping_requests.py"]

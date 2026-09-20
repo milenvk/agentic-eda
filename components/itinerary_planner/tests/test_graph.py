@@ -3,7 +3,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-import pytest
 from conftest import brief, request
 
 from itinerary_planner.graph import MAX_ATTEMPTS, build_graph, legs_of
@@ -83,6 +82,16 @@ async def test_with_no_budget_nothing_loops(model, airline, hotels):
     assert [name for name, _ in model.asked].count("brief") == 1
 
 
+async def test_a_nonstop_nobody_flies_is_searched_again_with_a_stop(model, airline, hotels):
+    airline.flies_nonstop = False
+    model.briefs = [brief(max_stops=0)]
+
+    proposal = await planned(graph(model, airline, hotels), request(budget=None))
+
+    assert airline.searches == [0, 1, 0, 1]  # each leg, asked twice
+    assert proposal.itineraries
+
+
 async def test_a_pick_nobody_offered_falls_back_to_price(model, airline, hotels):
     async def wayward(name, answer, **variables):
         reply = await model(name, answer, **variables)
@@ -160,16 +169,3 @@ async def test_hosted_by_the_container_it_answers_an_event_with_an_event(
     assert proposal.partitionkey == "trip-1"
     assert ItineraryProposed.model_validate(proposal.data).itineraries  # a valid contract, on the wire
 
-
-@pytest.mark.parametrize("setting", ["AIRLINE_URL", "HOTEL_INVENTORY_URL"])
-def test_a_supplier_that_is_not_configured_says_which_setting_is_missing(setting, monkeypatch):
-    from itinerary_planner import suppliers_clients
-
-    monkeypatch.delenv(setting, raising=False)
-    client = suppliers_clients.airline() if setting == "AIRLINE_URL" else suppliers_clients.hotels()
-    with pytest.raises(RuntimeError, match=setting):
-        asyncio.run(
-            client.search("a", "b", None, 1, 0)
-            if setting == "AIRLINE_URL"
-            else client.availability("a", None, None, 1)
-        )

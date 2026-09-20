@@ -129,9 +129,11 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
         kept = []
         for number, leg in enumerate(legs_of(state.request)):
             wanted = _at(state.brief.legs, number) or LegBrief(max_stops=1, max_price=None)
-            offers = await airline.search(
-                leg.origin, leg.destination, leg.on, state.request.travellers, wanted.max_stops
-            )
+            asked = (leg.origin, leg.destination, leg.on, state.request.travellers)
+            offers = await airline.search(*asked, wanted.max_stops)
+            if not offers and wanted.max_stops == 0:
+                # The brief wanted a nonstop on a route nobody flies nonstop.
+                offers = await airline.search(*asked, 1)
             if wanted.max_price is not None:
                 offers = [o for o in offers if o.price.amount <= wanted.max_price] or offers
             kept.append(await _picked(ask, "flights", state.request, leg, offers))
