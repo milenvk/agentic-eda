@@ -53,8 +53,9 @@ payment offstage until ch 10.
   new inside; a planner node, flight-search and hotel-search sub-agents, a validator node, the
   join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
   (REST) and the Hotel Reservation System sim (inventory over MCP), CloudEvents + Pydantic
-  contract models as the event catalog in code (`@event`), the container attached to the app
-  hosting the Planner (`langgraph dev` if it runs cleanly in the stack, else a FastAPI app),
+  contract models as the event catalog in code (`@event`), the container attached to the
+  FastAPI app hosting the Planner (a LangGraph Server variant shipped beside it, untested by
+  the chapter's gate),
   `consumes`, `produces`, and one `attach` line replacing ch 1's hand-rolled subscribe and
   publish, the validating boundary at the container (inbound and outbound)
 | `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` becoming

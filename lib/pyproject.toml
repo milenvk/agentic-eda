@@ -17,6 +17,7 @@ dependencies = [
 dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
+    "starlette==1.6.0",  # the attachment's tests run a real lifespan
 ]
 
 [tool.hatch.build.targets.wheel]

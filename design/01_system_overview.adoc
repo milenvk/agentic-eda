@@ -760,7 +760,17 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   sim's inventory over MCP and flags an offer as the last room from the sim's rooms-left field;
   a deterministic validator node that rejects anything breaking a hard constraint (never the
   model); and the join, where the planner node assembles and ranks two or three itineraries and
-  writes a rationale for each. It consults the Destination Research Agent over A2A (ch 3), and
+  writes a rationale for each. The division of labour inside is fixed: code fetches and code
+  carries the facts, and the model only judges. The planner node briefs the two searches
+  (stops allowed and price limits per leg, a spending limit and an area per stay); each
+  search queries its supplier in code and asks the model which of the offers returned to
+  keep, best first, falling back to price when the model names an offer nobody made; the
+  join assembles up to three candidates in code (cheapest, fastest, and the searches' own
+  first picks as best value) from the suppliers' offers exactly as made; the validator
+  checks the budget, the order of the flights, and the offers' validity; and it always
+  hands back to the planner, which briefs again with the problems it was told, up to three
+  attempts, or ranks the survivors and proposes. So a price or a flight time in a proposal
+  is never something a model retyped, and the graph has the five nodes 2.2 draws. It consults the Destination Research Agent over A2A (ch 3), and
   the flight search reaches the Airline Reservation System sim over REST. It publishes
   `planning.ItineraryProposed`, each proposal immutable and keyed by the trip's id, and places no
   holds; the container publishes the join's typed answer, the one class in its `produces`
@@ -1112,7 +1122,11 @@ abstracting an abstraction. Concretely:
   framework's native model abstraction *is* LiteLLM, which is the precedent for this decision.
 * **LlamaIndex, LangGraph, and CrewAI agents** either use their LiteLLM integrations or
   point their OpenAI-compatible client at a LiteLLM endpoint (CrewAI's own LLM class is built
-  on LiteLLM), so either way the model choice stays in config.
+  on LiteLLM), so either way the model choice stays in config. A graph's nodes are plain
+  functions, so the LangGraph Planner calls the LiteLLM SDK from its nodes directly, with the
+  answer's Pydantic class as `response_format`, exactly as the ch 1 Planner does: LangGraph
+  orchestrates, and no LangChain model or agent wrapper sits between a node and the model,
+  which keeps the judgements reliable on a small local model.
 * **Chapter 11** divides cleanly: mechanical provider fallback on outage and predictive
   throttling against provider limits are LiteLLM configuration (the fallback chain and the
   per-deployment token and request rate limits); the *economic circuit breaker* (token budget

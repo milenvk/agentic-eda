@@ -351,8 +351,12 @@ model an adapter concern. The container owns five things.
    reasoning with who asked, when, and in which conversation. `Event` keeps its name and its
    job: it is one occurrence on the wire, the envelope, and an `@event` class is the contract
    for a kind of event (`ch02_semantic_data_contracts` says so in one sentence). The binding
-   adds a `type` literal to the class, which is what makes a union of event classes
-   discriminated.
+   adds an `event_type` literal to the class, which is what makes a union of event classes
+   discriminated and what a model's answer names itself with. It is named `event_type` and
+   not `type` so that it cannot collide with a payload field (a room's type, a fare's), and
+   it never travels in the data, since the envelope carries the type. The attachment touches
+   only the app's `router.lifespan_context`, so the kernel needs no web framework of its own:
+   the components bring FastAPI, and Starlette is a test dependency alone.
 ** *One activation.* For each inbound event the container validates its data into the
    class bound to the event's type, with its attributes in `attributes_`, hands that
    instance to the framework adapter with the
@@ -464,10 +468,20 @@ promised.
    decode a cloud's payload and run the agent; they are the rejected alternative because they
    couple the agent's host to one cloud's delivery, where the attachment does not. The ch 7 Negotiator is the first
    attachment inside a framework's own app (ADK's); the ch 4 Front Desk and Inspiration crew
-   attach inside their own apps; the ch 2 Planner's host is verified before the practical is
-   written: `langgraph dev`, the in-memory LangGraph server, if it runs cleanly in the
-   compose stack, else a FastAPI app hosting the graph, since LangGraph's production server
-   brings a Postgres and a Redis of its own.
+   attach inside their own apps. The ch 2 Planner runs in a FastAPI app of its own, the
+   compiled graph invoked in-process and the container's lanes governing concurrency. That
+   is the shape most teams run LangGraph in production, the library inside their own
+   service, with ch 8 swapping `InMemorySaver` for `PostgresSaver`. LangGraph Server, the
+   commercial platform, takes the identical `attach` line in its custom app
+   (`langgraph.json`'s `http.app`), verified: under `langgraph dev` it starts with no
+   LangSmith key, runs the app's lifespan, runs the graph through the SDK on a thread, and
+   keeps the thread's state. It was not chosen for the chapter because the in-memory server
+   announces itself as for development and testing only, its production form brings a
+   Postgres, a Redis, and a license the book never shows, `langgraph-api` releases weekly,
+   and runs go through the server's own queue, which takes concurrency out of the
+   container's hands. The repository ships that variant beside the component, a
+   `langgraph.json` and a `webapp.py`, outside the chapter's test gate, and 2.8 says in two
+   sentences that a team on the platform puts the same line there and what it trades.
 ** *Publish tools* (ch 7), for a turn that runs tools: `publish_tool(EventClass)` returns a
    plain async function named and documented from the class, whose parameters are its
    fields, flattened (the form every framework's tool wrapper reads natively, LangChain's
@@ -510,9 +524,9 @@ consumer can deduplicate. A durable agent resumes from its checkpoint past the f
 until then the design's agents state their facts at the end of the activation (the Planner's
 typed answer, the classifier's one request, the Negotiator's one `RateNegotiated` at the end
 of its loop, made durable in ch 8), and the Booking Agent's steps are deterministic code
-whose activation returns the facts it commits. To confirm in code before ch 2: the Planner's
-host (above), that `ainvoke` on a compiled graph accepts the request under a field found by
-type, and that the wrapper `produces` returns for several classes is accepted as
+whose activation returns the facts it commits. To confirm in code before ch 2: that
+`ainvoke` on a compiled graph accepts the request under a field found by type, and that the
+wrapper `produces` returns for several classes is accepted as
 `response_format` by the readers' four model choices; before ch 7: that a lifespan task in ADK's app can obtain
 a `Runner` on the app's session service, and that ADK accepts the flattened function with
 Pydantic-typed fields (dates, enums, nested items).
