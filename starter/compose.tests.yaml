@@ -1,0 +1,8 @@
+# The starter's test runner, deliberately separate from compose.yaml: the tests need
+# no Kafka, no model, and no `.env`. `./test.sh` runs it.
+services:
+  tests:
+    build:
+      context: ..
+      dockerfile: starter/Dockerfile
+    command: ["pytest", "tests", "-q"]

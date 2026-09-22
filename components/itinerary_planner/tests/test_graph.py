@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 
 from conftest import brief, request
 
+from agentic_eda import connect, eda
+from agentic_eda.broker import Event
+from agentic_eda.container import Container
+from agentic_eda.hydration import NoHydration
 from itinerary_planner.graph import MAX_ATTEMPTS, build_graph, legs_of
-from travel_agency import connect, eda
-from travel_agency.broker import Event
-from travel_agency.container import Container
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
-from travel_agency.hydration import NoHydration
 
 
 def graph(model, airline, hotels):

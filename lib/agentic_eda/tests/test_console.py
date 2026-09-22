@@ -1,8 +1,8 @@
 """Unit tests for the demo console renderer."""
 
-from travel_agency import console
-from travel_agency.broker import Event
-from travel_agency.console import format_event
+from agentic_eda import console
+from agentic_eda.broker import Event
+from agentic_eda.console import format_event
 
 
 def make_event(**overrides) -> Event:

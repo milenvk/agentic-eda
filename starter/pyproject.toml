@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "review-triage"
+version = "0.1.0"
+description = "A starter application on agentic_eda: one agent triaging a shop's product reviews."
+requires-python = ">=3.13"
+# The framework is installed beside this package; see Dockerfile.
+dependencies = [
+    "fastapi==0.141.1",
+    "litellm==1.101.0",
+    "uvicorn==0.53.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["review_triage"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

@@ -6,7 +6,7 @@ from overlapping_requests import nairobi_trip, sydney_trip
 from pydantic import ValidationError
 from request_trip import answers, lisbon_trip, request_itineraries
 
-from travel_agency.broker import Event
+from agentic_eda.broker import Event
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryRequested
 from travel_agency.sims import world

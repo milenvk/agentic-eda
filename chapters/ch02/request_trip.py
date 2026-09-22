@@ -10,11 +10,11 @@ import asyncio
 from datetime import date
 from uuid import uuid4
 
-from travel_agency import console
-from travel_agency.broker import Event, EventBroker
-from travel_agency.connect import event_broker
+from agentic_eda import console
+from agentic_eda.broker import Event, EventBroker
+from agentic_eda.connect import event_broker
+from agentic_eda.events import data_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
-from travel_agency.events import data_of
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested, Money, Stop
 
 SOURCE = "RequestTripScript"

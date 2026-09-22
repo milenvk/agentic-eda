@@ -2,8 +2,8 @@
 
 import json
 
+from agentic_eda.broker import Event
 from audit_consumer.consumer import audit_line, record
-from travel_agency.broker import Event
 
 
 def make_event(event_id: str) -> Event:

@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from agentic_eda.broker import Event
 from itinerary_planner_minimal import agent
-from travel_agency.broker import Event
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
 FAKE_ITINERARIES = [

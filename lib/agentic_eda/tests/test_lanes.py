@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from travel_agency.lanes import Lanes, Watermark
+from agentic_eda.lanes import Lanes, Watermark
 
 
 class Gate:

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "travel-agency"
+name = "agentic-eda"
 version = "0.1.0"
-description = "Shared kernel of the Travel Agency application: the EventBroker port, its CloudEvents-backed Kafka adapter, and the event-type constants."
+description = "A framework for event-driven agentic applications: the EventBroker port and its CloudEvents-backed Kafka adapter, the @event contracts, and the container attaching any agent to the broker. The reference implementation of the book Event-Driven Agentic Architecture."
 requires-python = ">=3.13"
 dependencies = [
     "aiokafka==0.14.0",
@@ -21,7 +21,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["travel_agency"]
+packages = ["agentic_eda"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

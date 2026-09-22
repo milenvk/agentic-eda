@@ -8,19 +8,22 @@ import json
 from contextlib import asynccontextmanager
 
 import pytest
+from examples import (
+    ITINERARY_PROPOSED,
+    ITINERARY_REQUESTED,
+    PROPOSAL,
+    REQUEST,
+    ItineraryProposed,
+    ItineraryRequested,
+)
 from pydantic import BaseModel, ValidationError
 from starlette.applications import Starlette
-from test_events import REQUEST, itinerary
 
-from travel_agency import connect, eda
-from travel_agency.broker import Event
-from travel_agency.container import Container, NoAnswer, RejectedAnswer
-from travel_agency.container.adapters import adapter_for
-from travel_agency.container.declarations import PureConsumer, produced_classes
-from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
-from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
-
-PROPOSAL = {"trip_id": "trip-1", "itineraries": [itinerary(1), itinerary(2)]}
+from agentic_eda import connect, eda
+from agentic_eda.broker import Event
+from agentic_eda.container import Container, NoAnswer, RejectedAnswer
+from agentic_eda.container.adapters import adapter_for
+from agentic_eda.container.declarations import PureConsumer, produced_classes
 
 
 class StubBroker:

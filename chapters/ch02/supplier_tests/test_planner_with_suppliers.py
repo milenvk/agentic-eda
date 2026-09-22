@@ -9,9 +9,9 @@ from datetime import date
 
 from conftest import FakeModel, brief, request
 
+from agentic_eda.hydration import NoHydration
 from itinerary_planner import suppliers_clients
 from itinerary_planner.graph import build_graph
-from travel_agency.hydration import NoHydration
 
 ARRIVE, DEPART = date(2027, 5, 10), date(2027, 5, 13)
 

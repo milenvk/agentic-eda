@@ -8,9 +8,9 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from agentic_eda.broker import EventAttributes
 from itinerary_planner.graph import Brief, Judgement, LegBrief, Picks, Ranking, StayBrief
 from itinerary_planner.suppliers import FlightOffer, HotelOffer
-from travel_agency.broker import EventAttributes
 from travel_agency.events.planning import ItineraryRequested, Money
 
 SOON = datetime.now(UTC) + timedelta(hours=2)

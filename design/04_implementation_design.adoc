@@ -8,9 +8,68 @@
 // low-level authority: the exact port surfaces, event envelope, naming, topic mapping, consumer
 // rules, container mechanics, and repository conventions that every chapter's code obeys.
 
+== Two Packages: the Framework and the Application
+
+The repository holds two libraries, and the line between them is the line between what any
+agentic event-driven application needs and what only a travel agency needs.
+
+* **`agentic_eda`, the framework** (`lib/agentic_eda/`, distributed as `agentic-eda`): the
+  `EventBroker` port and its adapters, the per-key lanes, `connect`, the `@event` machinery
+  (`EventModel`, `Nothing`, `OWN_ID`, `data_of`), the agent container with its framework
+  adapters, the `eda` face imported by a developer, every other port with its adapters
+  (hydration, the view store, the artifact store), producer identity's signing and
+  verification, the supplier client's circuit breaker, the replay module, and the `console`
+  event renderer.
+* **`travel_agency`, the application's shared code** (`lib/travel_agency/`, distributed as
+  `travel-agency`): the event-type constants, the catalog as code (one module of `@event`
+  classes per context), the value objects every context shares, the registry of the
+  components' public keys, and the `sims` package holding the simulators' world seed. It is
+  the domain map's shared kernel as code, with one guest: the world seed belongs to the
+  suppliers' side, is shipped here because the simulators are part of this repository, and
+  is imported by the simulators and by tests, never by an agent.
+
+The test for where a module goes: a team building a different business would use it
+unchanged, or it names something of this business (a trip, a supplier, an event type). The
+first kind is the framework's, the second the application's, and a module that is both is
+split.
+
+The dependency runs one way. `travel_agency` and every component import `agentic_eda`, and
+`agentic_eda` imports neither. The rule is kept by construction, not by review: the
+framework's suite, `tests-agentic-eda`, runs in an image holding the framework alone
+(`docker/agentic_eda.Dockerfile`), so an import of the application fails the gate. For the
+same reason the framework's tests declare example events of their own. Its docstrings stay
+on the book's running example, because an illustration is not a dependency and one example
+across the book and the code is easier on the reader than two.
+
+What the framework reads from its surroundings is configuration, never an import: the
+broker's address, a component's name (`COMPONENT_NAME`), an adapter's choice
+(`HYDRATION_ADAPTER`), and from ch 13 the path of the key registry, which is the
+application's data handed to the framework's verifier.
+
+A reader building their own application takes the framework and leaves the agency: they
+install `agentic-eda` from this repository
+(`pip install "agentic-eda @ git+https://github.com/milenvk/agentic-eda#subdirectory=lib/agentic_eda"`),
+write their own event-type constants and `@event` classes, and attach the container to the
+app hosting their agent. The repository README says so, and says what the framework is: the
+book's reference implementation, with each chapter teaching one part of its inside, and no
+promise of a release cycle.
+
+`starter/` is that path, already walked: the smallest application on the framework, in a
+business that is not travel (a shop's product reviews, triaged by one agent). It holds one
+consumed and one produced `@event` class, one agent written as a plain async function with
+no agent framework, no broker, and no envelope in it, the FastAPI app with the one `attach`
+line, a script publishing a review and waiting for its triage, a compose file with Kafka,
+and one test behind a `compose.tests.yaml` of its own. It imports `agentic_eda` and never
+`travel_agency`, its image holds the framework alone, and it follows the application's
+division of labour: the model judges and code carries the facts. Its README is a
+walkthrough for making it one's own (rename, replace the two events, replace the agent) and
+for taking it out of this repository, where the framework is installed from the
+repository's GitHub archive (no `git` is needed in the image) instead of from the tree.
+`starter/test.sh` is its gate, run with the chapters' gates.
+
 == The `EventBroker` Surface, Final Form
 
-One tree means one kernel, so the public surface is designed complete up front and is
+One tree means one framework, so the public surface is designed complete up front and is
 **frozen for the whole book**: the book's listings and the repository never drift. Adapter
 internals may mature chapter by chapter; these signatures do not.
 
@@ -151,7 +210,7 @@ push route (ch 15) uses the SDK's HTTP binding the same way.
   organization segment: the domain is what a reader and a subscriber need, and a reverse-DNS
   prefix adds length without adding meaning inside one system.
 * Every type is declared exactly once, as a constant in
-  `lib/travel_agency/event_types.py`, grown additively by later chapters. Components import
+  `travel_agency/event_types.py`, grown additively by later chapters. Components import
   the constant, never retype the string. From ch 2 the type's `@event` class binds to that
   constant (The Agent Container, below), so the type is still spelled once and its class is
   found from it.
@@ -243,7 +302,7 @@ both). The Kafka adapter keeps the promise as follows.
   partition); `delivery.timeout.ms` bounds retries; `linger.ms` stays small, since the traffic
   is sparse and latency matters more than batching.
 * **Consumer rule: lanes.** A partition is assigned to exactly one replica of a group, and
-  the adapter runs the partition's records in per-key lanes (`lib/travel_agency/lanes.py`,
+  the adapter runs the partition's records in per-key lanes (`agentic_eda/lanes.py`,
   taught in ch 4): one queue per record key drained by one task, so events sharing a key are
   handled one at a time in offset order, and keys are handled concurrently. A record with no
   key gets a lane of its own. Per-key order, one at a time, to one consumer follows from those
@@ -315,7 +374,7 @@ model an adapter concern. The container owns five things.
   OpenAI-family strict subset requires an object at the root and refuses a root-level
   `anyOf`. The developer never sees the difference; `output_schema=produces` works either
   way. An agent that may decide not to publish declares `produces(A, B, eda.Nothing)`:
-  `Nothing` is a kernel class with one field, `reason`, which the model returns as a
+  `Nothing` is a framework class with one field, `reason`, which the model returns as a
   positive answer and the container logs and never publishes, so silence stays a failure
   for every agent (An activation that answers nothing, below). `produces()` with no classes
   declares a pure consumer, whose return value is ignored. Options are keyword arguments
@@ -323,7 +382,7 @@ model an adapter concern. The container owns five things.
   ItineraryApproved, interrupting=[ItineraryRequested])`, ch 7, the helper checking at
   import that the named classes are among the declared ones). No option exists on
   `produces` until a chapter needs one.
-** *The catalog as code.* One Pydantic model per event payload in `lib/travel_agency/events/`,
+** *The catalog as code.* One Pydantic model per event payload in `travel_agency.events`,
    one module per context mirroring the catalog in `02_workflows_and_events.adoc`, each bound
    once to its type constant and to the field its order is kept within:
    `@event(ITINERARY_PROPOSED, order_per="trip_id")`, events sharing that field's value
@@ -358,7 +417,7 @@ model an adapter concern. The container owns five things.
    discriminated and what a model's answer names itself with. It is named `event_type` and
    not `type` so that it cannot collide with a payload field (a room's type, a fare's), and
    it never travels in the data, since the envelope carries the type. The attachment touches
-   only the app's `router.lifespan_context`, so the kernel needs no web framework of its own:
+   only the app's `router.lifespan_context`, so the framework needs no web framework of its own:
    the components bring FastAPI, and Starlette is a test dependency alone.
 ** *One activation.* For each inbound event the container validates its data into the
    class bound to the event's type, with its attributes in `attributes_`, hands that
@@ -394,7 +453,7 @@ model an adapter concern. The container owns five things.
    missing one, and ch 8's scheduler catches a fact that never reaches the component waiting
    for it. Taught with the publish tools in ch 7, where a model choosing not to call one is
    the case that makes it concrete.
-** *Framework adapters*, one module each under `travel_agency.container`, selected by the
+** *Framework adapters*, one module each under `agentic_eda.container`, selected by the
    agent object's class module (`langgraph`, `google.adk`, `crewai`, `llama_index`, or a
    plain coroutine function), so no framework is imported until it is matched and a
    component's image still carries only its own. The frameworks disagree on exactly two
@@ -569,7 +628,8 @@ Pydantic-typed fields (dates, enums, nested items).
 An application-layer identity, portable across brokers:
 
 * Every component holds its own key pair, generated at build time; the public keys are a
-  committed registry in `lib/travel_agency/identity/` for the compose stack and a secret store
+  committed registry in the application's package (`travel_agency/identity/`), its path
+  handed to the framework's verifier by a setting, for the compose stack and a secret store
   in ch 15.
 * On publish, the container adds `identitytoken`: a compact signed token (JWS) whose subject is
   the component's `source` and whose claims bind the event's `id` and `type`, so a token copied
@@ -592,7 +652,7 @@ An application-layer identity, portable across brokers:
 
 == The Replay Script
 
-`python -m travel_agency.replay <recording.jsonl>` republishes a recording through the port.
+`python -m agentic_eda.replay <recording.jsonl>` republishes a recording through the port.
 The recording format is the audit consumer's: one CloudEvent per line, structured JSON. The
 script preserves every attribute and `data` exactly, so keys,
 correlation, causation, and identity survive; publishes in file order; paces publishes by the
@@ -626,16 +686,19 @@ file, configuration file, or prose.
 
 == Repository Layout Conventions
 
-* `lib/travel_agency/`: the shared kernel (port, adapters, event-type constants, the `events`
-  package that is the catalog as code, the container library with its `attach` and its
-  framework adapters, the `sims` package holding the world seed every simulator draws from,
-  the identity registry, the replay module, and the `console` event renderer) every component
-  installs; its own pyproject and tests.
+* `lib/agentic_eda/` and `lib/travel_agency/`: the framework and the application's shared
+  code (Two Packages, above), each a directory with its own pyproject, its package, and its
+  tests. Every component installs both, the framework first
+  (`pip install ./lib/agentic_eda ./lib/travel_agency`), and `travel-agency` declares its
+  dependency on `agentic-eda` at the exact version in the tree.
 * `components/<book_component_name>/`: one self-contained directory per component, named
   after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`,
   `airline_reservation_system_sim`): sources, Dockerfile, pyproject with **pinned exact
   versions**, unit tests. A component's image carries only its own dependencies; one
   framework's agent never drags another's.
+* `starter/`: the smallest application on the framework, for a reader starting their own
+  (Two Packages, above): its own package, Dockerfile, pyproject, compose file, test, and
+  README, with no import of `travel_agency`.
 * `chapters/chNN/`: the chapter's README (what is demonstrated, how to run it), its
   `compose.yaml` entry point, its demo scripts, its recordings under `data/`, chapter-level
   tests, and `test.sh`. Shell blocks in READMEs contain commands only, no `#` comments,
@@ -652,7 +715,7 @@ file, configuration file, or prose.
   <script-service>`), kills, new consumers. Each act gives the second-terminal commands, then
   an "Observe" that says which component prints what in the watch stream and what it proves.
   Demo scripts narrate events, not model output: every publish and receive is printed as an
-  event card via `travel_agency.console` (id, type, source, the other attributes, data), with long
+  event card via `agentic_eda.console` (id, type, source, the other attributes, data), with long
   values truncated; the full facts are on the audit record. The ch 1 minimal Planner holds
   every reply until the 45-second mark (`PLANNING_SECONDS`; the chapter's stated inference
   time), so the durability act's kill window does not depend on the reader's model speed.
@@ -667,9 +730,10 @@ file, configuration file, or prose.
   or Postgres), which prompt version, and which behaviour flags are on. Ch 4's compose scales
   the Semantic Router to two replicas (`deploy.replicas: 2`), the book's demonstration of
   competing consumption and per-key serialization.
-* `docker/`: shared Dockerfiles, named by what they build (`python.Dockerfile`: the
-  kernel-equipped Python image used by demo scripts, the replay script, and chapter-level
-  tests).
+* `docker/`: shared Dockerfiles, named by what they build: `python.Dockerfile`, the Python
+  image with both libraries, used by demo scripts, the replay script, the application
+  library's suite, and chapter-level tests; and `agentic_eda.Dockerfile`, the image with the
+  framework alone, used by the framework's suite.
 * `.env` at the repository root: one required file of reader configuration for the whole
   book. Containers read it through `env_file`; compose-time switches (`OLLAMA_ENABLED`)
   reach the shared fragments through `include:` with `env_file`, since Compose interpolation
@@ -685,7 +749,7 @@ file, configuration file, or prose.
   caller's image against the running callee: from ch 2, `tests-planner-with-suppliers` runs
   the Planner's clients, and the whole graph with a scripted model, against both simulators.
   Its tests are located in `chapters/chNN/supplier_tests/`, apart from `tests/`, because they
-  need the caller's image and the chapter's own tests need only the kernel's.
+  need the caller's image and the chapter's own tests need only the two libraries'.
 * Simulators: a simulator stores nothing it can generate. Its offers come from the world
   seed and a generator seeded by the question asked (`world.dice`), so the same question
   gets the same answer on every run and every machine; only what a caller creates (an offer

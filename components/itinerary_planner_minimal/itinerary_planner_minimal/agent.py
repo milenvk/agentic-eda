@@ -13,7 +13,7 @@ import time
 
 import litellm
 
-from travel_agency.broker import Event, EventBroker
+from agentic_eda.broker import Event, EventBroker
 from travel_agency.event_types import ITINERARY_PROPOSED
 
 SOURCE = "ItineraryPlannerAgent"

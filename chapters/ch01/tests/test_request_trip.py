@@ -1,7 +1,8 @@
 """Chapter-level tests: the demo script's reply matching."""
 
 from request_trip import TRIP, is_reply_to
-from travel_agency.broker import Event
+
+from agentic_eda.broker import Event
 from travel_agency.event_types import ITINERARY_PROPOSED
 
 

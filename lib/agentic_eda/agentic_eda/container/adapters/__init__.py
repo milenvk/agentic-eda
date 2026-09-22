@@ -25,13 +25,13 @@ class Adapter(Protocol):
 
 
 _BY_MODULE = {
-    "langgraph": "travel_agency.container.adapters.langgraph",
+    "langgraph": "agentic_eda.container.adapters.langgraph",
 }
 
 
 def adapter_for(agent) -> Adapter:
     if inspect.iscoroutinefunction(agent):
-        module = "travel_agency.container.adapters.function"
+        module = "agentic_eda.container.adapters.function"
     else:
         origin = type(agent).__module__.split(".")[0]
         module = _BY_MODULE.get(origin)

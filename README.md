@@ -1,10 +1,18 @@
-# Agentic EDA: The Travel Agency Application
+# Agentic EDA: a Framework, and the Travel Agency Built on It
 
 Companion code for *Event-Driven Agentic Architecture: Building enterprise-grade multi-agent
-systems* by Milen Kovachev. One Travel Agency application, built chapter by chapter on an
-event-driven backbone: autonomous agents from four frameworks (LangGraph, Google ADK, LlamaIndex,
-CrewAI) and traditional deterministic services, integrated through a swappable `EventBroker`
-port with Kafka as the first adapter.
+systems* by Milen Kovachev. Two things are here, kept apart on purpose:
+
+- **`agentic_eda`, a framework** for attaching an agent of any framework to an event broker:
+  a swappable `EventBroker` port with Kafka as the first adapter, event contracts as code,
+  and a container that validates what comes in and what goes out. It names no business.
+- **The Travel Agency**, one application built on it chapter by chapter: autonomous agents
+  from four frameworks (LangGraph, Google ADK, LlamaIndex, CrewAI), traditional
+  deterministic services, and simulated suppliers.
+
+To build an application of your own, start from [starter/](starter/): the smallest
+application on the framework, in a business that is not travel, with a README walking
+through making it yours.
 
 ## How this repository works
 
@@ -14,8 +22,14 @@ Everything lives on `main`, organized so the whole book's code is visible at a g
   containing sources, Dockerfile, pinned dependencies, and unit tests. Components are added
   and replaced as the book progresses, never rewritten in place, so each chapter's teaching
   code stays in the tree.
-- **`lib/travel_agency/`**: the shared kernel, holding the `EventBroker` port, its adapters,
-  and the event-type constants.
+- **`lib/agentic_eda/`**: the framework, holding the `EventBroker` port and its adapters,
+  the `@event` contracts, and the agent container. It never imports the application, and its
+  test suite runs in an image without it. It is the book's reference implementation, taught
+  one part per chapter, with no promise of a release cycle.
+- **`lib/travel_agency/`**: the application's shared code, holding the event-type constants,
+  the event catalog as code, and the simulators' world seed.
+- **`starter/`**: a small application of another business on the framework alone, to copy
+  and make your own.
 - **`chapters/chNN/`**: one directory per chapter, with a README describing what the chapter
   demonstrates and how to run it, the Docker Compose files that assemble exactly that
   chapter's components, and the chapter's demo scripts.

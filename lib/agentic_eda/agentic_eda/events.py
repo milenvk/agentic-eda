@@ -1,4 +1,4 @@
-"""The event catalog as code: one Pydantic class per kind of event.
+"""Event contracts: one Pydantic class per kind of event, bound with ``@event``.
 
 An ``@event`` class is the contract for a kind of event: what its data holds, which
 type names it on the wire, and which of its fields its order is kept within. The
@@ -12,7 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, create_model
 from pydantic.json_schema import SkipJsonSchema
 
-from ..broker import EventAttributes
+from .broker import EventAttributes
 
 
 class _OwnId:

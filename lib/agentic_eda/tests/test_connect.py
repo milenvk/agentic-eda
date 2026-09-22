@@ -5,7 +5,7 @@ The adapter is replaced with a fake, so no broker and no network are involved.
 
 import pytest
 
-from travel_agency import connect
+from agentic_eda import connect
 
 
 class FakeBroker:

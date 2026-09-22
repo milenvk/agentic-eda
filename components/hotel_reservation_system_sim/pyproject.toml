@@ -7,7 +7,7 @@ name = "hotel-reservation-system-sim"
 version = "0.1.0"
 description = "The Hotel Reservation System simulator: a seeded, deterministic hotel supplier, its inventory served over MCP."
 requires-python = ">=3.13"
-# The travel-agency kernel (lib/) is installed alongside this package; see Dockerfile.
+# The two libraries in lib/ are installed alongside this package; see Dockerfile.
 dependencies = [
     "mcp==2.2.0",
 ]

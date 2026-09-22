@@ -7,7 +7,7 @@ no reasoning, so it never needs an LLM. The publishers never know it exists.
 import json
 import logging
 
-from travel_agency.broker import Event
+from agentic_eda.broker import Event
 
 SOURCE = "AuditConsumer"
 

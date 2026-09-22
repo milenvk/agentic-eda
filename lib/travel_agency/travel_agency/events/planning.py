@@ -5,8 +5,9 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+from agentic_eda.events import EventModel, event
+
 from ..event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
-from . import EventModel, event
 
 
 class Money(BaseModel):

@@ -1,8 +1,8 @@
 """The Itinerary Planner Agent: a LangGraph graph, and what it consumes and produces."""
 
-from travel_agency import eda
+from agentic_eda import eda
+from agentic_eda.hydration import hydration
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
-from travel_agency.hydration import hydration
 
 from .graph import build_graph
 from .prompts import ask

@@ -1,42 +1,16 @@
-"""Unit tests for the event catalog: the @event binding and the planning contracts."""
+"""Unit tests for the @event binding: a class, its type on the wire, and its ordering."""
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from examples import (
+    ITINERARY_PROPOSED,
+    ITINERARY_REQUESTED,
+    REQUEST,
+    ItineraryProposed,
+    ItineraryRequested,
+)
+from pydantic import BaseModel
 
-from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
-from travel_agency.events import OWN_ID, EventModel, Nothing, binding_of, event
-from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
-
-REQUEST = {
-    "trip_id": "trip-1",
-    "origin": "New York",
-    "stops": [{"city": "Lisbon", "arrive": "2026-10-01", "depart": "2026-10-04"}],
-    "travellers": 2,
-    "budget": {"amount": 2900, "currency": "USD"},
-    "preferences": "quiet, walkable, we'd take a train to save real money",
-    "car_class": None,
-}
-
-
-def itinerary(rank: int) -> dict:
-    return {
-        "rank": rank,
-        "label": "best value",
-        "rationale": "one stop saves enough for the better hotel",
-        "items": [
-            {
-                "kind": "stay",
-                "city": "Lisbon",
-                "hotel": "Casa do Bairro",
-                "check_in": "2026-10-01",
-                "check_out": "2026-10-04",
-                "cancellation": "free until 48 hours before arrival",
-                "offer": None,
-            }
-        ],
-        "total": {"amount": 2650, "currency": "USD"},
-    }
-
+from agentic_eda.events import OWN_ID, EventModel, Nothing, binding_of, event
 
 def test_the_decorator_binds_a_class_to_its_type_and_its_ordering():
     binding = binding_of(ItineraryProposed)
@@ -100,16 +74,3 @@ def test_the_function_form_binds_a_class_you_do_not_own():
 def test_nothing_is_an_answer_with_a_reason():
     assert Nothing(reason="no advisories affect a reserved destination").event_type == "nothing"
     assert binding_of(Nothing) is None  # it is never published
-
-
-def test_the_request_contract_rejects_a_trip_with_no_stops():
-    with pytest.raises(ValidationError):
-        ItineraryRequested.model_validate({**REQUEST, "stops": []})
-
-
-def test_the_proposal_contract_holds_one_to_three_itineraries():
-    ItineraryProposed.model_validate({"trip_id": "trip-1", "itineraries": [itinerary(1)]})
-    with pytest.raises(ValidationError):
-        ItineraryProposed.model_validate(
-            {"trip_id": "trip-1", "itineraries": [itinerary(n) for n in range(1, 5)]}
-        )

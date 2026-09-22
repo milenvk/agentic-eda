@@ -7,7 +7,7 @@ name = "itinerary-planner"
 version = "0.1.0"
 description = "The Itinerary Planner Agent: a LangGraph graph of two searches settled together, hosted by a FastAPI app with the agent container attached."
 requires-python = ">=3.13"
-# The travel-agency kernel (lib/) is installed alongside this package; see Dockerfile.
+# The two libraries in lib/ are installed alongside this package; see Dockerfile.
 dependencies = [
     "fastapi==0.141.1",
     "httpx==0.28.1",

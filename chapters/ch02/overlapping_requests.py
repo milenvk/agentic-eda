@@ -9,7 +9,8 @@ import asyncio
 from datetime import date
 
 from request_trip import SOURCE, new_trip_id, request_itineraries, show_proposals
-from travel_agency.connect import event_broker
+
+from agentic_eda.connect import event_broker
 from travel_agency.events.planning import ItineraryRequested, Money, Stop
 
 

@@ -6,6 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 suites=(
+    tests-agentic-eda
     tests-travel-agency
     tests-itinerary-planner
     tests-audit-consumer

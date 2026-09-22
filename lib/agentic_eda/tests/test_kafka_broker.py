@@ -14,10 +14,10 @@ from types import SimpleNamespace
 import pytest
 from aiokafka.structs import TopicPartition
 
-from travel_agency import kafka_broker
-from travel_agency.broker import Event
-from travel_agency.kafka_broker import KafkaEventBroker, decode, encode, topic_for
-from travel_agency.lanes import Watermark
+from agentic_eda import kafka_broker
+from agentic_eda.broker import Event
+from agentic_eda.kafka_broker import KafkaEventBroker, decode, encode, topic_for
+from agentic_eda.lanes import Watermark
 
 BOOKING = TopicPartition("booking", 0)
 

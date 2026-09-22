@@ -1,7 +1,7 @@
 # Chapter 2: Core Messaging Mechanics
 
 Chapter 1's round trip, on a real agent. The plain Itinerary Planner is replaced by a
-LangGraph graph, and nothing outside it changes: the same two events, the same broker,
+LangGraph graph. Nothing outside it changes: the same two events, the same broker,
 the same audit consumer. The new Planner knows nothing about events. A container, attached
 to the app hosting it with one line, validates each `planning.ItineraryRequested` against
 its contract, hands the agent a typed request, validates the agent's answer, and publishes
@@ -23,7 +23,7 @@ Where to read the code, in the order the chapter teaches it:
 - [agent.py](../../components/itinerary_planner/itinerary_planner/agent.py) and
   [app.py](../../components/itinerary_planner/itinerary_planner/app.py): what the agent
   consumes, what it produces, and the one line attaching the container.
-- [events/planning.py](../../lib/travel_agency/events/planning.py): the two contracts, as code.
+- [events/planning.py](../../lib/travel_agency/travel_agency/events/planning.py): the two contracts, as code.
 - [graph.py](../../components/itinerary_planner/itinerary_planner/graph.py): the agent
   itself, with no event, broker, or attribute anywhere in it.
 - [request_trip.py](request_trip.py): a request published with its thread's label and its

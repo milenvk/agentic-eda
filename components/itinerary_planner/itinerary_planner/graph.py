@@ -16,6 +16,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel
 
+from agentic_eda.hydration import Hydration
 from travel_agency.events.planning import (
     FlightItem,
     Itinerary,
@@ -25,7 +26,6 @@ from travel_agency.events.planning import (
     Offer,
     StayItem,
 )
-from travel_agency.hydration import Hydration
 
 from .suppliers import Airline, FlightOffer, HotelOffer, Hotels
 

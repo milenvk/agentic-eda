@@ -7,8 +7,8 @@ has; what differs is the host. Run it from this directory with `langgraph dev`, 
 
 from fastapi import FastAPI
 
+from agentic_eda import console, eda
 from itinerary_planner.agent import agent, consumes, produces
-from travel_agency import console, eda
 
 console.configure_logging()
 

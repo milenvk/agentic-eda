@@ -1,11 +1,17 @@
 # Chapter 1 test runners — deliberately separate from compose.yaml: tests need
 # no Kafka, no model, and no `.env`. `./test.sh` loops over these.
 services:
+  tests-agentic-eda:
+    build:
+      context: ../..
+      dockerfile: docker/agentic_eda.Dockerfile
+    command: ["pytest", "lib/agentic_eda/tests", "-q"]
+
   tests-travel-agency:
     build:
       context: ../..
       dockerfile: docker/python.Dockerfile
-    command: ["pytest", "lib/tests", "-q"]
+    command: ["pytest", "lib/travel_agency/tests", "-q"]
 
   tests-itinerary-planner:
     build:

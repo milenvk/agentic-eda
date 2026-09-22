@@ -229,8 +229,9 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
 
 Value objects every context shares: Money (amount and ISO 4217 currency), PlaceCode (IATA
 airport or city code), DateRange, PartyComposition (adults, children, infants), PersonName.
-The shared kernel is otherwise the event envelope, the identities, and the catalog of event
-types. Every cross-context reference is by id; no context holds a copy of another's aggregate.
+The shared kernel is otherwise the identities and the catalog of event types, as code in
+`lib/travel_agency`. The event envelope is not in it: the envelope is the
+framework's (`lib/agentic_eda`), which no context owns and any business could use. Every cross-context reference is by id; no context holds a copy of another's aggregate.
 
 ==== The Proposal
 
@@ -1029,7 +1030,7 @@ names, never schemas. Planning queries a simulator for availability and offers; 
 reservations on it. A simulator is a component: every face it has is present from the chapter
 it first appears in, and a later chapter's compose file switches on a face or a script.
 
-Every simulator draws on one world seed in the kernel (`lib/travel_agency/sims/`): about
+Every simulator draws on one world seed in the application's library (`travel_agency.sims`): about
 thirty cities on every inhabited continent, each with its IATA airports, a handful of hotels
 with their neighbourhoods and rate plans, and a route graph of direct and one-stop
 connections, so a request from São Paulo to Nairobi or Tokyo to Sydney resolves as well as
@@ -1149,7 +1150,7 @@ abstracting an abstraction. Concretely:
   cleaner zero-lock-in proof than a custom adapter.
 
 **Supplier clients carry a circuit breaker.** Every call from an agent's tool to a supplier sim
-goes through a shared client in `lib/travel_agency` with a per-dependency circuit breaker:
+goes through a shared client in `agentic_eda` with a per-dependency circuit breaker:
 repeated timeouts open it, calls fail fast while it is open, and a trial call closes it again.
 An open breaker is not an exception raised to the container but an observation returned by the
 tool to the reasoning loop ("supplier unavailable"), so the agent proposes alternatives instead

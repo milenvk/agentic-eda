@@ -5,7 +5,7 @@ A deliberate few-line test double — not chapter 2's InMemoryBroker adapter.
 
 import pytest
 
-from travel_agency.broker import Event
+from agentic_eda.broker import Event
 
 
 class StubBroker:

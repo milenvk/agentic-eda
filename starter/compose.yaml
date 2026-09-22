@@ -1,0 +1,43 @@
+# The starter: Kafka, one agent, and a script standing in for the shop.
+# See README.md for the walkthrough.
+
+include:
+  - ../compose/kafka.yaml
+  - path: ../compose/ollama.yaml
+    env_file: ../.env
+
+x-starter: &starter
+  build:
+    context: ..
+    dockerfile: starter/Dockerfile
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    FORCE_COLOR: "1"  # the event cards keep their colors in `docker compose logs`
+  env_file:
+    - path: ../.env
+      required: false
+  extra_hosts:
+    - "host.docker.internal:host-gateway"  # host-Ollama variant works on Linux too
+
+services:
+  review-triage:
+    <<: *starter
+    depends_on:
+      kafka:
+        condition: service_healthy
+      # Waits for the local model only when an Ollama flavor is enabled in .env.
+      ollama:
+        condition: service_healthy
+        required: false
+      ollama-gpu:
+        condition: service_healthy
+        required: false
+
+  # The shop's seat: docker compose --profile demo up -d --build --force-recreate send-review
+  send-review:
+    <<: *starter
+    profiles: [demo]
+    command: ["python", "send_review.py"]
+    depends_on:
+      kafka:
+        condition: service_healthy

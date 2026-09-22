@@ -1,6 +1,6 @@
 """Everything an agent's module imports to join the event-driven architecture.
 
-    from travel_agency import eda
+    from agentic_eda import eda
 
     consumes = eda.consumes(ItineraryRequested)
     produces = eda.produces(ItineraryProposed)

@@ -3,8 +3,8 @@
 import asyncio
 import functools
 
-from travel_agency import console
-from travel_agency.connect import event_broker
+from agentic_eda import console
+from agentic_eda.connect import event_broker
 from travel_agency.event_types import ITINERARY_REQUESTED
 
 from .agent import SOURCE, plan

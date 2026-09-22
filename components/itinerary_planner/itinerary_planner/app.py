@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from travel_agency import console, eda
+from agentic_eda import console, eda
 
 from .agent import agent, consumes, produces
 
