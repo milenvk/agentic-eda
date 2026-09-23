@@ -76,7 +76,7 @@ reconciliation of 2026-09-11:
   flag inside one version; the LangGraph Planner selected in ch 2 in place of ch 1's plain one
   is the one planned case. New workflows arrive as new components; a new agent that duplicates
   an existing one with different sub-agents is avoided. Prompts and agent configuration are
-  not code: every prompt is a versioned file the compose file selects, and the container
+  not code: every prompt is a versioned file the compose file selects, and the activator
   stamps its version on every event. Two consequences: the design is complete before the first
   component is written, and a component is finished before its chapter's prose is written,
   since the prose describes code that exists. The prose introduces a component progressively,
@@ -655,7 +655,7 @@ Identity conventions, in the book's order of introduction:
   `id` and `partitionkey` coincide by construction and diverge afterwards: the next event has
   its own id, and every trip fact carries the trip's id as its key. Requesters mint only the
   event id, minted by every producer for every event; the owner's checks already exist in the
-  architecture: the id is a UUID (the ch 2 contract, enforced at the container boundary), and
+  architecture: the id is a UUID (the ch 2 contract, enforced at the activator boundary), and
   the id is not already in the store (idempotent consumption, so a redelivery is skipped and
   never answered with an error event).
 * **A proposal's id is the id of the `planning.ItineraryRequested` event that asked for it**,
@@ -664,7 +664,7 @@ Identity conventions, in the book's order of introduction:
   published under. `booking.ItineraryApproved` names the proposal by its id and the chosen
   itinerary by its rank. In ch 1 and 2, with no `TripRequested` yet, the request's id is also
   the trip's id and the partition key.
-* **`promptversion` and `modelversion`** (from ch 10): stamped by the container on every event
+* **`promptversion` and `modelversion`** (from ch 10): stamped by the activator on every event
   an agent publishes, from the agent's own configuration. No consumer reads them to act; the
   dead-letter tooling, the replay script, and the audit record read them to answer "which
   logic produced this".
@@ -676,7 +676,7 @@ Identity conventions, in the book's order of introduction:
 * **`contextpath`** (from ch 7.6): hierarchical context scoping on the trip's id, e.g.
   `/trips/{trip_id}/paris/hotel`.
 * **`identitytoken`** (from ch 13): a signed identity extension attribute per agent whose
-  subject must match the CloudEvents `source`, verified at the container boundary on
+  subject must match the CloudEvents `source`, verified at the activator boundary on
   consumption and by the Guardrail Worker on sensitive topics, so the rule is portable across
   brokers. Kafka principals with topic ACLs in the compose stack are defense in depth and the
   enforcement view of the single writer.
@@ -774,8 +774,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   is never something a model retyped, and the graph has the five nodes 2.2 draws. It consults the Destination Research Agent over A2A (ch 3), and
   the flight search reaches the Airline Reservation System sim over REST. It publishes
   `planning.ItineraryProposed`, each proposal immutable and keyed by the trip's id, and places no
-  holds; the container publishes the join's typed answer, the one class in its `produces`
-  (`04_implementation_design.adoc`, The Agent Container). Its checkpoint is private to the graph; its hydration port is empty until ch 6's
+  holds; the activator publishes the join's typed answer, the one class in its `produces`
+  (`04_implementation_design.adoc`, The Agent Activator). Its checkpoint is private to the graph; its hydration port is empty until ch 6's
   compose file selects the `SemanticViewStore` adapter. Its own request type is declared
   interrupting for its key: a newer request for the same trip arriving mid-run is taken from
   the lane's pending queue between steps, the run is abandoned, the older request is answered
@@ -791,7 +791,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | 3
 | The booking context's agent and the Trip's one writer, event-only: it has no HTTP surface and
   consumes only `booking.*` types. Its choices among facts are deterministic code, never the
-  model's: its activation returns the facts it commits and the container publishes them. On
+  model's: its activation returns the facts it commits and the activator publishes them. On
   `TripRequested` it validates the request as a business
   request (dates in the future and in order, at least one stop, travellers named, a budget or
   an explicit "no limit"), records the Trip under that event's id (in memory until ch 8, in
@@ -868,7 +868,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | Divergent ideation as its own component in the destination context: on
   `destination.InspirationRequested` ("somewhere warm in March") several personas turn the
   indexed brochures into a themed suggestion pack ("three ways to spend a week in Portugal"),
-  published by the container as `destination.SuggestionPackReady` from the crew's
+  published by the activator as `destination.SuggestionPackReady` from the crew's
   `output_pydantic` result, a proposal set with no side effects. Routed to
   by meaning by the Front Desk's classifier and the Router; the Front Desk shows the pack. It
   touches nothing in planning or booking.
@@ -898,8 +898,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   itself (ch 13's contextual segregation). Each negotiation ends in `booking.RateNegotiated`
   (the stay, the hotel, the list rate, the negotiated rate, the terms, the validity), an edge
   observation the Booking Agent records at the barrier. The fact is stated from inside the A2A
-  loop through the container's publish tool, the book's first, once, at the loop's end; the
-  agent runs inside ADK's own FastAPI app with the container attached in its lifespan, the
+  loop through the activator's publish tool, the book's first, once, at the loop's end; the
+  agent runs inside ADK's own FastAPI app with the activator attached in its lifespan, the
   book's first attachment inside a framework's own app, so ADK's sessions and UI apply to it. A checkpoint
   between turns (ADK session state) lets ch 8 run a negotiation across a slow counter. Nobody negotiates after an
   approval.
@@ -923,7 +923,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | 9
 | Semantic rollback in the servicing context: catches the failure event (`HotelSoldOut`, or
   the platform's `LivelockDetected`), assesses the disrupted trip through the Observer's view,
-  and drafts `servicing.CompensationDrafted` through the container's publish tool: the
+  and drafts `servicing.CompensationDrafted` through the activator's publish tool: the
   customer's message and a compensation plan
   computed from the entitlement, an immutable payload superseded by a new draft if rejected.
   Its sub-agents and tools are organised by ADK (the framework's second appearance, for its
@@ -1114,8 +1114,8 @@ event-type-to-topic registry; on GCP (ch 15) the mechanism moves into infrastruc
 Eventarc Advanced enrollment feeds a pipeline that pushes to the consumer's ingestion
 endpoint, so the consumer does not subscribe at all. From ch 1 the adapter maps one topic per
 context and filters each subscription by type, and agents see neither. Consumers
-therefore come in both invocation models the container supports: a pull loop, or a push
-endpoint the infrastructure delivers into (`ch02_agent_container` promises the second,
+therefore come in both invocation models the activator supports: a pull loop, or a push
+endpoint the infrastructure delivers into (`ch02_agent_activator` promises the second,
 `ch04_topic_vs_content_routing` teaches it, and ch 15 demonstrates it). The audit consumer is the
 standing beneficiary: it sees every event, including types added chapters later, with no code
 change.
@@ -1152,7 +1152,7 @@ abstracting an abstraction. Concretely:
 **Supplier clients carry a circuit breaker.** Every call from an agent's tool to a supplier sim
 goes through a shared client in `agentic_eda` with a per-dependency circuit breaker:
 repeated timeouts open it, calls fail fast while it is open, and a trial call closes it again.
-An open breaker is not an exception raised to the container but an observation returned by the
+An open breaker is not an exception raised to the activator but an observation returned by the
 tool to the reasoning loop ("supplier unavailable"), so the agent proposes alternatives instead
 of waiting on a timeout. Ch 11 demonstrates it on the Airline Reservation System sim's
 slow-vendor mode; the model's counterpart is LiteLLM's fallback chain, so an agent's two failing

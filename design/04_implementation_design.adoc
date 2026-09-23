@@ -6,7 +6,7 @@
 // 02_workflows_and_events.adoc (workflows + events), 03_chapter_mapping.adoc (chapter mapping),
 // 05_data_consistency_and_state_model.adoc (consistency strategy). This document is the
 // low-level authority: the exact port surfaces, event envelope, naming, topic mapping, consumer
-// rules, container mechanics, and repository conventions that every chapter's code obeys.
+// rules, activator mechanics, and repository conventions that every chapter's code obeys.
 
 == Two Packages: the Framework and the Application
 
@@ -15,7 +15,7 @@ agentic event-driven application needs and what only a travel agency needs.
 
 * **`agentic_eda`, the framework** (`lib/agentic_eda/`, distributed as `agentic-eda`): the
   `EventBroker` port and its adapters, the per-key lanes, `connect`, the `@event` machinery
-  (`EventModel`, `Nothing`, `OWN_ID`, `data_of`), the agent container with its framework
+  (`EventModel`, `Nothing`, `OWN_ID`, `data_of`), the agent activator with its framework
   adapters, the `eda` face imported by a developer, every other port with its adapters
   (hydration, the view store, the artifact store), producer identity's signing and
   verification, the supplier client's circuit breaker, the replay module, and the `console`
@@ -49,7 +49,7 @@ application's data handed to the framework's verifier.
 A reader building their own application takes the framework and leaves the agency: they
 install `agentic-eda` from this repository
 (`pip install "agentic-eda @ git+https://github.com/milenvk/agentic-eda#subdirectory=lib/agentic_eda"`),
-write their own event-type constants and `@event` classes, and attach the container to the
+write their own event-type constants and `@event` classes, and attach the activator to the
 app hosting their agent. The repository README says so, and says what the framework is: the
 book's reference implementation, with each chapter teaching one part of its inside, and no
 promise of a release cycle.
@@ -108,7 +108,7 @@ class EventBroker(Protocol):
 * The shape is CloudEvents' own. A structured CloudEvent is flat, its context attributes beside
   `data`, and so is `Event`; the CloudEvents SDK's Pydantic event implements extensions the
   same way, through `extra="allow"`. One class, `EventAttributes`, is therefore the attributes
-  on the wire, in the port, and in the agent's view (`attributes_`, The Agent Container), and
+  on the wire, in the port, and in the agent's view (`attributes_`, The Agent Activator), and
   nothing converts between them. Both classes are frozen, so no handler alters a delivered
   event. Extension values are `str | int | bool` because the spec allows integer and boolean
   extensions and a producer outside the book may send one; the book's own are strings.
@@ -120,7 +120,7 @@ class EventBroker(Protocol):
 * The port has no nack, no defer, and no key parameter. Returning from a handler acknowledges;
   raising redelivers under at-least-once; the key travels in `attributes`, under the name the
   port module states once as `PARTITION_KEY`, so producers and adapters never spell it twice.
-  Everything left unsaid by the port is the adapter's or the container's business (below).
+  Everything left unsaid by the port is the adapter's or the activator's business (below).
 
 === Ports are `typing.Protocol` (PEP 544)
 
@@ -133,9 +133,9 @@ idiom: agents depend on the port, adapters depend on nothing from the agents' wo
 === Opening a broker
 
 `connect.event_broker(client_name, start="now")` is an async context manager and the only
-place any component names an implementation. The container calls it when the app it is
-attached to starts (The Agent Container, below), and ch 1's components, which predate the
-container, call it in their own entry points; none of them imports an adapter, reads a broker address, or closes a
+place any component names an implementation. The activator calls it when the app it is
+attached to starts (The Agent Activator, below), and ch 1's components, which predate the
+activator, call it in their own entry points; none of them imports an adapter, reads a broker address, or closes a
 connection. A second broker, or a test double, is a change to that one function.
 
 It yields an `EventBrokerConnection`: the frozen `EventBroker` surface plus `run()`, the delivery
@@ -157,9 +157,9 @@ little is passed:
 * `specversion`: declared on `EventAttributes` as `Literal["1.0"]` with that default, so no
   caller sets it, and an event of another spec version is rejected when it is decoded.
 * `partitionkey` is never minted from nothing. It is the value of the field the event's class
-  declares with `order_per` (The Agent Container, below), because only the producer's side
+  declares with `order_per` (The Agent Activator, below), because only the producer's side
   knows the aggregate; a key unique per event would be no order at all. From the ch 2
-  practical the container fills it on every publish, and `consumes` and `produces` refuse a
+  practical the activator fills it on every publish, and `consumes` and `produces` refuse a
   class that declares nothing, at import; a class declaring `order_per=None` is published with a null key, as ch
   1's events are, and `order_per=OWN_ID` keys the event that starts a sequence on its own
   minted id.
@@ -182,7 +182,7 @@ in order of introduction:
   `booking.TripRequested` it is the event's own id. The adapter maps it to whatever its broker
   orders by (Ordering, below).
 * `contextpath` (ch 7): hierarchical context scoping, `/trips/{trip_id}/paris/hotel`.
-* `promptversion` and `modelversion` (ch 10): stamped by the container on every event an agent
+* `promptversion` and `modelversion` (ch 10): stamped by the activator on every event an agent
   publishes, from the agent's own configuration (Prompts as configuration, below). No consumer
   acts on them; the dead-letter tooling, the replay script, and the audit record read them.
 * `identitytoken` (ch 13): the producer's signed identity (Producer Identity, below).
@@ -212,7 +212,7 @@ push route (ch 15) uses the SDK's HTTP binding the same way.
 * Every type is declared exactly once, as a constant in
   `travel_agency/event_types.py`, grown additively by later chapters. Components import
   the constant, never retype the string. From ch 2 the type's `@event` class binds to that
-  constant (The Agent Container, below), so the type is still spelled once and its class is
+  constant (The Agent Activator, below), so the type is still spelled once and its class is
   found from it.
 * The producer is **never** part of the type. Its identity is carried by the CloudEvents
   `source` attribute; the Single Writer Principle assigns one owning context per type, a
@@ -347,11 +347,11 @@ both). The Kafka adapter keeps the promise as follows.
   explicitly gives up order, never a silent adapter choice, and the Python clients do not
   support them for production. Not used; a sidebar candidate in ch 4 or ch 15.
 
-== The Agent Container
+== The Agent Activator
 
-The container wraps the port around one agent (`ch02_agent_container`). Its handler signature
+The activator wraps the port around one agent (`ch02_agent_activator`). Its handler signature
 is the same under the pull loop and under a push endpoint, which is what makes the invocation
-model an adapter concern. The container owns five things.
+model an adapter concern. The activator owns five things.
 
 * **The validating boundary.** Inbound: the envelope's schema, the UUID `id`, the required
   attributes, the data against the `@event` class bound to its type (below), which the agent
@@ -360,11 +360,11 @@ model an adapter concern. The container owns five things.
   is logged and, from ch 10, dead-lettered, and never reaches the handler. Outbound: the same
   contract on every publish, including the presence of `partitionkey` (from the ch 2
   practical).
-* **How an agent is hosted, and how it states a fact.** The container is a library, never a
+* **How an agent is hosted, and how it states a fact.** The activator is a library, never a
   competing host, and the agent never learns that a broker exists. Its developer writes the
   agent as the framework's own documentation would have it, plus two declarations of
   `@event` classes, `consumes = eda.consumes(...)` and `produces = eda.produces(...)`, and
-  one `attach` line on the app that hosts the agent; the container does the rest. The two
+  one `attach` line on the app that hosts the agent; the activator does the rest. The two
   helpers have the same shape and check their classes the moment the module loads (that each
   carries `@event` and its `order_per`, and that what `produces` names survives the strict
   schema subset below), so a mistake fails at import. `produces` is also the schema the
@@ -375,7 +375,7 @@ model an adapter concern. The container owns five things.
   `anyOf`. The developer never sees the difference; `output_schema=produces` works either
   way. An agent that may decide not to publish declares `produces(A, B, eda.Nothing)`:
   `Nothing` is a framework class with one field, `reason`, which the model returns as a
-  positive answer and the container logs and never publishes, so silence stays a failure
+  positive answer and the activator logs and never publishes, so silence stays a failure
   for every agent (An activation that answers nothing, below). `produces()` with no classes
   declares a pure consumer, whose return value is ignored. Options are keyword arguments
   after the classes and name the classes they apply to (`consumes(ItineraryRequested,
@@ -398,15 +398,15 @@ model an adapter concern. The container owns five things.
    edit to the agent: it returns a subclass of that class with `EventModel` mixed in, and
    the agent still receives an instance of its own class. `events.data_of(fact)` is the one
    definition of what an event class puts on the wire (its own fields as JSON values,
-   without its attributes or its type tag), used by the container on the way out and by a
+   without its attributes or its type tag), used by the activator on the way out and by a
    demo script publishing through the port.
    Every `@event` class subclasses `EventModel`, whose one field,
    `attributes_: SkipJsonSchema[EventAttributes | None] = None`, carries the event's
-   attributes in the same `EventAttributes` class as the envelope's. The container fills it
+   attributes in the same `EventAttributes` class as the envelope's. The activator fills it
    on the way in with every attribute of the inbound event except `identitytoken`, since a
    credential never enters a model's context; `SkipJsonSchema` leaves it out of the schema a
    model answers against, so the model reads the attributes and is never asked to fill them;
-   and the container overwrites it on every publish. The trailing underscore keeps it clear
+   and the activator overwrites it on every publish. The trailing underscore keeps it clear
    of any payload field's name. A business fact the agent decides on still belongs in the
    data, because the attributes change under the agent (a relay sets `source` to the owner,
    and ch 14's Translator stands in front of a producer); the attributes inform the
@@ -419,7 +419,7 @@ model an adapter concern. The container owns five things.
    it never travels in the data, since the envelope carries the type. The attachment touches
    only the app's `router.lifespan_context`, so the framework needs no web framework of its own:
    the components bring FastAPI, and Starlette is a test dependency alone.
-** *One activation.* For each inbound event the container validates its data into the
+** *One activation.* For each inbound event the activator validates its data into the
    class bound to the event's type, with its attributes in `attributes_`, hands that
    instance to the framework adapter with the
    key (or the event id, when there is none) as the activation's thread or session id,
@@ -429,17 +429,17 @@ model an adapter concern. The container owns five things.
    envelope: type and key from the binding, `id` and `time` minted, `correlationid` and
    `causationid` from the inbound event, `promptversion` and `modelversion` from
    configuration (ch 10). Returning from the activation acknowledges. Every outbound event
-   passes through this one path, so the outbound boundary is one function. The container
+   passes through this one path, so the outbound boundary is one function. The activator
    sets the activation in a context variable before it invokes the agent, which asyncio
    carries into every task a framework spawns and into a worker thread, and that is how
    anything publishing from inside the activation, a publish tool or code, finds the inbound
    event, the source, and `produces` without being handed them.
 ** *An activation that answers nothing.* Because that one path is the only way out, the
-   container knows what an activation published, and silence is the failure an event-driven
+   activator knows what an activation published, and silence is the failure an event-driven
    system has nobody waiting to notice: a model may answer in prose instead of calling a
    publish tool, or return an answer that is not a registered class, and nothing in a
    framework treats either as an error. So every activation of an agent with a non-empty
-   `produces` must answer, and where none was published the container raises: the event is
+   `produces` must answer, and where none was published the activator raises: the event is
    never acknowledged, the broker redelivers it, and the activation runs again, which is the
    right treatment for a model that declined once in ten; repeated failure dead-letters in
    ch 10. An agent that may legitimately have nothing to say declares `eda.Nothing` among
@@ -449,11 +449,11 @@ model an adapter concern. The container owns five things.
    model answers (a plain function, a graph's final state), `None` or no produced instance
    maps to `Nothing` when it is declared, since code cannot drift the way a model can and
    the explicit form would be ceremony. Three nets, each at its
-   own level: the validating boundary rejects a malformed answer, the container catches a
+   own level: the validating boundary rejects a malformed answer, the activator catches a
    missing one, and ch 8's scheduler catches a fact that never reaches the component waiting
    for it. Taught with the publish tools in ch 7, where a model choosing not to call one is
    the case that makes it concrete.
-** *Framework adapters*, one module each under `agentic_eda.container`, selected by the
+** *Framework adapters*, one module each under `agentic_eda.activator`, selected by the
    agent object's class module (`langgraph`, `google.adk`, `crewai`, `llama_index`, or a
    plain coroutine function), so no framework is imported until it is matched and a
    component's image still carries only its own. The frameworks disagree on exactly two
@@ -501,28 +501,28 @@ the activation holds its key's lane meanwhile like any other. The developer's on
 that the agent answers with `produces`, which every framework's own typed-output feature
 takes (`with_structured_output` or a graph's `output_schema`, ADK's `output_schema`, a task's
 `output_pydantic`, LiteLLM's `response_format`, with `supports_response_schema` as the probe
-for a model that cannot). The container never supplies a schema to a prompt; the typed-output
+for a model that cannot). The activator never supplies a schema to a prompt; the typed-output
 line is the only schema a model sees. Where a framework exposes that declaration, `attach`
 compares it with `produces` at startup and fails loudly on a mismatch. The strict subset
 also makes every property required, forbids extra properties, and does not enforce
 `pattern`, `minLength`, `minimum` and their kin, so an optional field on an event class is a
-union with `None`, and the container validates every answer on receipt whatever the provider
+union with `None`, and the activator validates every answer on receipt whatever the provider
 promised.
-** *One attachment, three positions.* The container is a lifespan task on an ASGI app, and
+** *One attachment, three positions.* The activator is a lifespan task on an ASGI app, and
    `eda.attach(app, agent, consumes=..., produces=...)` is the developer's one line, in the
    module that already defines the app; the compose file runs the app as the framework's
    documentation says. It opens the broker through `connect.event_broker` when the app
    starts and closes it when the app stops. A lifespan runs for the app a server serves and
    not for a sub-application mounted inside it, so `attach` goes on the app that is run, and
-   the container never starts silently otherwise. Where the framework has a self-hostable
-   app, the container attaches *inside* it and invokes through the host's own runner or
+   the activator never starts silently otherwise. Where the framework has a self-hostable
+   app, the activator attaches *inside* it and invokes through the host's own runner or
    runs API, so
    the host's sessions, tracing, UI, and persistence apply to event-triggered runs and
    nothing the host offers is lost: ADK's `get_fast_api_app`, LangGraph Server's custom app
    through `langgraph.json`'s `http.app`, Pydantic AI's AG-UI app. Where the framework has no
-   host, the container attaches inside *the component's own* FastAPI app, which is where the
+   host, the activator attaches inside *the component's own* FastAPI app, which is where the
    plain-Python agents live (the Front Desk is one already) and the CrewAI and LlamaIndex
-   agents with them. Where the host is managed (LangGraph Cloud, CrewAI AMP), the container
+   agents with them. Where the host is managed (LangGraph Cloud, CrewAI AMP), the activator
    runs *beside* it in a small app of its own and invokes over the host's API; named once in
    the book, never built. Push (ch 15) is a route on the same app in every position, the
    CloudEvents HTTP binding in and the same core behind it. ADK's own server offers the
@@ -531,7 +531,7 @@ promised.
    couple the agent's host to one cloud's delivery, where the attachment does not. The ch 7 Negotiator is the first
    attachment inside a framework's own app (ADK's); the ch 4 Front Desk and Inspiration crew
    attach inside their own apps. The ch 2 Planner runs in a FastAPI app of its own, the
-   compiled graph invoked in-process and the container's lanes governing concurrency. That
+   compiled graph invoked in-process and the activator's lanes governing concurrency. That
    is the shape most teams run LangGraph in production, the library inside their own
    service, with ch 8 swapping `InMemorySaver` for `PostgresSaver`. LangGraph Server, the
    commercial platform, takes the identical `attach` line in its custom app
@@ -541,7 +541,7 @@ promised.
    announces itself as for development and testing only, its production form brings a
    Postgres, a Redis, and a license the book never shows, `langgraph-api` releases weekly,
    and runs go through the server's own queue, which takes concurrency out of the
-   container's hands. The repository ships that variant beside the component, a
+   activator's hands. The repository ships that variant beside the component, a
    `langgraph.json` and a `webapp.py`, outside the chapter's test gate, and 2.8 says in two
    sentences that a team on the platform puts the same line there and what it trades.
 ** *Publish tools* (ch 7), for a turn that runs tools: `publish_tool(EventClass)` returns a
@@ -573,7 +573,7 @@ promised.
    hold, so a crash between the two loses nothing. Ch 7 introduces both twins together,
    `publish_tool` for a model and `eda.publish` for code. Agent code never receives
    `subscribe` or the broker connection, and the book's rule is that an agent publishes only
-   through the container: a raw publish would bypass validation, the envelope, the answer
+   through the activator: a raw publish would bypass validation, the envelope, the answer
    accounting, and from ch 10 and ch 13 the version stamps and the identity token. Demo
    scripts and tests, which are not agents, keep the port.
 +
@@ -592,7 +592,7 @@ wrapper `produces` returns for several classes is accepted as
 `response_format` by the readers' four model choices; before ch 7: that a lifespan task in ADK's app can obtain
 a `Runner` on the app's session service, and that ADK accepts the flattened function with
 Pydantic-typed fields (dates, enums, nested items).
-* **One key at a time.** The container handles the events of one key sequentially and
+* **One key at a time.** The activator handles the events of one key sequentially and
   acknowledges each by returning; the adapter runs keys concurrently in lanes and commits by
   watermark. Deferral to the next activation is the default for anything that arrives on the
   key while a handler runs.
@@ -601,7 +601,7 @@ Pydantic-typed fields (dates, enums, nested items).
   activation waits in that key's lane; a record of a type declared interrupting by the
   subscription is not left there behind the handler: the running activation takes it from the
   lane's pending queue between reasoning steps, as an observation, and revises its beliefs
-  rather than finishing on stale ones. Container and adapter share one process and one event
+  rather than finishing on stale ones. Activator and adapter share one process and one event
   loop, so this is a peek into the lane, not a second consumer. Per-key ordering makes this safe, because only the
   running activation can see that key's events; the interrupting events' offsets are
   committed with the activation's when it returns. Which types interrupt which activations is
@@ -612,7 +612,7 @@ Pydantic-typed fields (dates, enums, nested items).
   for the trip under activation supersedes the run in progress, which is abandoned, answered
   with `planning.ItineraryRequestSuperseded`, and restarted from its checkpoint with the new
   requirements. Nothing else declares anything in the book.
-* **No defer, no nack.** The port offers neither, and the container adds neither. Staging an
+* **No defer, no nack.** The port offers neither, and the activator adds neither. Staging an
   event until its prerequisite arrives is the `InboxStore` (the Agentic Inbox, ch 4):
   activation gated on the completeness of its context, verified deterministically before any
   inference runs. Re-sequencing at ingress happens exactly once in the design, at one line,
@@ -631,7 +631,7 @@ An application-layer identity, portable across brokers:
   committed registry in the application's package (`travel_agency/identity/`), its path
   handed to the framework's verifier by a setting, for the compose stack and a secret store
   in ch 15.
-* On publish, the container adds `identitytoken`: a compact signed token (JWS) whose subject is
+* On publish, the activator adds `identitytoken`: a compact signed token (JWS) whose subject is
   the component's `source` and whose claims bind the event's `id` and `type`, so a token copied
   from one event does not verify on another.
 * On consumption, the validating boundary verifies the signature against the registry, checks
@@ -669,7 +669,7 @@ and republishes them with their keys, so the Planner on the fixed prompt answers
 A component is never edited after its first chapter (01_system_overview.adoc, ground rules),
 and a prompt is the part of an agent most likely to change, so prompts are configuration, not
 code. Every prompt is a versioned file under the component (`prompts/<name>.v<N>.md`), the
-compose file selects the version by environment (`PROMPT_VERSION`), and the container stamps
+compose file selects the version by environment (`PROMPT_VERSION`), and the activator stamps
 `promptversion` and `modelversion` on every event the agent publishes. Ch 10's prompt regression
 selects a faulty version and replays the dead-lettered events after a bump; ch 12's optimality
 regression replays recorded requests through a new version. A behaviour switch a later chapter

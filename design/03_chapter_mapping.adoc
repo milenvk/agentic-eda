@@ -53,23 +53,23 @@ payment offstage until ch 10.
   new inside; a planner node, flight-search and hotel-search sub-agents, a validator node, the
   join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
   (REST) and the Hotel Reservation System sim (inventory over MCP), CloudEvents + Pydantic
-  contract models as the event catalog in code (`@event`), the container attached to the
+  contract models as the event catalog in code (`@event`), the activator attached to the
   FastAPI app hosting the Planner (a LangGraph Server variant shipped beside it, untested by
   the chapter's gate),
   `consumes`, `produces`, and one `attach` line replacing ch 1's hand-rolled subscribe and
-  publish, the validating boundary at the container (inbound and outbound)
+  publish, the validating boundary at the activator (inbound and outbound)
 | `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` becoming
   the adapter's record key
 | Agent traits, the domain map (seven contexts and the platform beside it), the glossary's two
   meanings of "trip", "request", and "confirmation", the component boundary and the ten
   criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, the
-  open-host request, agent container (the agent never learns a broker exists; the typed
+  open-host request, agent activator (the agent never learns a broker exists; the typed
   answer as the way an agent states a fact; publish tools, the attachment inside a
   framework's own app, and the push route as forward promises), data contracts, correlation and causation,
   at-least-once floor, ordering per key in the contract; 2.8 shows the graph's shape and the
   two events only. The demo is three acts, one script-service each: `demo` (the running
   example's request, New York to Lisbon by way of Madrid, answered on its thread),
-  `demo-malformed` (a request breaking its contract, rejected at the Planner's container and
+  `demo-malformed` (a request breaking its contract, rejected at the Planner's activator and
   acknowledged, recorded by the audit consumer all the same), and `demo-overlapping` (two
   trips elsewhere in the world at once, neither waiting for the other, then one thread read
   out of the audit record by its `correlationid`). The audit consumer runs from the start.
@@ -139,7 +139,7 @@ payment offstage until ch 10.
 | W1 slice 3: the proposal negotiated and reserved, ending with the trip reserved and both holds
   in place; the two Paris runs; the newer-request interrupt
 | Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`
-  through the book's first publish tool; running inside ADK's FastAPI app with the container
+  through the book's first publish tool; running inside ADK's FastAPI app with the activator
   attached in its lifespan, the first attachment inside a framework's own app),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
   `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
@@ -199,7 +199,7 @@ payment offstage until ch 10.
   API), payment provider adapter (booking's edge: `booking.PaymentRequested` answered by
   `booking.PaymentAuthorized`, `booking.RefundRequested` by `booking.PaymentRefunded`), the
   Payment entity on the trip, the DLQ replay tool, a faulty prompt version for the Planner
-| The payment step; `promptversion` and `modelversion` stamped by the container; dead-letter
+| The payment step; `promptversion` and `modelversion` stamped by the activator; dead-letter
   routing on contract failure
 | At-least-once reality, deterministic idempotency, internal checkpointing, DLQ, time travel,
   the prompt regression replayed by version, PCI DSS in one sentence beside the adapter
@@ -264,5 +264,5 @@ payment offstage until ch 10.
   and the adapter's own (reused from Kafka) where it hands out partitions; the push
   attachment, a CloudEvents route on the ADK app of ch 7 with Eventarc Advanced delivering
   into it and no agent code changed; ADK's Eventarc toolset named as the same idea as the
-  container's publish tools, on GCP
+  activator's publish tools, on GCP
 |===

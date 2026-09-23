@@ -212,11 +212,11 @@ have their own names: belief revision with intention reconsideration (BDI), the 
 boundary event (BPMN), a signal to a running workflow (Temporal), an interrupt (agent
 frameworks, usually meaning a pause for human input).
 
-The mechanism is the container's activation inbox (`04_implementation_design.adoc`): events of
+The mechanism is the activator's activation inbox (`04_implementation_design.adoc`): events of
 the key under activation that arrive during the activation are handed to the running loop as
 observations. Per-key ordering makes this safe, since only the running activation can see them.
-Which event types interrupt which activations is declared per subscription in the container,
-never inferred by the model; with the container's one-key-at-a-time rule, deferral is the
+Which event types interrupt which activations is declared per subscription in the activator,
+never inferred by the model; with the activator's one-key-at-a-time rule, deferral is the
 default for every type not declared. The Planner declares its own request type,
 `planning.ItineraryRequested`, as interrupting. The delivery loop never stops fetching, so a
 newer request for the trip under activation waits in the lane's queue; the running activation
@@ -371,7 +371,7 @@ different failure with a different guard (the livelock guard above).
 === W6: Failure Recovery and Replay
 
 *Flow:* a prompt change ships to the Planner (a compose file selects a new prompt version) and
-its proposals start failing outbound contract validation at the container boundary. Each failed
+its proposals start failing outbound contract validation at the activator boundary. Each failed
 event parks on the dead-letter queue with its key preserved, so later events for the same trip
 do not overtake it. A prompt is a versioned artifact and the fix is a version bump: the replay
 tool selects parked events by type and by the `promptversion` that produced them, republishes
@@ -449,7 +449,7 @@ Not workflows but behaviors applied across W1 to W6:
   deterministic; optimality is a semantic regression, the same recorded `ItineraryRequested`
   replayed through a new prompt version and the proposal compared with the recorded one by the
   judge.
-* **Security (ch 13):** the `identitytoken` attribute verified at the container boundary and by
+* **Security (ch 13):** the `identitytoken` attribute verified at the activator boundary and by
   the Guardrail Worker on sensitive topics; the Guardrail Worker's republish-or-quarantine
   (`EventQuarantined`); egress DLP scrubbing on the support vendor and the hotels' agents; the
   Policy Gate as the deterministic last line and the dual key stated; traveler documents as the
@@ -477,7 +477,7 @@ Conventions:
   namespace outside it. The book's prose uses the same qualified form. Payload schemas are
   Pydantic models (`ch02_semantic_data_contracts`), one `@event` class per event in
   `travel_agency.events`, each bound to its type and its key
-  (`04_implementation_design.adoc`, The Agent Container); this catalog fixes names and
+  (`04_implementation_design.adoc`, The Agent Activator); this catalog fixes names and
   ownership, not field lists, since full contract detail would be invalidated by
   chapter-level discoveries.
 * Every event carries `correlationid` and `partitionkey` (both from ch 2), `contextpath` (from
