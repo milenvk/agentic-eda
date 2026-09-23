@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "agentic-eda"
 version = "0.1.0"
-description = "A framework for event-driven agentic applications: the EventBroker port and its CloudEvents-backed Kafka adapter, the @event contracts, and the container attaching any agent to the broker. The reference implementation of the book Event-Driven Agentic Architecture."
+description = "A framework for event-driven agentic applications: the EventBroker port and its CloudEvents-backed Kafka adapter, the @event contracts, and the activator attaching any agent to the broker. The reference implementation of the book Event-Driven Agentic Architecture."
 requires-python = ">=3.13"
 dependencies = [
     "aiokafka==0.14.0",

@@ -5,7 +5,7 @@ systems* by Milen Kovachev. Two things are here, kept apart on purpose:
 
 - **`agentic_eda`, a framework** for attaching an agent of any framework to an event broker:
   a swappable `EventBroker` port with Kafka as the first adapter, event contracts as code,
-  and a container that validates what comes in and what goes out. It names no business.
+  and an activator that validates what comes in and what goes out. It names no business.
 - **The Travel Agency**, one application built on it chapter by chapter: autonomous agents
   from four frameworks (LangGraph, Google ADK, LlamaIndex, CrewAI), traditional
   deterministic services, and simulated suppliers.
@@ -23,7 +23,7 @@ Everything lives on `main`, organized so the whole book's code is visible at a g
   and replaced as the book progresses, never rewritten in place, so each chapter's teaching
   code stays in the tree.
 - **`lib/agentic_eda/`**: the framework, holding the `EventBroker` port and its adapters,
-  the `@event` contracts, and the agent container. It never imports the application, and its
+  the `@event` contracts, and the agent activator. It never imports the application, and its
   test suite runs in an image without it. It is the book's reference implementation, taught
   one part per chapter, with no promise of a release cycle.
 - **`lib/travel_agency/`**: the application's shared code, holding the event-type constants,

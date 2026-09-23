@@ -1,4 +1,4 @@
-"""Unit tests for the agent container: declarations, one activation, and the attachment.
+"""Unit tests for the agent activator: declarations, one activation, and the attachment.
 
 The broker is a stub, so no Kafka and no network are involved.
 """
@@ -21,9 +21,9 @@ from starlette.applications import Starlette
 
 from agentic_eda import connect, eda
 from agentic_eda.broker import Event
-from agentic_eda.container import Container, NoAnswer, RejectedAnswer
-from agentic_eda.container.adapters import adapter_for
-from agentic_eda.container.declarations import PureConsumer, produced_classes
+from agentic_eda.activator import Activator, NoAnswer, RejectedAnswer
+from agentic_eda.activator.adapters import adapter_for
+from agentic_eda.activator.declarations import PureConsumer, produced_classes
 
 
 class StubBroker:
@@ -69,13 +69,13 @@ def requested(**attributes) -> Event:
 
 
 async def activate(agent, broker, event=None, produces=None) -> list[Event]:
-    container = Container(
+    activator = Activator(
         agent,
         consumes=eda.consumes(ItineraryRequested),
         produces=eda.produces(ItineraryProposed) if produces is None else produces,
         source="ItineraryPlannerAgent",
     )
-    async with container.running():
+    async with activator.running():
         await broker.handlers[ITINERARY_REQUESTED](event or requested())
     return broker.published
 
@@ -131,13 +131,13 @@ def test_a_component_has_to_be_named(monkeypatch):
         return None
 
     with pytest.raises(RuntimeError, match="name the component"):
-        Container(agent, consumes=eda.consumes(ItineraryRequested), produces=eda.produces(), source=None)  # fmt: skip
+        Activator(agent, consumes=eda.consumes(ItineraryRequested), produces=eda.produces(), source=None)  # fmt: skip
 
 
 # --- one activation
 
 
-async def test_the_agent_receives_its_own_class_and_the_container_publishes_its_answer(broker):
+async def test_the_agent_receives_its_own_class_and_the_activator_publishes_its_answer(broker):
     seen = []
 
     async def plan(request: ItineraryRequested) -> ItineraryProposed:
@@ -335,7 +335,7 @@ def test_a_function_whose_return_type_disagrees_with_produces_fails_at_startup()
         return request
 
     with pytest.raises(TypeError, match="does not declare"):
-        Container(
+        Activator(
             plan,
             consumes=eda.consumes(ItineraryRequested),
             produces=eda.produces(ItineraryProposed),
@@ -346,7 +346,7 @@ def test_a_function_whose_return_type_disagrees_with_produces_fails_at_startup()
 # --- the attachment
 
 
-async def test_the_container_starts_and_stops_with_the_app_that_hosts_the_agent(broker):
+async def test_the_activator_starts_and_stops_with_the_app_that_hosts_the_agent(broker):
     hosted = []
 
     @asynccontextmanager

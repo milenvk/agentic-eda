@@ -30,7 +30,7 @@ _UNSET = object()
 class EventModel(BaseModel):
     """The base of every event class: its data, with the event's attributes beside it.
 
-    ``attributes_`` is filled by the container on the way in and overwritten on the
+    ``attributes_`` is filled by the activator on the way in and overwritten on the
     way out. It is left out of the JSON schema, so a model reads it and is never asked
     to fill it.
     """
@@ -41,7 +41,7 @@ class EventModel(BaseModel):
 class Nothing(EventModel):
     """The answer of an agent that decided to publish nothing, and why.
 
-    A positive answer rather than silence: the container logs the reason and publishes
+    A positive answer rather than silence: the activator logs the reason and publishes
     nothing, and an agent that simply failed to answer is still caught.
     """
 

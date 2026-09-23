@@ -1,6 +1,6 @@
-"""The agent container: it carries facts across the boundary, and the agent never learns how.
+"""The agent activator: it carries facts across the boundary, and the agent never learns how.
 
-One activation is one inbound event handed to the agent. The container validates the
+One activation is one inbound event handed to the agent. The activator validates the
 event's data into the class the agent declared, invokes the agent through its
 framework's adapter, reduces what comes back to the classes the agent may answer with,
 and publishes each with its envelope. Every outbound event passes through ``_publish``,
@@ -24,7 +24,7 @@ from ..events import OWN_ID, EventModel, Nothing, binding_of, data_of
 from .adapters import adapter_for
 from .declarations import Consumes, produced_classes
 
-log = logging.getLogger("Container")
+log = logging.getLogger("Activator")
 
 
 class NoAnswer(RuntimeError):
@@ -38,7 +38,7 @@ class RejectedAnswer(ValueError):
 @dataclass
 class Activation:
     event: Event
-    container: "Container"
+    activator: "Activator"
     published: list[Event] = field(default_factory=list)
 
 
@@ -56,10 +56,10 @@ async def publish(fact: EventModel) -> Event:
     activation = _ACTIVATION.get()
     if activation is None:
         raise RuntimeError("publish is only available inside an activation")
-    return await activation.container._publish(fact, activation)
+    return await activation.activator._publish(fact, activation)
 
 
-class Container:
+class Activator:
     def __init__(self, agent, *, consumes: Consumes, produces, source: str | None, adapter=None):
         if not isinstance(consumes, Consumes):
             raise TypeError("pass what eda.consumes(...) returned as `consumes`")
@@ -96,7 +96,7 @@ class Container:
         request = self._validated(event)
         if request is None:
             return  # acknowledged: a malformed event never validates, however often it returns
-        activation = Activation(event=event, container=self)
+        activation = Activation(event=event, activator=self)
         token = _ACTIVATION.set(activation)
         try:
             result = await self._adapter.invoke(self._agent, request, _thread_id(event))
@@ -194,12 +194,12 @@ class Container:
 
 
 def attach(app, agent, *, consumes: Consumes, produces, source: str | None = None, adapter=None):
-    """Attach the container to the app that hosts the agent: the developer's one line.
+    """Attach the activator to the app that hosts the agent: the developer's one line.
 
-    The container starts and stops with the app's lifespan, so attach to the app that is
+    The activator starts and stops with the app's lifespan, so attach to the app that is
     run. A sub-application mounted inside another has no lifespan of its own.
     """
-    container = Container(
+    activator = Activator(
         agent, consumes=consumes, produces=produces, source=source, adapter=adapter
     )
     hosting = app.router.lifespan_context
@@ -207,11 +207,11 @@ def attach(app, agent, *, consumes: Consumes, produces, source: str | None = Non
     @asynccontextmanager
     async def lifespan(scope_app):
         async with hosting(scope_app) as state:
-            async with container.running():
+            async with activator.running():
                 yield state
 
     app.router.lifespan_context = lifespan
-    return container
+    return activator
 
 
 def _thread_id(event: Event) -> str:

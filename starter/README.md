@@ -20,7 +20,7 @@ Four files, about a hundred and fifty lines together, in this order:
    typed review comes in, a typed triage goes out, and nothing in the file knows that a
    broker exists.
 3. [review_triage/app.py](review_triage/app.py): the app hosting the agent, and the one
-   line attaching the container to it. The container subscribes, validates each event
+   line attaching the activator to it. The activator subscribes, validates each event
    against its contract, calls the agent, validates the answer, and publishes it with the
    request's `correlationid`, its `causationid`, and the review's id as `partitionkey`.
 4. [send_review.py](send_review.py): a script standing in for the shop. It publishes a
@@ -94,7 +94,7 @@ Work in this order, running `./test.sh` and the demo after each step.
 
 Where to look when the starter's shape is too small:
 
-- **An agent built with a framework.** The container takes a compiled LangGraph graph as
+- **An agent built with a framework.** The activator takes a compiled LangGraph graph as
   it takes a function: see the Itinerary Planner's
   [agent.py](../components/itinerary_planner/itinerary_planner/agent.py) and
   [app.py](../components/itinerary_planner/itinerary_planner/app.py). The attach line is

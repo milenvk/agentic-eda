@@ -1,4 +1,4 @@
-"""The agent is a plain function, so its test needs no broker, no container, and no model."""
+"""The agent is a plain function, so its test needs no broker, no activator, and no model."""
 
 from types import SimpleNamespace
 

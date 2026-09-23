@@ -1,4 +1,4 @@
-"""The app hosting the agent, with the container attached to it: the one line of plumbing."""
+"""The app hosting the agent, with the activator attached to it: the one line of plumbing."""
 
 from fastapi import FastAPI
 

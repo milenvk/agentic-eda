@@ -2,7 +2,7 @@
 
 Chapter 1's round trip, on a real agent. The plain Itinerary Planner is replaced by a
 LangGraph graph. Nothing outside it changes: the same two events, the same broker,
-the same audit consumer. The new Planner knows nothing about events. A container, attached
+the same audit consumer. The new Planner knows nothing about events. An activator, attached
 to the app hosting it with one line, validates each `planning.ItineraryRequested` against
 its contract, hands the agent a typed request, validates the agent's answer, and publishes
 it as `planning.ItineraryProposed` with the request's `correlationid`, its `causationid`,
@@ -22,7 +22,7 @@ Where to read the code, in the order the chapter teaches it:
 
 - [agent.py](../../components/itinerary_planner/itinerary_planner/agent.py) and
   [app.py](../../components/itinerary_planner/itinerary_planner/app.py): what the agent
-  consumes, what it produces, and the one line attaching the container.
+  consumes, what it produces, and the one line attaching the activator.
 - [events/planning.py](../../lib/travel_agency/travel_agency/events/planning.py): the two contracts, as code.
 - [graph.py](../../components/itinerary_planner/itinerary_planner/graph.py): the agent
   itself, with no event, broker, or attribute anywhere in it.
@@ -90,7 +90,7 @@ Observe in the watch terminal, in order:
    budget in code, and the planner ranks what survived.
 3. `itinerary-planner-1` prints a PUBLISHED card for `planning.ItineraryProposed`. Its
    `correlationid` is the request's, its `causationid` is the request's event id, and its
-   `partitionkey` is the trip's id. The agent set none of them: the container did.
+   `partitionkey` is the trip's id. The agent set none of them: the activator did.
 4. `demo-1` receives the proposal, matched by `correlationid`, lists the ranked
    itineraries with their totals, and prints a green ✔.
 
@@ -118,7 +118,7 @@ Observe in the watch terminal:
    published, valid or not.
 4. After 30 seconds without a proposal, `demo-malformed-1` prints a green ✔.
 
-The container acknowledged the malformed event: an event that fails its contract fails it
+The activator acknowledged the malformed event: an event that fails its contract fails it
 on every redelivery, so redelivering it would help nobody.
 
 ## Act 3: two threads at once, one record

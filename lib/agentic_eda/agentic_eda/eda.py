@@ -7,7 +7,7 @@
     eda.attach(app, agent, consumes=consumes, produces=produces)
 """
 
-from .container import attach, consumes, produces, publish
+from .activator import attach, consumes, produces, publish
 from .events import OWN_ID, EventModel, Nothing, event
 
 __all__ = [

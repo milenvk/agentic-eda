@@ -39,7 +39,7 @@ async def main() -> None:
         triaged = asyncio.Event()
 
         async def show(event: Event) -> None:
-            # The container copies a request's correlationid to everything it causes.
+            # The activator copies a request's correlationid to everything it causes.
             if getattr(event, "correlationid", None) == sent.correlationid:
                 console.show("RECEIVED", event)
                 triaged.set()

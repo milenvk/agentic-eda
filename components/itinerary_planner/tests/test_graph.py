@@ -1,4 +1,4 @@
-"""Unit tests for the Itinerary Planner's graph, and for the agent as the container hosts it."""
+"""Unit tests for the Itinerary Planner's graph, and for the agent as the activator hosts it."""
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -7,7 +7,7 @@ from conftest import brief, request
 
 from agentic_eda import connect, eda
 from agentic_eda.broker import Event
-from agentic_eda.container import Container
+from agentic_eda.activator import Activator
 from agentic_eda.hydration import NoHydration
 from itinerary_planner.graph import MAX_ATTEMPTS, build_graph, legs_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
@@ -122,7 +122,7 @@ def test_the_agent_module_declares_what_it_consumes_and_produces():
     assert hasattr(agent.agent, "ainvoke")  # a compiled graph, as its developer built it
 
 
-async def test_hosted_by_the_container_it_answers_an_event_with_an_event(
+async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
     model, airline, hotels, monkeypatch
 ):
     published: list[Event] = []
@@ -145,7 +145,7 @@ async def test_hosted_by_the_container_it_answers_an_event_with_an_event(
         yield StubBroker()
 
     monkeypatch.setattr(connect, "event_broker", fake_event_broker)
-    container = Container(
+    activator = Activator(
         graph(model, airline, hotels),
         consumes=eda.consumes(ItineraryRequested),
         produces=eda.produces(ItineraryProposed),
@@ -160,7 +160,7 @@ async def test_hosted_by_the_container_it_answers_an_event_with_an_event(
         partitionkey="trip-1",
     )
 
-    async with container.running():
+    async with activator.running():
         await handlers[ITINERARY_REQUESTED](asked)
 
     (proposal,) = published

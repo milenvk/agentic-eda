@@ -1,7 +1,7 @@
 """Act 2: a request that breaks its contract, published by a careless writer.
 
 Nothing stops a publisher from writing bad data: the port takes any dictionary. The
-contract is enforced where the event is consumed, at the Planner's container, which
+contract is enforced where the event is consumed, at the Planner's activator, which
 rejects the event before the agent or the model ever sees it.
 """
 
@@ -42,7 +42,7 @@ async def main() -> None:
         unanswered = await show_proposals(broker, [request], patience=PATIENCE_SECONDS)
         if unanswered:
             console.success(
-                "no proposal came: the Planner's container rejected the event at its boundary."
+                "no proposal came: the Planner's activator rejected the event at its boundary."
             )
             print("Its log says which fields broke the contract.", flush=True)
 

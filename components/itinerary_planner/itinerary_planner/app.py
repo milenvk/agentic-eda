@@ -1,4 +1,4 @@
-"""The app that hosts the Itinerary Planner Agent, with the container attached to it."""
+"""The app that hosts the Itinerary Planner Agent, with the activator attached to it."""
 
 from fastapi import FastAPI
 
