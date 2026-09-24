@@ -534,16 +534,15 @@ promised.
    compiled graph invoked in-process and the activator's lanes governing concurrency. That
    is the shape most teams run LangGraph in production, the library inside their own
    service, with ch 8 swapping `InMemorySaver` for `PostgresSaver`. LangGraph Server, the
-   commercial platform, takes the identical `attach` line in its custom app
+   commercial platform, takes the identical `attach` block in its custom app
    (`langgraph.json`'s `http.app`), verified: under `langgraph dev` it starts with no
    LangSmith key, runs the app's lifespan, runs the graph through the SDK on a thread, and
-   keeps the thread's state. It was not chosen for the chapter because the in-memory server
-   announces itself as for development and testing only, its production form brings a
-   Postgres, a Redis, and a license the book never shows, `langgraph-api` releases weekly,
+   keeps the thread's state. It is not in the book or the repository because the in-memory
+   server announces itself as for development and testing only, its production form brings
+   a Postgres, a Redis, and a license the book never shows, `langgraph-api` releases weekly,
    and runs go through the server's own queue, which takes concurrency out of the
-   activator's hands. The repository ships that variant beside the component, a
-   `langgraph.json` and a `webapp.py`, outside the chapter's test gate, and 2.8 says in two
-   sentences that a team on the platform puts the same line there and what it trades.
+   activator's hands. 2.8 says in one sentence that a team on the platform puts the same
+   block in that app and what it trades.
 ** *Publish tools* (ch 7), for a turn that runs tools: `publish_tool(EventClass)` returns a
    plain async function named and documented from the class, whose parameters are its
    fields, flattened (the form every framework's tool wrapper reads natively, LangChain's

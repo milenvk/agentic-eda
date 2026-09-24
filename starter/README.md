@@ -97,8 +97,8 @@ Where to look when the starter's shape is too small:
 - **An agent built with a framework.** The activator takes a compiled LangGraph graph as
   it takes a function: see the Itinerary Planner's
   [agent.py](../components/itinerary_planner/itinerary_planner/agent.py) and
-  [app.py](../components/itinerary_planner/itinerary_planner/app.py). The attach line is
-  the same.
+  [app.py](../components/itinerary_planner/itinerary_planner/app.py). The attach block is
+  the same, and the agent module never imports `eda`.
 - **More than one possible answer, or none.** `eda.produces(A, B)` lets the agent answer
   with either class, and adding `eda.Nothing` lets it decline with a reason. Silence is
   never taken for an answer: an agent that returns nothing without saying so fails its

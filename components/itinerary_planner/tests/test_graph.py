@@ -114,12 +114,11 @@ async def test_a_new_request_for_the_same_trip_starts_from_a_clean_slate(model, 
     assert second.itineraries[0].items[0].origin == "Toronto"
 
 
-def test_the_agent_module_declares_what_it_consumes_and_produces():
+def test_the_agent_module_knows_nothing_of_events():
     from itinerary_planner import agent
 
-    assert agent.consumes.classes == (ItineraryRequested,)
-    assert agent.produces is ItineraryProposed
     assert hasattr(agent.agent, "ainvoke")  # a compiled graph, as its developer built it
+    assert not hasattr(agent, "eda")  # what it consumes and produces is declared in app.py
 
 
 async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(

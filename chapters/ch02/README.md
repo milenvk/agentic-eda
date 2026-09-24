@@ -20,9 +20,11 @@ chapter 3.
 
 Where to read the code, in the order the chapter teaches it:
 
-- [agent.py](../../components/itinerary_planner/itinerary_planner/agent.py) and
-  [app.py](../../components/itinerary_planner/itinerary_planner/app.py): what the agent
-  consumes, what it produces, and the one line attaching the activator.
+- [agent.py](../../components/itinerary_planner/itinerary_planner/agent.py): the LangGraph
+  graph, knowing nothing of events; and
+  [app.py](../../components/itinerary_planner/itinerary_planner/app.py): the app hosting it,
+  with the one block declaring what the agent consumes and produces and attaching the
+  activator.
 - [events/planning.py](../../lib/travel_agency/travel_agency/events/planning.py): the two contracts, as code.
 - [graph.py](../../components/itinerary_planner/itinerary_planner/graph.py): the agent
   itself, with no event, broker, or attribute anywhere in it.

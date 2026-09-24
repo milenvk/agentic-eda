@@ -1,14 +1,13 @@
-"""The Itinerary Planner Agent: a LangGraph graph, and what it consumes and produces."""
+"""The Itinerary Planner Agent: a LangGraph graph, as its developer built it.
 
-from agentic_eda import eda
+Nothing here knows about events or a broker. What the graph consumes and produces is
+declared where it is hosted, in `app.py`.
+"""
+
 from agentic_eda.hydration import hydration
-from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
 
 from .graph import build_graph
 from .prompts import ask
 from .suppliers_clients import airline, hotels
 
 agent = build_graph(ask=ask, airline=airline(), hotels=hotels(), hydration=hydration())
-
-consumes = eda.consumes(ItineraryRequested)
-produces = eda.produces(ItineraryProposed)

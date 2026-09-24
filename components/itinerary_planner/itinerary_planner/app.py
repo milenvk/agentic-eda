@@ -3,11 +3,19 @@
 from fastapi import FastAPI
 
 from agentic_eda import console, eda
+from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
 
-from .agent import agent, consumes, produces
+from .agent import agent
 
 console.configure_logging()
 
 app = FastAPI(title="Itinerary Planner Agent")
 
-eda.attach(app, agent, consumes=consumes, produces=produces)
+# Everything event-driven about this component: what the agent consumes, what it
+# produces, and the activator attached to the app that hosts it.
+eda.attach(
+    app,
+    agent,
+    consumes=eda.consumes(ItineraryRequested),
+    produces=eda.produces(ItineraryProposed),
+)

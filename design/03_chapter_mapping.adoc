@@ -54,8 +54,7 @@ payment offstage until ch 10.
   join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
   (REST) and the Hotel Reservation System sim (inventory over MCP), CloudEvents + Pydantic
   contract models as the event catalog in code (`@event`), the activator attached to the
-  FastAPI app hosting the Planner (a LangGraph Server variant shipped beside it, untested by
-  the chapter's gate),
+  FastAPI app hosting the Planner,
   `consumes`, `produces`, and one `attach` line replacing ch 1's hand-rolled subscribe and
   publish, the validating boundary at the activator (inbound and outbound)
 | `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` becoming
