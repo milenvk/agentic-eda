@@ -1,9 +1,0 @@
-{
-  "dependencies": [".."],
-  "graphs": {
-    "itinerary_planner": "../itinerary_planner/agent.py:agent"
-  },
-  "http": {
-    "app": "./webapp.py:app"
-  }
-}
