@@ -8,7 +8,7 @@ from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
 
 REQUEST = {
-    "trip_id": "trip-1",
+    "trip_id": 1,
     "origin": "New York",
     "stops": [{"city": "Lisbon", "arrive": "2026-10-01", "depart": "2026-10-04"}],
     "travellers": 2,
@@ -51,8 +51,8 @@ def test_the_request_contract_rejects_a_trip_with_no_stops():
 
 
 def test_the_proposal_contract_holds_one_to_three_itineraries():
-    ItineraryProposed.model_validate({"trip_id": "trip-1", "itineraries": [itinerary(1)]})
+    ItineraryProposed.model_validate({"trip_id": 1, "proposal_id": "p-1", "itineraries": [itinerary(1)]})
     with pytest.raises(ValidationError):
         ItineraryProposed.model_validate(
-            {"trip_id": "trip-1", "itineraries": [itinerary(n) for n in range(1, 5)]}
+            {"trip_id": 1, "proposal_id": "p-1", "itineraries": [itinerary(n) for n in range(1, 5)]}
         )

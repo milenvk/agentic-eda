@@ -7,6 +7,7 @@ in order, and two trips never wait for each other.
 """
 
 import asyncio
+import time
 from datetime import date
 from uuid import uuid4
 
@@ -39,8 +40,9 @@ def lisbon_trip() -> ItineraryRequested:
     )
 
 
-def new_trip_id() -> str:
-    return f"trip-{uuid4().hex[:8]}"
+def new_trip_id() -> int:
+    """The Booking Agent assigns trip ids from chapter 3; until then the script picks one."""
+    return time.time_ns()
 
 
 async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> Event:
@@ -49,7 +51,7 @@ async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> 
         ITINERARY_REQUESTED,
         SOURCE,
         data_of(trip),
-        attributes={"correlationid": str(uuid4()), "partitionkey": trip.trip_id},
+        attributes={"correlationid": str(uuid4()), "partitionkey": str(trip.trip_id)},
     )
     console.show("PUBLISHED", request)
     return request

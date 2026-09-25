@@ -154,8 +154,8 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
 | planning request, requirements, proposal, itinerary, rank, rationale, item, leg, stay,
   offer, validity, fare conditions, backup; ItineraryRequested, ItineraryProposed,
   ItineraryRequestSuperseded; one aggregate, the Itinerary Planner's: the Proposal, one answer
-  to one planning request, identified by the id of the `ItineraryRequested` event that asked
-  for it and keyed by the trip's id, holding the requirements as they stood, its status
+  to one planning request, identified by a `proposal_id` minted by the Planner when it
+  publishes and keyed by the trip's id, holding the requirements as they stood, its status
   (proposed, then accepted when the customer chooses one of its itineraries), and two or three
   ranked Itineraries (a rank, a label, a total, the Planner's rationale), each with its items
   in travel order: a FlightItem per leg (segments, fare conditions) and a StayItem per stop
@@ -172,13 +172,14 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
 | trip request, trip, validation, proposal ready, reply, approval, rejection, change,
   negotiated rate, reservation, hold, confirmation (a supplier's, then the trip's),
   cancellation, car class, follow-up, approval wait, payment request, rebooking, compensation,
-  refund; TripRequested, TripRequestRejected, CustomerReplied, ProposalReady,
+  refund; TripRequested, TripRequestRejected, TripCreated, CustomerReplied, ProposalReady,
   ItineraryApproved, ItineraryRejected, TripChanged, RateNegotiated, FlightReserved,
   HotelReserved, ReservationFailed, CarRentalReserved, CarRentalUnavailable, CarReserved,
   SupplierUpdateReceived, ApprovalRequested, ApprovalTimedOut, CustomerFollowUpDue,
   TripConfirmed, RebookingProposed, TripCancelled, FlightReservationCancelled,
   PaymentRequested, PaymentAuthorized, RefundRequested, PaymentRefunded; one aggregate, the
-  Booking Agent's: the Trip, created by `TripRequested` and identified by that event's id,
+  Booking Agent's: the Trip, created on `TripRequested` under an id assigned by the store and
+  announced by `TripCreated`,
   holding the trip request, the proposals it has consumed (event-carried state, immutable),
   the accepted proposal's id and the chosen itinerary's rank,
   its status (requested, planning, proposed, approved, awaiting policy approval, reserving,
@@ -186,7 +187,8 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   item of the accepted itinerary: kind, supplier reference, status pending, hold, confirmed, or cancelled, hold
   expiry, price, the negotiated rate where one was won), from ch 8 the customer reference, and
   from ch 10 a Payment entity (provider reference, amount, status, never card data). The
-  `WorkflowStateStore` is the Trip's persistence from ch 8.
+  `WorkflowStateStore` is the Trip's persistence: an in-memory adapter in ch 3, a PostgreSQL row
+  from ch 4, and from ch 8 the workflow's macro-state with the version check as the fence.
 | Booking Agent (the demo script stands in during ch 1 and 2), Hotel Negotiator, Rental Car
   Agent, payment provider adapter (ch 10, with the Payment sim behind it), partner adapter
   (ch 14)
@@ -291,9 +293,8 @@ classDiagram
     StayItem "1" --> "0..1" StayItem : backup
 ----
 
-The proposal's id is the id of the `planning.ItineraryRequested` event that asked for it, the
-same rule that makes the `booking.TripRequested` id the trip's; the `ItineraryProposed` it is
-published as has its own id, recorded on the proposal. There is no version and no per-trip
+The proposal's id is a UUID minted by the Planner when it publishes, carried on
+`ItineraryProposed` as `proposal_id`; the event has its own id, recorded on the proposal. There is no version and no per-trip
 root: the Booking Agent, or any other caller of planning's published language, asks without
 keeping a counter, the planning topic's per-key lane orders a trip's requests and answers, and
 the store lists a trip's proposals by the time of their requests. There is no current
@@ -376,7 +377,7 @@ book.
 | planning
 | The aggregate. One answer to one planning request: the requirements it answered, its ranked
   itineraries, and its status (proposed, then accepted when the customer chooses one of its
-  itineraries). Identified by its request's event id; immutable once published; a trip
+  itineraries). Identified by the `proposal_id` minted by the Planner; immutable once published; a trip
   accumulates proposals, and the customer may choose from any of them.
 
 | itinerary
@@ -650,20 +651,27 @@ Identity conventions, in the book's order of introduction:
   through a workaround. The contract's three conditions (one topic per context, one key at a
   time, a version check in the store) and the supported brokers are in
   `05_data_consistency_and_state_model.adoc`; the mapping is in `04_implementation_design.adoc`.
-* **The trip's id** is the id of the `booking.TripRequested` event that created it (in ch 1
-  and 2, the id the demo script mints for its `planning.ItineraryRequested`). On that event
-  `id` and `partitionkey` coincide by construction and diverge afterwards: the next event has
-  its own id, and every trip fact carries the trip's id as its key. Requesters mint only the
-  event id, minted by every producer for every event; the owner's checks already exist in the
-  architecture: the id is a UUID (the ch 2 contract, enforced at the activator boundary), and
-  the id is not already in the store (idempotent consumption, so a redelivery is skipped and
-  never answered with an error event).
-* **A proposal's id is the id of the `planning.ItineraryRequested` event that asked for it**,
-  by the same rule as the trip's; the `planning.ItineraryProposed` that answers it has its own
-  id, with causation pointing at the request, and the proposal records it as the id it was
-  published under. `booking.ItineraryApproved` names the proposal by its id and the chosen
-  itinerary by its rank. In ch 1 and 2, with no `TripRequested` yet, the request's id is also
-  the trip's id and the partition key.
+* **The trip's id** is assigned by the Booking Agent, the Trip's one writer, when it records
+  the Trip on `booking.TripRequested`: the primary key of the `trips` row, an integer generated
+  by the store (a counter in ch 3's in-memory adapter, PostgreSQL's serial column from ch 4).
+  The row also holds the request's event id under a unique index, so a redelivered request
+  finds its trip instead of creating a second one. `booking.TripCreated` announces the id, with
+  causation pointing at the request, and is the first event keyed by it; `TripRequested` itself
+  is keyed by the conversation's id, and `id` and `partitionkey` never coincide on any event.
+  The requester mints only its event id and learns the trip's id from `TripCreated`, matched by
+  correlation id. In ch 1 and 2, with no Booking Agent, the demo script mints a timestamp-based
+  integer for its `planning.ItineraryRequested`. Store-generated identity is a choice: the id
+  exists before the creation event is built, and from ch 8 inside the transaction that writes
+  the outbox row; its cost is that the id's shape is the adapter's, so ch 15's managed document
+  store, which has no sequences, mints as its store does. A trip's id identifies and never
+  authorizes (ch 13); a sequential id is guessable, which is why the rule matters here as it
+  does for the customer reference.
+* **A proposal's id** is a UUID minted by the Planner when it publishes, carried on
+  `planning.ItineraryProposed` as `proposal_id` from the ch 2 contract on (ch 1's plain
+  Planner replies with the free-form `request_id` its chapter shows). The Planner owns the
+  Proposal and has no store until ch 8, so it assigns identity itself, the other way an owner
+  can. The event has its own id, with causation pointing at the request.
+  `booking.ItineraryApproved` names the proposal by its id and the chosen itinerary by its rank.
 * **`promptversion` and `modelversion`** (from ch 10): stamped by the activator on every event
   an agent publishes, from the agent's own configuration. No consumer reads them to act; the
   dead-letter tooling, the replay script, and the audit record read them to answer "which
@@ -794,9 +802,10 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   model's: its activation returns the facts it commits and the activator publishes them. On
   `TripRequested` it validates the request as a business
   request (dates in the future and in order, at least one stop, travellers named, a budget or
-  an explicit "no limit"), records the Trip under that event's id (in memory until ch 8, in
-  the `WorkflowStateStore` after), and either answers `TripRequestRejected` or asks planning
-  with `planning.ItineraryRequested`. On `planning.ItineraryProposed` it records the proposal
+  an explicit "no limit"); a request that fails gets `TripRequestRejected`, and one that passes
+  is recorded as the Trip under a store-assigned id (the `WorkflowStateStore`: in memory in
+  ch 3, a PostgreSQL row from ch 4), announced by `TripCreated`, and sent to planning as
+  `planning.ItineraryRequested`. On `planning.ItineraryProposed` it records the proposal
   as received (event-carried state) and publishes `ProposalReady`, at once until ch 7 and after
   the barrier collects every `RateNegotiated` from then on; on
   `planning.ItineraryRequestSuperseded` it stops expecting that proposal. On `CustomerReplied`

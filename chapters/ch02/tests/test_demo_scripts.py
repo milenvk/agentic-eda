@@ -41,8 +41,8 @@ async def test_a_request_starts_a_thread_and_is_ordered_within_its_trip():
     request = await request_itineraries(broker, trip)
 
     assert request.type == ITINERARY_REQUESTED
-    assert request.partitionkey == trip.trip_id
-    assert request.correlationid not in (request.id, trip.trip_id)  # a label of its own
+    assert request.partitionkey == str(trip.trip_id)
+    assert request.correlationid not in (request.id, str(trip.trip_id))  # a label of its own
     assert ItineraryRequested.model_validate(request.data) == trip.model_copy(
         update={"attributes_": None}
     )

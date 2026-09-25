@@ -179,7 +179,8 @@ in order of introduction:
   every event; the id of the event's aggregate: the trip's id on booking, planning, and policy
   facts, the conversation's id on customer facts, and, where the context holds no aggregate,
   the id of the trip concerned or, before a trip exists, the conversation's. On
-  `booking.TripRequested` it is the event's own id. The adapter maps it to whatever its broker
+  `booking.TripRequested` it is the conversation's id, and `booking.TripCreated` is the first
+  event keyed by the trip's. The adapter maps it to whatever its broker
   orders by (Ordering, below).
 * `contextpath` (ch 7): hierarchical context scoping, `/trips/{trip_id}/paris/hotel`.
 * `promptversion` and `modelversion` (ch 10): stamped by the activator on every event an agent

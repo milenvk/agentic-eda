@@ -11,6 +11,7 @@ the facts, so an offer's price or a flight's time is never something a model ret
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime
+from uuid import uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -102,11 +103,11 @@ def legs_of(request: ItineraryRequested) -> list[Leg]:
 def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydration):
     async def planner(state: PlannerState) -> dict:
         request = state.request
-        event_id = request.attributes_.id if request.attributes_ else request.trip_id
+        event_id = request.attributes_.id if request.attributes_ else str(request.trip_id)
         if state.handling != event_id:
             # A thread is kept per trip, so a new request starts from a clean slate.
             state = PlannerState(request=request, handling=event_id)
-            state.context = await hydration.context_for(request.trip_id)
+            state.context = await hydration.context_for(str(request.trip_id))
 
         if state.candidates and not state.problems:
             ranking = await ask(
@@ -288,6 +289,7 @@ def _proposal(request, candidates: list[Itinerary], ranking: Ranking) -> Itinera
     ordered = sorted(candidates, key=lambda c: judged[c.label].rank if c.label in judged else 99)
     return ItineraryProposed(
         trip_id=request.trip_id,
+        proposal_id=str(uuid4()),
         itineraries=[
             candidate.model_copy(
                 update={

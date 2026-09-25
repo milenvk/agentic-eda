@@ -76,12 +76,14 @@ payment offstage until ch 10.
 | 3
 | Component
 | W1 slice 2: booking takes planning's end; the customer's decision; support wired
-| Booking Agent (event-only, consuming only `booking.*`, the Trip's writer, in memory until
-  ch 8, every later step present and off), Research Agent (LlamaIndex, A2A server), support
+| Booking Agent (event-only, consuming only `booking.*`, the Trip's writer, assigning the trip's
+  id from the `WorkflowStateStore`'s in-memory adapter and announcing it by
+  `booking.TripCreated`, every later step present and off), Research Agent (LlamaIndex, A2A server), support
   adapter and Support Desk AaaS sim, `InMemoryBroker`, first agent mock test; the demo script
   moves to the customer's seat and writes `booking.TripRequested`, `booking.CustomerReplied`,
   and `support.SupportRequested`
-| The Booking Agent's validation (`TripRequestRejected`), its request to planning, `ProposalReady`,
+| The Booking Agent's validation (`TripRequestRejected`), the trip's creation (`TripCreated`),
+  its request to planning, `ProposalReady`,
   and its reply step (`ItineraryApproved`, `ItineraryRejected`, `TripChanged`, the re-request);
   the Planner's A2A call to the Research Agent; ch 2's MCP and REST edges taught
 | Universal integration: four edges, four kinds of counterpart (a tool over MCP, an agent over
@@ -99,8 +101,9 @@ payment offstage until ch 10.
   email replay script + seeded dataset (`customer.EmailReceived`), Semantic Router at two
   replicas (writing booking's, support's, and destination's requests directly, and
   `booking.SupplierUpdateReceived`; the time window sorted by sender timestamp), email delivery
-  adapter, Token Defense Filter, `InboxStore` (the Agentic Inbox staging an early supplier
-  update), Destination Inspiration crew (CrewAI, the target of routing by meaning, its pack
+  adapter, Token Defense Filter, PostgreSQL in compose with the `WorkflowStateStore`'s
+  PostgreSQL adapter (the `trips` row, the request's event id under a unique index) and the
+  `InboxStore` (the Agentic Inbox staging an early supplier update), Destination Inspiration crew (CrewAI, the target of routing by meaning, its pack
   through `output_pydantic`), the lanes
   demonstration (a burst of trip requests into one Planner process, every inference in flight,
   order kept per trip, a kill mid-burst replayed from the watermark)
@@ -166,8 +169,8 @@ payment offstage until ch 10.
   (`PolicyCheckPassed`, `PolicyViolationDetected`), approval console (a policy-context app, the
   writer of the ApprovalRequest), Duty-of-Care Monitor (proactive, stateless, in servicing, with
   the Travel Advisory Feed sim), the hotel sim's slow-counter auto-responder
-| The Postgres `WorkflowStateStore` (the Trip's persistence, with the version check as the
-  fence) and the `GuardStateStore`; the Booking Agent's wait for the pass or the manager's
+| The `WorkflowStateStore`'s macro-state, with the version check as the fence (the Trip's row
+  exists since ch 4), and the `GuardStateStore`; the Booking Agent's wait for the pass or the manager's
   decision, `ApprovalRequested` through the outbox, the 48-hour timeout, the follow-up nudge
   scheduled from `ProposalReady`; the barrier's straggler timeout; a negotiation durable across
   a slow counter

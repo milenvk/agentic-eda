@@ -46,7 +46,8 @@ def test_a_trip_flies_out_on_between_stops_and_home():
 async def test_it_proposes_ranked_itineraries_carrying_the_suppliers_offers(model, airline, hotels):
     proposal = await planned(graph(model, airline, hotels), request())
 
-    assert proposal.trip_id == "trip-1"
+    assert proposal.trip_id == 1
+    assert proposal.proposal_id  # the Planner names what it publishes
     assert [i.rank for i in proposal.itineraries] == list(range(1, len(proposal.itineraries) + 1))
     assert all(i.rationale.endswith("suits this trip") for i in proposal.itineraries)  # the model's
     cheapest = next(i for i in proposal.itineraries if i.label == "cheapest")
@@ -156,7 +157,7 @@ async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
         source="RequestTripScript",
         data=request().model_dump(mode="json", exclude={"attributes_", "event_type"}),
         correlationid="req-1",
-        partitionkey="trip-1",
+        partitionkey="1",
     )
 
     async with activator.running():
@@ -165,6 +166,6 @@ async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
     (proposal,) = published
     assert proposal.type == ITINERARY_PROPOSED
     assert (proposal.causationid, proposal.correlationid) == ("req-1", "req-1")
-    assert proposal.partitionkey == "trip-1"
+    assert proposal.partitionkey == "1"
     assert ItineraryProposed.model_validate(proposal.data).itineraries  # a valid contract, on the wire
 

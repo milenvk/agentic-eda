@@ -20,8 +20,8 @@ The one workflow that runs through the whole book. Every part extends it rather 
 it. Intake is its first step, not a workflow of its own: until the request is written the
 conversation belongs to Customer Relations. The correlation id is the conversation's id, minted
 at the first customer message and inherited by everything that follows; every booking,
-planning, and policy fact carries the trip's id as its partition key, and every customer fact
-the conversation's. The chapter in brackets is where a step first runs. Before ch 3 the demo
+planning, and policy fact after `booking.TripRequested` carries the trip's id as its partition
+key, and `TripRequested` and every customer fact the conversation's. The chapter in brackets is where a step first runs. Before ch 3 the demo
 script stands in for the Booking Agent; in ch 3 it stands in for the customer, writing booking's
 requests and printing what booking publishes; the Front Desk takes that seat in ch 4.
 
@@ -32,21 +32,25 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    classifier recognises a trip request and writes `booking.TripRequested` in booking's
    published language: an origin, an ordered list of stops each with its dates or a window (one
    stop for a simple trip, several for a multi-city one), the travellers, a budget, and the
-   preferences in the customer's own words. That event's id becomes the trip's id and the
-   partition key of every trip fact; its causation id is the chat message. The Front Desk
-   records the link from the conversation to the trip and follows the trip's facts from here
-   on. Nobody outside Customer Relations reads raw chat. In ch 3 the demo script writes
+   preferences in the customer's own words. Its causation id is the chat message and its
+   partition key the conversation's id, since no trip exists yet. When `booking.TripCreated`
+   arrives on the conversation's correlation id, the Front Desk records the link from the
+   conversation to the trip and follows the trip's facts from here on. Nobody outside Customer Relations reads raw chat. In ch 3 the demo script writes
    `TripRequested`; the Router writes it for email from ch 4.
 2. **Booking validates and asks planning** [3]. The Booking Agent consumes `TripRequested`,
    checks it as a business request (dates in the future and in order, at least one stop,
-   travellers named, a budget or an explicit "no limit"), and records the Trip. A request that
-   fails gets `booking.TripRequestRejected` (what is missing or wrong), which the Front Desk
-   shows as a question; no itinerary is ever planned for it. A request that passes gets
+   travellers named, a budget or an explicit "no limit"). A request that fails gets
+   `booking.TripRequestRejected` (what is missing or wrong), which the Front Desk shows as a
+   question; no itinerary is ever planned for it. A request that passes is recorded as the Trip
+   under a store-assigned id, with the request's event id kept beside it under a unique index
+   so a redelivered request finds its trip instead of creating a second one; announced by
+   `booking.TripCreated` (the trip's id, the accepted request, causation pointing at
+   `TripRequested`, and the trip's id as the key from here on); and sent to planning as
    `planning.ItineraryRequested`: the trip id as the key, the validated requirements, causation
-   pointing at `TripRequested`; that event's id is the proposal's id. Booking asks planning in
-   planning's own language, the open-host pattern one hop in, and keeps no counter: any caller
-   may ask, and the planning topic's per-key lane orders a trip's requests. In ch 1 and 2 the
-   demo script writes `ItineraryRequested` itself, and its id serves as the trip's id too.
+   pointing at `TripRequested`. Booking asks planning in planning's own language, the open-host
+   pattern one hop in, and keeps no counter: any caller may ask, and the planning topic's
+   per-key lane orders a trip's requests. In ch 1 and 2 the demo script writes
+   `ItineraryRequested` itself, with a trip id it mints.
 3. **Planning proposes itineraries** [1]. The Planner consumes `ItineraryRequested`, its only
    inbound request, and does all of its work inside: it asks the Research Agent over A2A what
    destination knowledge holds about each stop [3]; the flight-search sub-agent decomposes the
@@ -511,12 +515,13 @@ Conventions:
 | EmailReceived | Email replay script | Semantic Router | ch 4
 
 4+e| planning: trip planning, the proposals
-| ItineraryRequested | *open host.* The Booking Agent (the demo script in ch 1 and 2), in planning's published language: the trip id as key, the validated requirements, and on a re-plan the reason and the items carried over; its id is the proposal's id | Planner (its only inbound request), audit, Observer | ch 1
-| ItineraryProposed | Planner; every proposal immutable, keyed by the trip's id, identified by its request's id, carrying two or three ranked itineraries; one shape for the whole book | Booking Agent, Hotel Negotiator (from ch 7), Observer; the demo script in ch 1 and 2 | ch 1
+| ItineraryRequested | *open host.* The Booking Agent (the demo script in ch 1 and 2), in planning's published language: the trip id as key, the validated requirements, and on a re-plan the reason and the items carried over | Planner (its only inbound request), audit, Observer | ch 1
+| ItineraryProposed | Planner; every proposal immutable, keyed by the trip's id, identified by the `proposal_id` the Planner mints (from the ch 2 contract), carrying two or three ranked itineraries; one shape for the whole book | Booking Agent, Hotel Negotiator (from ch 7), Observer; the demo script in ch 1 and 2 | ch 1
 | ItineraryRequestSuperseded | Planner, when a newer request for the same trip interrupts the run in progress; names the abandoned request, causation the newer one | Booking Agent (stops expecting that proposal), audit | ch 7
 
 4+e| booking: the trip's lifecycle, from request to confirmation or cancellation
-| TripRequested | *open host.* Whoever asks, in booking's published language: the demo script (ch 3), the Front Desk and the Router (ch 4), the partner adapter in V2 (ch 14); the event's id is the trip's id | Booking Agent (validates and records the trip), audit, Observer | ch 3
+| TripRequested | *open host.* Whoever asks, in booking's published language: the demo script (ch 3), the Front Desk and the Router (ch 4), the partner adapter in V2 (ch 14); keyed by the conversation's id, since no trip exists yet | Booking Agent (validates and records the trip), audit, Observer | ch 3
+| TripCreated | Booking Agent, on recording the Trip: the store-assigned trip id and the accepted request; causation the `TripRequested`; the first event keyed by the trip's id | Whoever wrote the request (the demo script in ch 3, the Front Desk and the email delivery adapter from ch 4, matching by correlation id), audit, Observer | ch 3
 | TripRequestRejected | Booking Agent, when validation fails; what is missing or wrong | Front Desk (as a question to the customer), audit | ch 3
 | CustomerReplied | *open host.* Whoever asks: the demo script (ch 3), the Front Desk and the Router (ch 4); the proposal answered and the recognised intent | Booking Agent | ch 3
 | ProposalReady | Booking Agent, on recording a proposal (at once until ch 7, after the barrier from ch 7); the itineraries as the customer should see them | Front Desk, email delivery adapter, audit | ch 3
@@ -578,7 +583,8 @@ Notes:
 * Chapter 1 publishes two event types, `planning.ItineraryRequested` (demo script to Planner
   and audit) and `planning.ItineraryProposed` (Planner to the script), the reply carrying the
   request event's id as a `request_id` payload field, promoted to a `causationid` extension
-  attribute in `ch02_correlation_id`. Both keep their shape for the whole book: the ch 1
+  attribute in `ch02_correlation_id`, and `proposal_id`, minted by the Planner, joining the
+  reply with the ch 2 contract. From there both keep their shape for the whole book: the ch 1
   Planner publishes one itinerary with items and no offers, and the ch 2 Planner fills the same
   shape.
 * The customer's decision (`CustomerReplied`, `ItineraryApproved`, `ItineraryRejected`,

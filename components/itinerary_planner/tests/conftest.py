@@ -22,7 +22,7 @@ def usd(amount: float) -> Money:
 
 def request(event_id: str = "req-1", budget: float | None = 2900, **changes) -> ItineraryRequested:
     fields = {
-        "trip_id": "trip-1",
+        "trip_id": 1,
         "origin": "New York",
         "stops": [{"city": "Lisbon", "arrive": "2026-10-01", "depart": "2026-10-04"}],
         "travellers": 2,

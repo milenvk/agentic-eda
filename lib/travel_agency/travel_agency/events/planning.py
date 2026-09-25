@@ -27,7 +27,7 @@ class Stop(BaseModel):
 class ItineraryRequested(EventModel):
     """Someone asks planning for itineraries. Whoever asks writes it."""
 
-    trip_id: str
+    trip_id: int
     origin: str
     stops: list[Stop] = Field(min_length=1)
     travellers: int = Field(ge=1)
@@ -81,5 +81,6 @@ class Itinerary(BaseModel):
 class ItineraryProposed(EventModel):
     """Planning's answer to one request: two or three ranked itineraries."""
 
-    trip_id: str
+    trip_id: int
+    proposal_id: str  # minted by the Planner, the proposal's owner; the event's id is the broker's
     itineraries: list[Itinerary] = Field(min_length=1, max_length=3)
