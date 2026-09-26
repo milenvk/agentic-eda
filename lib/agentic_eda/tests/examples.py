@@ -5,7 +5,7 @@ They are a small copy of the book's running example: a request, and the proposal
 
 from pydantic import Field
 
-from agentic_eda.events import EventContract, event
+from agentic_eda.contracts import EventContract, event
 
 ITINERARY_REQUESTED = "planning.ItineraryRequested"
 ITINERARY_PROPOSED = "planning.ItineraryProposed"

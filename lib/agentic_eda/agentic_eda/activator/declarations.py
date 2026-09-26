@@ -6,7 +6,7 @@ from typing import Annotated, Union, get_args
 
 from pydantic import BaseModel, Field, create_model
 
-from ..events import EventContract, Nothing, binding_of
+from ..contracts import EventContract, Nothing, binding_of
 
 
 @dataclass(frozen=True)

@@ -10,7 +10,7 @@ from examples import (
 )
 from pydantic import BaseModel
 
-from agentic_eda.events import OWN_ID, EventContract, Nothing, binding_of, event
+from agentic_eda.contracts import OWN_ID, EventContract, Nothing, binding_of, event
 
 def test_the_decorator_binds_a_class_to_its_type_and_its_ordering():
     binding = binding_of(ItineraryProposed)

@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from agentic_eda.events import binding_of
+from agentic_eda.contracts import binding_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
 

@@ -398,7 +398,7 @@ model an adapter concern. The activator owns five things.
    `event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")`, binds a class the
    developer does not own, so an existing agent's own models become the contract with no
    edit to the agent: it returns a subclass of that class with `EventContract` mixed in, and
-   the agent still receives an instance of its own class. `events.data_of(fact)` is the one
+   the agent still receives an instance of its own class. `contracts.data_of(fact)` is the one
    definition of what an event class puts on the wire (its own fields as JSON values,
    without its attributes or its type tag), used by the activator on the way out and by a
    demo script publishing through the port.

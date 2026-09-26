@@ -8,7 +8,7 @@
 """
 
 from .activator import attach, consumes, produces, publish
-from .events import OWN_ID, EventContract, Nothing, event
+from .contracts import OWN_ID, EventContract, Nothing, event
 
 __all__ = [
     "OWN_ID",

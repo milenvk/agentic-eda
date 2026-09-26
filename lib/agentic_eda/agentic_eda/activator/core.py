@@ -21,7 +21,7 @@ from pydantic import ValidationError
 from .. import connect
 from ..broker import PARTITION_KEY, EventBroker, WireEvent
 from ..envelope import ContextAttributes
-from ..events import OWN_ID, EventContract, Nothing, binding_of, data_of
+from ..contracts import OWN_ID, EventContract, Nothing, binding_of, data_of
 from .adapters import adapter_for
 from .declarations import Consumes, produced_classes
 

@@ -10,7 +10,7 @@ class WireEvent(ContextAttributes):
     """A business fact as it travels: its context attributes plus its data.
 
     This is the shape a CloudEvent takes on the wire, so the record here and the
-    JSON out there are one thing. Its data is a dict: a contract (``events.py``)
+    JSON out there are one thing. Its data is a dict: a contract (``contracts.py``)
     is applied where the event is consumed, never by the broker.
     """
 

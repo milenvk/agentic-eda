@@ -10,7 +10,7 @@ from uuid import uuid4
 from agentic_eda import console
 from agentic_eda.broker import WireEvent
 from agentic_eda.connect import event_broker
-from agentic_eda.events import data_of
+from agentic_eda.contracts import data_of
 from review_triage.events import REVIEW_RECEIVED, REVIEW_TRIAGED, ReviewReceived
 
 SOURCE = "SendReviewScript"

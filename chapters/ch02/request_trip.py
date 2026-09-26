@@ -14,7 +14,7 @@ from uuid import uuid4
 from agentic_eda import console
 from agentic_eda.broker import WireEvent, EventBroker
 from agentic_eda.connect import event_broker
-from agentic_eda.events import data_of
+from agentic_eda.contracts import data_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested, Money, Stop
 

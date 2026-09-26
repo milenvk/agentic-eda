@@ -7,7 +7,7 @@ publish order, and nothing is promised across reviews.
 
 from typing import Literal
 
-from agentic_eda.events import EventContract, event
+from agentic_eda.contracts import EventContract, event
 
 REVIEW_RECEIVED = "reviews.ReviewReceived"
 REVIEW_TRIAGED = "reviews.ReviewTriaged"

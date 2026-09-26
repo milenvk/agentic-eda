@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from agentic_eda.events import EventContract, event
+from agentic_eda.contracts import EventContract, event
 
 from ..event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
