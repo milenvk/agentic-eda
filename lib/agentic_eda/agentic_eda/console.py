@@ -10,7 +10,7 @@ import logging
 import os
 import sys
 
-from .broker import Event
+from .broker import WireEvent
 
 _VALUE_WIDTH = 120
 _RULE = "─" * 72
@@ -42,7 +42,7 @@ def _clip(value: object) -> str:
     return f"{text[:_VALUE_WIDTH]}… [truncated: {original_length:,} chars total]"
 
 
-def format_event(action: str, event: Event) -> str:
+def format_event(action: str, event: WireEvent) -> str:
     """One event as a card. `action` is what just happened to it, e.g.
     'PUBLISHED' or 'RECEIVED'."""
     color = "32" if action == "PUBLISHED" else "36"  # green / cyan
@@ -65,7 +65,7 @@ def format_event(action: str, event: Event) -> str:
     return "\n".join(lines)
 
 
-def show(action: str, event: Event) -> None:
+def show(action: str, event: WireEvent) -> None:
     print(format_event(action, event), flush=True)
 
 

@@ -2,12 +2,12 @@
 
 import json
 
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from audit_consumer.consumer import audit_line, record
 
 
-def make_event(event_id: str) -> Event:
-    return Event(
+def make_event(event_id: str) -> WireEvent:
+    return WireEvent(
         id=event_id,
         type="booking.TripRequested",
         source="RequestTripScript",

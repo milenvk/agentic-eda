@@ -14,8 +14,9 @@ The repository holds two libraries, and the line between them is the line betwee
 agentic event-driven application needs and what only a travel agency needs.
 
 * **`agentic_eda`, the framework** (`lib/agentic_eda/`, distributed as `agentic-eda`): the
-  `EventBroker` port and its adapters, the per-key lanes, `connect`, the `@event` machinery
-  (`EventModel`, `Nothing`, `OWN_ID`, `data_of`), the agent activator with its framework
+  `EventBroker` port and its adapters, the per-key lanes, `connect`, `envelope` (the
+  `ContextAttributes` the port and the contracts both import, so neither imports the other),
+  the `@event` machinery (`EventContract`, `Nothing`, `OWN_ID`, `data_of`), the agent activator with its framework
   adapters, the `eda` face imported by a developer, every other port with its adapters
   (hydration, the view store, the artifact store), producer identity's signing and
   verification, the supplier client's circuit breaker, the replay module, and the `console`
@@ -75,7 +76,7 @@ internals may mature chapter by chapter; these signatures do not.
 
 [source,python]
 ----
-class EventAttributes(BaseModel, extra="allow", frozen=True):
+class ContextAttributes(BaseModel, extra="allow", frozen=True):
     specversion: Literal["1.0"] = "1.0"
     id: str                          # UUID, globally unique across the whole system
     type: str                        # domain-prefixed name, e.g. "booking.TripRequested"
@@ -86,14 +87,14 @@ class EventAttributes(BaseModel, extra="allow", frozen=True):
     subject: str | None = None
     __pydantic_extra__: dict[str, str | int | bool] = Field(init=False)  # extensions, by name
 
-class Event(EventAttributes):
+class WireEvent(ContextAttributes):
     data: dict                       # the business fact
 
 class EventBroker(Protocol):
     async def publish(
         self, event_type: str, source: str, data: dict,
         id: str | None = None, attributes: dict[str, str] | None = None,
-    ) -> Event: ...
+    ) -> WireEvent: ...
     async def subscribe(
         self, event_type: str, handler: EventHandler, mode: str = "broadcast"
     ) -> None: ...
@@ -102,12 +103,12 @@ class EventBroker(Protocol):
 * `publish` returns the event as published, so a caller sees what the broker filled in as well
   as what it passed: the id whether minted or supplied, the time, and the rest of the envelope.
   Its `attributes` argument carries the optional and extension attributes a caller supplies.
-* `handler` is an async callable receiving an `Event`, which reads every attribute by name:
+* `handler` is an async callable receiving an `WireEvent`, which reads every attribute by name:
   `event.id`, `event.time`, an extension as `event.correlationid`, and the business fact as
   `event.data`.
 * The shape is CloudEvents' own. A structured CloudEvent is flat, its context attributes beside
-  `data`, and so is `Event`; the CloudEvents SDK's Pydantic event implements extensions the
-  same way, through `extra="allow"`. One class, `EventAttributes`, is therefore the attributes
+  `data`, and so is `WireEvent`; the CloudEvents SDK's Pydantic event implements extensions the
+  same way, through `extra="allow"`. One class, `ContextAttributes`, is therefore the attributes
   on the wire, in the port, and in the agent's view (`attributes_`, The Agent Activator), and
   nothing converts between them. Both classes are frozen, so no handler alters a delivered
   event. Extension values are `str | int | bool` because the spec allows integer and boolean
@@ -154,7 +155,7 @@ little is passed:
   CloudEvents per-`source` minimum.
 * `time`: now, UTC, unless supplied in `attributes`; RFC 3339 on the wire.
 * `datacontenttype`: `application/json` unless supplied in `attributes`.
-* `specversion`: declared on `EventAttributes` as `Literal["1.0"]` with that default, so no
+* `specversion`: declared on `ContextAttributes` as `Literal["1.0"]` with that default, so no
   caller sets it, and an event of another spec version is rejected when it is decoded.
 * `partitionkey` is never minted from nothing. It is the value of the field the event's class
   declares with `order_per` (The Agent Activator, below), because only the producer's side
@@ -166,7 +167,7 @@ little is passed:
 
 === Attributes
 
-An `Event` carries the declared context attributes (`specversion`, `id`, `type`, `source`,
+An `WireEvent` carries the declared context attributes (`specversion`, `id`, `type`, `source`,
 `time`, `datacontenttype`, `dataschema`, `subject`), the extension attributes as extras read
 by name, and `data`. A new extension needs no change to any class. The extension attributes,
 in order of introduction:
@@ -192,13 +193,13 @@ in order of introduction:
 
 CloudEvents 1.0 **structured JSON** from day one, encoded and decoded by the CloudEvents
 Python SDK (`cloudevents`, pinned at 2.2.0) inside the adapter. Components never see bytes,
-and no component or listing imports the SDK. The Kafka adapter turns an `Event` into the SDK's
+and no component or listing imports the SDK. The Kafka adapter turns an `WireEvent` into the SDK's
 `CloudEvent` (its attributes from `model_dump(exclude={"data"})`, and its data) and writes it
 with the SDK's Kafka binding in structured mode: the record's value is the JSON, its
 `content-type` header is `application/cloudevents+json`, and its key is the `partitionkey`
 extension, the binding's default key. Decoding goes through the binding's auto-detecting
 read, so an event arriving in binary mode (`ce_` headers) from a producer outside the book
-decodes too, and the SDK's attributes and data become an `Event` one to one. The SDK is pinned
+decodes too, and the SDK's attributes and data become an `WireEvent` one to one. The SDK is pinned
 exactly because its 2.x line warns that it "will break with every update": the adapter's
 tests catch a break before an upgrade ships, and the break stays inside the adapter. The
 push route (ch 15) uses the SDK's HTTP binding the same way.
@@ -357,7 +358,7 @@ model an adapter concern. The activator owns five things.
 * **The validating boundary.** Inbound: the envelope's schema, the UUID `id`, the required
   attributes, the data against the `@event` class bound to its type (below), which the agent
   receives as that class, with the event's attributes beside its data in `attributes_`, and
-  never as an `Event`, and from ch 13 the producer's identity; a rejected event
+  never as an `WireEvent`, and from ch 13 the producer's identity; a rejected event
   is logged and, from ch 10, dead-lettered, and never reaches the handler. Outbound: the same
   contract on every publish, including the presence of `partitionkey` (from the ch 2
   practical).
@@ -396,14 +397,14 @@ model an adapter concern. The activator owns five things.
    inherited or guessed key breaks order per key without a symptom. The function form,
    `event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")`, binds a class the
    developer does not own, so an existing agent's own models become the contract with no
-   edit to the agent: it returns a subclass of that class with `EventModel` mixed in, and
+   edit to the agent: it returns a subclass of that class with `EventContract` mixed in, and
    the agent still receives an instance of its own class. `events.data_of(fact)` is the one
    definition of what an event class puts on the wire (its own fields as JSON values,
    without its attributes or its type tag), used by the activator on the way out and by a
    demo script publishing through the port.
-   Every `@event` class subclasses `EventModel`, whose one field,
-   `attributes_: SkipJsonSchema[EventAttributes | None] = None`, carries the event's
-   attributes in the same `EventAttributes` class as the envelope's. The activator fills it
+   Every `@event` class subclasses `EventContract`, whose one field,
+   `attributes_: SkipJsonSchema[ContextAttributes | None] = None`, carries the event's
+   attributes in the same `ContextAttributes` class as the envelope's. The activator fills it
    on the way in with every attribute of the inbound event except `identitytoken`, since a
    credential never enters a model's context; `SkipJsonSchema` leaves it out of the schema a
    model answers against, so the model reads the attributes and is never asked to fill them;
@@ -411,8 +412,8 @@ model an adapter concern. The activator owns five things.
    of any payload field's name. A business fact the agent decides on still belongs in the
    data, because the attributes change under the agent (a relay sets `source` to the owner,
    and ch 14's Translator stands in front of a producer); the attributes inform the
-   reasoning with who asked, when, and in which conversation. `Event` keeps its name and its
-   job: it is one occurrence on the wire, the envelope, and an `@event` class is the contract
+   reasoning with who asked, when, and in which conversation. `WireEvent` is one occurrence on
+   the wire, the envelope, and an `@event` class is the contract
    for a kind of event (`ch02_semantic_data_contracts` says so in one sentence). The binding
    adds an `event_type` literal to the class, which is what makes a union of event classes
    discriminated and what a model's answer names itself with. It is named `event_type` and

@@ -1,11 +1,11 @@
 """Unit tests for the demo console renderer."""
 
 from agentic_eda import console
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from agentic_eda.console import format_event
 
 
-def make_event(**overrides) -> Event:
+def make_event(**overrides) -> WireEvent:
     fields = dict(
         id="event-1",
         type="booking.TripRequested",
@@ -14,7 +14,7 @@ def make_event(**overrides) -> Event:
         time="2026-08-16T00:00:00+00:00",
     )
     fields.update(overrides)
-    return Event(**fields)
+    return WireEvent(**fields)
 
 
 def test_the_card_shows_the_event_not_the_data_prose():

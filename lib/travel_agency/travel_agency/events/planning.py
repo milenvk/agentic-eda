@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from agentic_eda.events import EventModel, event
+from agentic_eda.events import EventContract, event
 
 from ..event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
@@ -24,7 +24,7 @@ class Stop(BaseModel):
 
 
 @event(ITINERARY_REQUESTED, order_per="trip_id")
-class ItineraryRequested(EventModel):
+class ItineraryRequested(EventContract):
     """Someone asks planning for itineraries. Whoever asks writes it."""
 
     trip_id: int
@@ -78,7 +78,7 @@ class Itinerary(BaseModel):
 
 
 @event(ITINERARY_PROPOSED, order_per="trip_id")
-class ItineraryProposed(EventModel):
+class ItineraryProposed(EventContract):
     """Planning's answer to one request: two or three ranked itineraries."""
 
     trip_id: int

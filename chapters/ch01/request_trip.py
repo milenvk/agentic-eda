@@ -8,7 +8,7 @@ in for it.
 import asyncio
 
 from agentic_eda import console
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from agentic_eda.connect import event_broker
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
@@ -28,7 +28,7 @@ TRIP = {
 }
 
 
-def is_reply_to(request_id: str, event: Event) -> bool:
+def is_reply_to(request_id: str, event: WireEvent) -> bool:
     """A reply names the event it answers — chapter 2 calls this causation."""
     return event.data.get("request_id") == request_id
 
@@ -41,7 +41,7 @@ async def main() -> None:
 
         received = asyncio.Event()
 
-        async def show_reply(event: Event) -> None:
+        async def show_reply(event: WireEvent) -> None:
             if is_reply_to(request.id, event):
                 print(flush=True)
                 console.show("RECEIVED", event)

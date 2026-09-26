@@ -8,7 +8,7 @@ import sys
 from uuid import uuid4
 
 from agentic_eda import console
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from agentic_eda.connect import event_broker
 from agentic_eda.events import data_of
 from review_triage.events import REVIEW_RECEIVED, REVIEW_TRIAGED, ReviewReceived
@@ -38,7 +38,7 @@ async def main() -> None:
 
         triaged = asyncio.Event()
 
-        async def show(event: Event) -> None:
+        async def show(event: WireEvent) -> None:
             # The activator copies a request's correlationid to everything it causes.
             if getattr(event, "correlationid", None) == sent.correlationid:
                 console.show("RECEIVED", event)

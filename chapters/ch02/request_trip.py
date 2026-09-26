@@ -12,7 +12,7 @@ from datetime import date
 from uuid import uuid4
 
 from agentic_eda import console
-from agentic_eda.broker import Event, EventBroker
+from agentic_eda.broker import WireEvent, EventBroker
 from agentic_eda.connect import event_broker
 from agentic_eda.events import data_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
@@ -45,7 +45,7 @@ def new_trip_id() -> int:
     return time.time_ns()
 
 
-async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> Event:
+async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> WireEvent:
     """Publish one request as the first event of a new thread."""
     request = await broker.publish(
         ITINERARY_REQUESTED,
@@ -57,17 +57,17 @@ async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> 
     return request
 
 
-def answers(request: Event, event: Event) -> bool:
+def answers(request: WireEvent, event: WireEvent) -> bool:
     """A proposal answers a request when both carry the same thread's label."""
     return getattr(event, "correlationid", None) == request.correlationid
 
 
-async def show_proposals(broker: EventBroker, requests: list[Event], patience: float | None = None):
+async def show_proposals(broker: EventBroker, requests: list[WireEvent], patience: float | None = None):
     """Show each request's proposal as it arrives, until all are answered or patience ends."""
     unanswered = list(requests)
     all_answered = asyncio.Event()
 
-    async def show(event: Event) -> None:
+    async def show(event: WireEvent) -> None:
         request = next((r for r in unanswered if answers(r, event)), None)
         if request is None:
             return  # another thread's proposal

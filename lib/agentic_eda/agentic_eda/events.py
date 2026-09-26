@@ -2,7 +2,7 @@
 
 An ``@event`` class is the contract for a kind of event: what its data holds, which
 type names it on the wire, and which of its fields its order is kept within. The
-``Event`` of the port is a different thing: one occurrence on the wire, the envelope
+``WireEvent`` of the port is a different thing: one occurrence on the wire, the envelope
 around that data.
 """
 
@@ -12,7 +12,7 @@ from typing import Literal
 from pydantic import BaseModel, create_model
 from pydantic.json_schema import SkipJsonSchema
 
-from .broker import EventAttributes
+from .envelope import ContextAttributes
 
 
 class _OwnId:
@@ -27,7 +27,7 @@ OWN_ID = _OwnId()
 _UNSET = object()
 
 
-class EventModel(BaseModel):
+class EventContract(BaseModel):
     """The base of every event class: its data, with the event's attributes beside it.
 
     ``attributes_`` is filled by the activator on the way in and overwritten on the
@@ -35,10 +35,10 @@ class EventModel(BaseModel):
     to fill it.
     """
 
-    attributes_: SkipJsonSchema[EventAttributes | None] = None
+    attributes_: SkipJsonSchema[ContextAttributes | None] = None
 
 
-class Nothing(EventModel):
+class Nothing(EventContract):
     """The answer of an agent that decided to publish nothing, and why.
 
     A positive answer rather than silence: the activator logs the reason and publishes
@@ -57,7 +57,7 @@ class Binding:
     order_per: str | _OwnId | None
 
 
-def data_of(fact: EventModel) -> dict:
+def data_of(fact: EventContract) -> dict:
     """An event's data as it is published: its own fields, as JSON values."""
     return fact.model_dump(mode="json", exclude={"attributes_", "event_type"})
 
@@ -74,7 +74,7 @@ def event(*args, order_per: str | _OwnId | None = _UNSET):
     As a decorator, on a class of your own::
 
         @event(ITINERARY_PROPOSED, order_per="trip_id")
-        class ItineraryProposed(EventModel): ...
+        class ItineraryProposed(EventContract): ...
 
     As a function, on a class you do not own, which comes back as a subclass an agent
     still receives as an instance of its own class::
@@ -98,8 +98,8 @@ def event(*args, order_per: str | _OwnId | None = _UNSET):
     return lambda cls: _bind(cls, event_type, order_per)
 
 
-def _bind(cls: type[BaseModel], event_type: str, order_per) -> type[EventModel]:
-    bases = (cls,) if issubclass(cls, EventModel) else (cls, EventModel)
+def _bind(cls: type[BaseModel], event_type: str, order_per) -> type[EventContract]:
+    bases = (cls,) if issubclass(cls, EventContract) else (cls, EventContract)
     bound = create_model(
         cls.__name__,
         __base__=bases,

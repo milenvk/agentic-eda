@@ -5,12 +5,12 @@ A deliberate few-line test double — not chapter 2's InMemoryBroker adapter.
 
 import pytest
 
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 
 
 class StubBroker:
     def __init__(self) -> None:
-        self.published: list[Event] = []
+        self.published: list[WireEvent] = []
 
     async def publish(
         self,
@@ -19,8 +19,8 @@ class StubBroker:
         data: dict,
         id: str | None = None,
         attributes: dict[str, str] | None = None,
-    ) -> Event:
-        event = Event(
+    ) -> WireEvent:
+        event = WireEvent(
             id=id or f"stub-{len(self.published)}",
             type=event_type,
             source=source,

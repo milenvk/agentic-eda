@@ -6,7 +6,7 @@ from overlapping_requests import nairobi_trip, sydney_trip
 from pydantic import ValidationError
 from request_trip import answers, lisbon_trip, request_itineraries
 
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryRequested
 from travel_agency.sims import world
@@ -14,16 +14,16 @@ from travel_agency.sims import world
 
 class RecordingBroker:
     def __init__(self) -> None:
-        self.published: list[Event] = []
+        self.published: list[WireEvent] = []
 
-    async def publish(self, event_type, source, data, id=None, attributes=None) -> Event:
-        event = Event(id=id or "e-1", type=event_type, source=source, data=data, **attributes)
+    async def publish(self, event_type, source, data, id=None, attributes=None) -> WireEvent:
+        event = WireEvent(id=id or "e-1", type=event_type, source=source, data=data, **attributes)
         self.published.append(event)
         return event
 
 
-def proposal(**attributes) -> Event:
-    return Event(id="p-1", type=ITINERARY_PROPOSED, source="Planner", data={}, **attributes)
+def proposal(**attributes) -> WireEvent:
+    return WireEvent(id="p-1", type=ITINERARY_PROPOSED, source="Planner", data={}, **attributes)
 
 
 def test_the_running_example_is_the_trip_chapter_1_opens_with():

@@ -13,7 +13,7 @@ import time
 
 import litellm
 
-from agentic_eda.broker import Event, EventBroker
+from agentic_eda.broker import WireEvent, EventBroker
 from travel_agency.event_types import ITINERARY_PROPOSED
 
 SOURCE = "ItineraryPlannerAgent"
@@ -35,7 +35,7 @@ holding exactly one itinerary: a short "label" for what it optimises, a short
 log = logging.getLogger(SOURCE)
 
 
-async def plan(broker: EventBroker, event: Event) -> None:
+async def plan(broker: EventBroker, event: WireEvent) -> None:
     """Handle one ItineraryRequested event: reason, then answer with a proposal.
 
     The reply carries the request event's id, which is how the requester matches

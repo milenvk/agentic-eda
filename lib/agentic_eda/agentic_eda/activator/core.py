@@ -19,8 +19,9 @@ from dataclasses import dataclass, field
 from pydantic import ValidationError
 
 from .. import connect
-from ..broker import PARTITION_KEY, Event, EventAttributes, EventBroker
-from ..events import OWN_ID, EventModel, Nothing, binding_of, data_of
+from ..broker import PARTITION_KEY, EventBroker, WireEvent
+from ..envelope import ContextAttributes
+from ..events import OWN_ID, EventContract, Nothing, binding_of, data_of
 from .adapters import adapter_for
 from .declarations import Consumes, produced_classes
 
@@ -37,9 +38,9 @@ class RejectedAnswer(ValueError):
 
 @dataclass
 class Activation:
-    event: Event
+    event: WireEvent
     activator: "Activator"
-    published: list[Event] = field(default_factory=list)
+    published: list[WireEvent] = field(default_factory=list)
 
 
 # Set before the agent is invoked. asyncio carries it into every task a framework spawns
@@ -47,7 +48,7 @@ class Activation:
 _ACTIVATION: ContextVar[Activation | None] = ContextVar("activation", default=None)
 
 
-async def publish(fact: EventModel) -> Event:
+async def publish(fact: EventContract) -> WireEvent:
     """State a fact from inside an activation: the code twin of a publish tool.
 
     For an agent that must commit one fact before it goes on to the next. It is the
@@ -91,7 +92,7 @@ class Activator:
                 with suppress(asyncio.CancelledError):
                     await delivering
 
-    async def activate(self, event: Event) -> None:
+    async def activate(self, event: WireEvent) -> None:
         """One activation: returning acknowledges the event, raising redelivers it."""
         request = self._validated(event)
         if request is None:
@@ -118,16 +119,16 @@ class Activator:
         finally:
             _ACTIVATION.reset(token)
 
-    def _validated(self, event: Event) -> EventModel | None:
+    def _validated(self, event: WireEvent) -> EventContract | None:
         cls = self._consumed[event.type]
-        attributes = EventAttributes(**event.model_dump(exclude={"data", "identitytoken"}))
+        attributes = ContextAttributes(**event.model_dump(exclude={"data", "identitytoken"}))
         try:
             return cls.model_validate({**event.data, "attributes_": attributes})
         except ValidationError as error:
             log.warning("%s rejected %s %s:\n%s", self.source, event.type, event.id, error)
             return None
 
-    def _reduce(self, answer) -> list[EventModel]:
+    def _reduce(self, answer) -> list[EventContract]:
         """Turn what the agent answered into instances of the classes it declared."""
         if answer is None:
             # Code cannot drift the way a model can, so where code answers, no answer is
@@ -152,7 +153,7 @@ class Activator:
             )
         return [answer]
 
-    def _parsed(self, answer: dict) -> EventModel:
+    def _parsed(self, answer: dict) -> EventContract:
         candidates = (self._answer_schema, *self._produced)
         errors = []
         for cls in candidates:
@@ -162,7 +163,7 @@ class Activator:
                 errors.append(f"{cls.__name__}: {error}")
         raise RejectedAnswer("the answer fits none of the declared classes:\n" + "\n".join(errors))
 
-    async def _publish(self, fact: EventModel, activation: Activation) -> Event:
+    async def _publish(self, fact: EventContract, activation: Activation) -> WireEvent:
         if not isinstance(fact, self._produced) or isinstance(fact, Nothing):
             raise RejectedAnswer(
                 f"{type(fact).__name__} is not among what {self.source} declared it produces"
@@ -214,7 +215,7 @@ def attach(app, agent, *, consumes: Consumes, produces, source: str | None = Non
     return activator
 
 
-def _thread_id(event: Event) -> str:
+def _thread_id(event: WireEvent) -> str:
     # The key where there is one, so everything about one trip shares a thread.
     return str(getattr(event, PARTITION_KEY, None) or event.id)
 

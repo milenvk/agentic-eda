@@ -5,21 +5,21 @@ They are a small copy of the book's running example: a request, and the proposal
 
 from pydantic import Field
 
-from agentic_eda.events import EventModel, event
+from agentic_eda.events import EventContract, event
 
 ITINERARY_REQUESTED = "planning.ItineraryRequested"
 ITINERARY_PROPOSED = "planning.ItineraryProposed"
 
 
 @event(ITINERARY_REQUESTED, order_per="trip_id")
-class ItineraryRequested(EventModel):
+class ItineraryRequested(EventContract):
     trip_id: str
     origin: str
     travellers: int = Field(ge=1)
 
 
 @event(ITINERARY_PROPOSED, order_per="trip_id")
-class ItineraryProposed(EventModel):
+class ItineraryProposed(EventContract):
     trip_id: str
     itineraries: list[str] = Field(min_length=1, max_length=3)
 

@@ -15,7 +15,7 @@ import pytest
 from aiokafka.structs import TopicPartition
 
 from agentic_eda import kafka_broker
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from agentic_eda.kafka_broker import KafkaEventBroker, decode, encode, topic_for
 from agentic_eda.lanes import Watermark
 
@@ -109,7 +109,7 @@ def fake_kafka(monkeypatch):
     return FakeConsumer
 
 
-def make_event(**overrides) -> Event:
+def make_event(**overrides) -> WireEvent:
     fields = dict(
         id="event-1",
         type="booking.TripRequested",
@@ -119,10 +119,10 @@ def make_event(**overrides) -> Event:
         subject="trip",
     )
     fields.update(overrides)
-    return Event(**fields)
+    return WireEvent(**fields)
 
 
-def record(offset: int, event: Event, key: bytes | None = None) -> SimpleNamespace:
+def record(offset: int, event: WireEvent, key: bytes | None = None) -> SimpleNamespace:
     message = encode(event)
     return SimpleNamespace(
         offset=offset, key=key, value=message.value, headers=list(message.headers.items())
@@ -244,7 +244,7 @@ async def test_the_partitionkey_becomes_the_record_key(fake_kafka):
 async def test_a_component_subscribes_to_the_topics_of_its_events_contexts(fake_kafka):
     broker = KafkaEventBroker("kafka:9092", client_name="AuditConsumer")
 
-    async def handler(event: Event) -> None:
+    async def handler(event: WireEvent) -> None:
         pass
 
     await broker.subscribe("booking.TripRequested", handler)
@@ -266,7 +266,7 @@ async def test_a_subscriber_starts_at_the_tail_by_default(fake_kafka):
     """
     broker = KafkaEventBroker("kafka:9092", client_name="AuditConsumer")
 
-    async def handler(event: Event) -> None:
+    async def handler(event: WireEvent) -> None:
         pass
 
     await broker.subscribe("booking.A", handler)
@@ -280,7 +280,7 @@ async def test_a_component_can_ask_for_the_history_the_broker_still_holds(fake_k
     in the component's own code instead of a broker setting it never mentions."""
     broker = KafkaEventBroker("kafka:9092", client_name="Observer", start="beginning")
 
-    async def handler(event: Event) -> None:
+    async def handler(event: WireEvent) -> None:
         pass
 
     await broker.subscribe("booking.A", handler)
@@ -336,7 +336,7 @@ async def test_a_revoked_partition_is_committed_and_then_forgotten():
 async def test_commit_happens_only_after_the_handler_finishes(fake_kafka):
     broker = KafkaEventBroker("kafka:9092", client_name="test")
 
-    async def handler(event: Event) -> None:
+    async def handler(event: WireEvent) -> None:
         fake_kafka.last.calls.append(f"handled {event.id}")  # one log with the consumer's
 
     await broker.subscribe("booking.TripRequested", handler)
@@ -354,7 +354,7 @@ async def test_other_types_on_the_topic_are_acknowledged_untouched(fake_kafka):
     broker = KafkaEventBroker("kafka:9092", client_name="test")
     seen: list[str] = []
 
-    async def handler(event: Event) -> None:
+    async def handler(event: WireEvent) -> None:
         seen.append(event.type)
 
     await broker.subscribe("booking.TripRequested", handler)
@@ -375,7 +375,7 @@ async def test_both_sides_of_the_conversation_are_logged(fake_kafka, caplog):
         await broker.publish("booking.SomethingHappened", "test", {"a": 1})
     assert "PUBLISHED" in caplog.text
 
-    async def handler(event: Event) -> None:
+    async def handler(event: WireEvent) -> None:
         pass
 
     await broker.subscribe("booking.TripRequested", handler)
@@ -387,7 +387,7 @@ async def test_both_sides_of_the_conversation_are_logged(fake_kafka, caplog):
 async def test_no_commit_when_the_handler_fails(fake_kafka):
     broker = KafkaEventBroker("kafka:9092", client_name="test")
 
-    async def failing_handler(event: Event) -> None:
+    async def failing_handler(event: WireEvent) -> None:
         raise RuntimeError("killed mid-inference")
 
     await broker.subscribe("booking.TripRequested", failing_handler)
@@ -407,7 +407,7 @@ class Gated:
         self.started: list[str] = []
         self.gates: dict[str, asyncio.Event] = {}
 
-    async def __call__(self, event: Event) -> None:
+    async def __call__(self, event: WireEvent) -> None:
         self.started.append(event.id)
         await self.gates.setdefault(event.id, asyncio.Event()).wait()
 

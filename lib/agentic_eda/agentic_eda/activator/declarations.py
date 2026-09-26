@@ -6,15 +6,15 @@ from typing import Annotated, Union, get_args
 
 from pydantic import BaseModel, Field, create_model
 
-from ..events import EventModel, Nothing, binding_of
+from ..events import EventContract, Nothing, binding_of
 
 
 @dataclass(frozen=True)
 class Consumes:
-    classes: tuple[type[EventModel], ...]
-    interrupting: frozenset[type[EventModel]]
+    classes: tuple[type[EventContract], ...]
+    interrupting: frozenset[type[EventContract]]
 
-    def by_type(self) -> dict[str, type[EventModel]]:
+    def by_type(self) -> dict[str, type[EventContract]]:
         return {binding_of(cls).type: cls for cls in self.classes}
 
 
@@ -22,7 +22,7 @@ class PureConsumer:
     """What ``produces()`` with no classes returns: an agent that answers with nothing."""
 
 
-def consumes(*classes: type[EventModel], interrupting=()) -> Consumes:
+def consumes(*classes: type[EventContract], interrupting=()) -> Consumes:
     """The event classes an agent reacts to, checked the moment the module loads.
 
     An option about particular classes names them, and they are among the declared ones.
@@ -35,7 +35,7 @@ def consumes(*classes: type[EventModel], interrupting=()) -> Consumes:
     return Consumes(classes=tuple(classes), interrupting=frozenset(interrupting))
 
 
-def produces(*classes: type[EventModel]):
+def produces(*classes: type[EventContract]):
     """The event classes an agent answers with, which is also its typed-output schema.
 
     One class comes back as itself. Wherever there is a choice, several classes or a
@@ -62,7 +62,7 @@ def produces(*classes: type[EventModel]):
     return answer
 
 
-def produced_classes(declaration) -> tuple[type[EventModel], ...]:
+def produced_classes(declaration) -> tuple[type[EventContract], ...]:
     """The classes behind whatever ``produces`` returned."""
     if declaration is PureConsumer:
         return ()

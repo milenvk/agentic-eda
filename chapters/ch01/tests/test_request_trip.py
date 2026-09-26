@@ -2,12 +2,12 @@
 
 from request_trip import TRIP, is_reply_to
 
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from travel_agency.event_types import ITINERARY_PROPOSED
 
 
-def proposal(request_id: str) -> Event:
-    return Event(
+def proposal(request_id: str) -> WireEvent:
+    return WireEvent(
         id="reply-1",
         type=ITINERARY_PROPOSED,
         source="ItineraryPlannerAgent",
@@ -24,7 +24,7 @@ def test_ignores_replies_to_other_requests():
 
 
 def test_ignores_events_that_reference_no_request():
-    stray = Event(id="x", type=ITINERARY_PROPOSED, source="s", data={})
+    stray = WireEvent(id="x", type=ITINERARY_PROPOSED, source="s", data={})
     assert not is_reply_to("req-1", stray)
 
 

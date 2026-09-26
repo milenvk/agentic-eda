@@ -16,7 +16,7 @@ from aiokafka.structs import ConsumerRecord, TopicPartition
 from cloudevents.core.bindings import kafka
 from cloudevents.core.v1.event import CloudEvent
 
-from .broker import Event, EventHandler
+from .broker import WireEvent, EventHandler
 from .console import format_event
 from .lanes import Lanes, Watermark
 
@@ -38,7 +38,7 @@ def topic_for(event_type: str) -> str:
     return context
 
 
-def encode(event: Event) -> kafka.KafkaMessage:
+def encode(event: WireEvent) -> kafka.KafkaMessage:
     """CloudEvents 1.0 structured JSON, written by the CloudEvents SDK.
 
     The binding puts the whole event in the record's value, marks it with the
@@ -51,7 +51,7 @@ def encode(event: Event) -> kafka.KafkaMessage:
     return kafka.to_structured_event(CloudEvent(attributes, event.data))
 
 
-def decode(record: ConsumerRecord) -> Event:
+def decode(record: ConsumerRecord) -> WireEvent:
     """Read a record as an event, whichever content mode it arrived in.
 
     A producer outside this system may send binary mode (``ce_`` headers); the
@@ -59,7 +59,7 @@ def decode(record: ConsumerRecord) -> Event:
     """
     message = kafka.KafkaMessage(dict(record.headers or ()), record.key, record.value)
     envelope = kafka.from_kafka_event(message)
-    return Event(**envelope.get_attributes(), data=envelope.get_data())
+    return WireEvent(**envelope.get_attributes(), data=envelope.get_data())
 
 
 class _PartitionListener(ConsumerRebalanceListener):
@@ -148,11 +148,11 @@ class KafkaEventBroker:
         data: dict,
         id: str | None = None,
         attributes: dict[str, str] | None = None,
-    ) -> Event:
+    ) -> WireEvent:
         attributes = dict(attributes or {})
         attributes.setdefault("time", datetime.now(timezone.utc).isoformat())
         attributes.setdefault("datacontenttype", "application/json")
-        event = Event(
+        event = WireEvent(
             id=id or str(uuid.uuid4()),
             type=event_type,
             source=source,

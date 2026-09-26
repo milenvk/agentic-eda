@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
-from agentic_eda.broker import EventAttributes
+from agentic_eda.envelope import ContextAttributes
 from itinerary_planner.graph import Brief, Judgement, LegBrief, Picks, Ranking, StayBrief
 from itinerary_planner.suppliers import FlightOffer, HotelOffer
 from travel_agency.events.planning import ItineraryRequested, Money
@@ -29,7 +29,7 @@ def request(event_id: str = "req-1", budget: float | None = 2900, **changes) -> 
         "budget": usd(budget) if budget else None,
         "preferences": "quiet, walkable, we'd take a stop to save real money",
         "car_class": None,
-        "attributes_": EventAttributes(
+        "attributes_": ContextAttributes(
             id=event_id, type="planning.ItineraryRequested", source="RequestTripScript"
         ),
     }

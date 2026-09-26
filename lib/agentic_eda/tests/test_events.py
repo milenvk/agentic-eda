@@ -10,7 +10,7 @@ from examples import (
 )
 from pydantic import BaseModel
 
-from agentic_eda.events import OWN_ID, EventModel, Nothing, binding_of, event
+from agentic_eda.events import OWN_ID, EventContract, Nothing, binding_of, event
 
 def test_the_decorator_binds_a_class_to_its_type_and_its_ordering():
     binding = binding_of(ItineraryProposed)
@@ -41,17 +41,17 @@ def test_order_per_names_a_field_the_class_has():
     with pytest.raises(TypeError, match="no field 'trip'"):
 
         @event("planning.Something", order_per="trip")
-        class Something(EventModel):
+        class Something(EventContract):
             trip_id: str
 
 
 def test_the_two_other_orderings_are_written_out():
     @event("booking.TripRequested", order_per=OWN_ID)
-    class TripRequested(EventModel):
+    class TripRequested(EventContract):
         origin: str
 
     @event("system.SweepDue", order_per=None)
-    class SweepDue(EventModel):
+    class SweepDue(EventContract):
         pass
 
     assert binding_of(TripRequested).order_per is OWN_ID
@@ -66,7 +66,7 @@ def test_the_function_form_binds_a_class_you_do_not_own():
     request = bound(trip_id="trip-1")
 
     assert isinstance(request, TheirRequest)  # the agent still receives its own class
-    assert isinstance(request, EventModel)
+    assert isinstance(request, EventContract)
     assert binding_of(bound).type == "planning.ItineraryRequested"
     assert binding_of(TheirRequest) is None  # the original is left as it was
 

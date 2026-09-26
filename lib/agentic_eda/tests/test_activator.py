@@ -20,7 +20,7 @@ from pydantic import BaseModel, ValidationError
 from starlette.applications import Starlette
 
 from agentic_eda import connect, eda
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from agentic_eda.activator import Activator, NoAnswer, RejectedAnswer
 from agentic_eda.activator.adapters import adapter_for
 from agentic_eda.activator.declarations import PureConsumer, produced_classes
@@ -28,11 +28,11 @@ from agentic_eda.activator.declarations import PureConsumer, produced_classes
 
 class StubBroker:
     def __init__(self) -> None:
-        self.published: list[Event] = []
+        self.published: list[WireEvent] = []
         self.handlers: dict[str, object] = {}
 
-    async def publish(self, event_type, source, data, id=None, attributes=None) -> Event:
-        event = Event(
+    async def publish(self, event_type, source, data, id=None, attributes=None) -> WireEvent:
+        event = WireEvent(
             id=id or f"stub-{len(self.published)}",
             type=event_type,
             source=source,
@@ -61,14 +61,14 @@ def broker(monkeypatch) -> StubBroker:
     return stub
 
 
-def requested(**attributes) -> Event:
-    return Event(
+def requested(**attributes) -> WireEvent:
+    return WireEvent(
         id="req-1", type=ITINERARY_REQUESTED, source="RequestTripScript", data=REQUEST,
         **attributes,
     )  # fmt: skip
 
 
-async def activate(agent, broker, event=None, produces=None) -> list[Event]:
+async def activate(agent, broker, event=None, produces=None) -> list[WireEvent]:
     activator = Activator(
         agent,
         consumes=eda.consumes(ItineraryRequested),
@@ -117,7 +117,7 @@ def test_produces_with_no_classes_declares_a_pure_consumer():
 
 def test_produces_refuses_a_default_a_strict_schema_cannot_express():
     @eda.event("planning.Loose", order_per=None)
-    class Loose(eda.EventModel):
+    class Loose(eda.EventContract):
         currency: str = "USD"
 
     with pytest.raises(TypeError, match="Loose.currency has a default"):
@@ -183,7 +183,7 @@ async def test_a_malformed_event_is_rejected_before_the_agent_and_acknowledged(b
     async def plan(request):
         called.append(request)
 
-    malformed = Event(id="req-2", type=ITINERARY_REQUESTED, source="s", data={"trip_id": "t"})
+    malformed = WireEvent(id="req-2", type=ITINERARY_REQUESTED, source="s", data={"trip_id": "t"})
     assert await activate(plan, broker, malformed) == []
     assert called == []
 
@@ -268,7 +268,7 @@ async def test_publish_is_only_available_inside_an_activation():
 
 async def test_the_event_that_starts_a_sequence_is_keyed_on_its_own_id(broker):
     @eda.event("booking.TripRequested", order_per=eda.OWN_ID)
-    class TripRequested(eda.EventModel):
+    class TripRequested(eda.EventContract):
         origin: str
 
     async def ask(request):
@@ -280,7 +280,7 @@ async def test_the_event_that_starts_a_sequence_is_keyed_on_its_own_id(broker):
 
 async def test_an_event_nothing_orders_carries_no_key(broker):
     @eda.event("system.SweepDue", order_per=None)
-    class SweepDue(eda.EventModel):
+    class SweepDue(eda.EventContract):
         pass
 
     async def sweep(request):

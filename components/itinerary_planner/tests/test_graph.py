@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from conftest import brief, request
 
 from agentic_eda import connect, eda
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from agentic_eda.activator import Activator
 from agentic_eda.hydration import NoHydration
 from itinerary_planner.graph import MAX_ATTEMPTS, build_graph, legs_of
@@ -125,12 +125,12 @@ def test_the_agent_module_knows_nothing_of_events():
 async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
     model, airline, hotels, monkeypatch
 ):
-    published: list[Event] = []
+    published: list[WireEvent] = []
     handlers = {}
 
     class StubBroker:
-        async def publish(self, event_type, source, data, id=None, attributes=None) -> Event:
-            event = Event(id=id or "p-1", type=event_type, source=source, data=data, **attributes)
+        async def publish(self, event_type, source, data, id=None, attributes=None) -> WireEvent:
+            event = WireEvent(id=id or "p-1", type=event_type, source=source, data=data, **attributes)
             published.append(event)
             return event
 
@@ -151,7 +151,7 @@ async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
         produces=eda.produces(ItineraryProposed),
         source="ItineraryPlannerAgent",
     )
-    asked = Event(
+    asked = WireEvent(
         id="req-1",
         type=ITINERARY_REQUESTED,
         source="RequestTripScript",

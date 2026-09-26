@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agentic_eda.broker import Event
+from agentic_eda.broker import WireEvent
 from itinerary_planner_minimal import agent
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
@@ -45,8 +45,8 @@ def llm(monkeypatch):
     return calls
 
 
-def itinerary_requested() -> Event:
-    return Event(
+def itinerary_requested() -> WireEvent:
+    return WireEvent(
         id="req-42",
         type=ITINERARY_REQUESTED,
         source="RequestTripScript",

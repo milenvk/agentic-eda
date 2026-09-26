@@ -7,21 +7,21 @@ publish order, and nothing is promised across reviews.
 
 from typing import Literal
 
-from agentic_eda.events import EventModel, event
+from agentic_eda.events import EventContract, event
 
 REVIEW_RECEIVED = "reviews.ReviewReceived"
 REVIEW_TRIAGED = "reviews.ReviewTriaged"
 
 
 @event(REVIEW_RECEIVED, order_per="review_id")
-class ReviewReceived(EventModel):
+class ReviewReceived(EventContract):
     review_id: str
     product: str
     text: str
 
 
 @event(REVIEW_TRIAGED, order_per="review_id")
-class ReviewTriaged(EventModel):
+class ReviewTriaged(EventContract):
     review_id: str
     sentiment: Literal["positive", "neutral", "negative"]
     summary: str
