@@ -1,7 +1,10 @@
-"""Prompts are configuration: versioned files, the version chosen by `PROMPT_VERSION`."""
+"""Prompts are configuration: versioned files, the version chosen by `PROMPT_VERSION`.
+
+The files are in this package, beside this module, so they are installed with it.
+"""
 
 import os
-from pathlib import Path
+from importlib import resources
 from typing import TypeVar
 
 import litellm
@@ -9,12 +12,11 @@ from pydantic import BaseModel
 
 Answer = TypeVar("Answer", bound=BaseModel)
 
-_PROMPTS = Path(__file__).parent.parent / "prompts"
-
 
 def render(name: str, **variables: object) -> str:
     version = os.environ.get("PROMPT_VERSION", "v1")
-    return (_PROMPTS / f"{name}.{version}.md").read_text().format(**variables)
+    prompt = resources.files(__package__).joinpath(f"{name}.{version}.md")
+    return prompt.read_text(encoding="utf-8").format(**variables)
 
 
 async def ask(name: str, answer: type[Answer], **variables: object) -> Answer:

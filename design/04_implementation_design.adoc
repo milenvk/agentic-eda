@@ -676,7 +676,13 @@ and republishes them with their keys, so the Planner on the fixed prompt answers
 
 A component is never edited after its first chapter (01_system_overview.adoc, ground rules),
 and a prompt is the part of an agent most likely to change, so prompts are configuration, not
-code. Every prompt is a versioned file under the component (`prompts/<name>.v<N>.md`), the
+code. Every prompt is a versioned file inside the component's package
+(`<package>/prompts/<name>.v<N>.md`), beside the module loading it (`prompts/__init__.py`)
+through `importlib.resources`, never through a path built from `__file__`. The files are
+therefore installed with the package and found the same way from the source tree and from
+the installed copy, and an image holds every version. The component's suite renders each
+prompt file with the agent's own variables from the installed package, so a file left out of
+the package and a variable missing from a file both fail the gate. The
 compose file selects the version by environment (`PROMPT_VERSION`), and the activator stamps
 `promptversion` and `modelversion` on every event the agent publishes. Ch 10's prompt regression
 selects a faulty version and replays the dead-lettered events after a bump; ch 12's optimality
