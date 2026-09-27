@@ -8,7 +8,7 @@ import os
 from typing import Literal
 
 import litellm
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .events import ReviewReceived, ReviewTriaged
 
@@ -22,9 +22,11 @@ and say whether the customer needs a reply from a person."""
 
 
 class Judgement(BaseModel):
+    """The answer asked of the LLM: the triage without the review's id."""
+
     sentiment: Literal["positive", "neutral", "negative"]
-    summary: str
-    needs_reply: bool
+    summary: str = Field(description="The review in one sentence.")
+    needs_reply: bool = Field(description="True when a person should answer the customer.")
 
 
 async def triage(review: ReviewReceived) -> ReviewTriaged:

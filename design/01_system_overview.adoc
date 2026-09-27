@@ -156,7 +156,7 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   ItineraryRequestSuperseded; one aggregate, the Itinerary Planner's: the Proposal, one answer
   to one planning request, identified by a `proposal_id` minted by the Planner when it
   publishes and keyed by the trip's id, holding the requirements as they stood, its status
-  (proposed, then accepted when the customer chooses one of its itineraries), and two or three
+  (proposed, then accepted when the customer chooses one of its itineraries), and one to three
   ranked Itineraries (a rank, a label, a total, the Planner's rationale), each with its items
   in travel order: a FlightItem per leg (segments, fare conditions) and a StayItem per stop
   (hotel, room, rate plan, cancellation terms, optionally a backup), every item carrying its
@@ -285,7 +285,7 @@ classDiagram
         validity
     }
     Proposal "1" *-- "1" Requirements
-    Proposal "1" *-- "2..3" Itinerary
+    Proposal "1" *-- "1..3" Itinerary
     Itinerary "1" *-- "1..*" FlightItem
     Itinerary "1" *-- "1..*" StayItem
     FlightItem "1" --> "1" Offer
@@ -768,13 +768,14 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   hotel-search sub-agent that matches the customer's preferences per stop against the hotel
   sim's inventory over MCP and flags an offer as the last room from the sim's rooms-left field;
   a deterministic validator node that rejects anything breaking a hard constraint (never the
-  model); and the join, where the planner node assembles and ranks two or three itineraries and
+  model); and the join, where the planner node assembles and ranks one to three itineraries and
   writes a rationale for each. The division of labour inside is fixed: code fetches and code
   carries the facts, and the model only judges. The planner node briefs the two searches
-  (stops allowed and price limits per leg, a spending limit and an area per stay); each
-  search queries its supplier in code and asks the model which of the offers returned to
-  keep, best first, falling back to price when the model names an offer nobody made; the
-  join assembles up to three candidates in code (cheapest, fastest, and the searches' own
+  (stops allowed and price limits per leg, a spending limit and an area per stay, and one
+  note on what to favour); each search queries its supplier in code, applies the limits in
+  code, and asks the model, given the customer's preferences, the note, and the area, which
+  of the offers returned to keep, best first, falling back to price when the model names an
+  offer nobody made; the join assembles up to three candidates in code (cheapest, fastest, and the searches' own
   first picks as best value) from the suppliers' offers exactly as made; the validator
   checks the budget, the order of the flights, and the offers' validity; and it always
   hands back to the planner, which briefs again with the problems it was told, up to three

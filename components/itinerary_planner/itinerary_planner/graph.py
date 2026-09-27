@@ -15,7 +15,7 @@ from uuid import uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agentic_eda.hydration import Hydration
 from travel_agency.events.planning import (
@@ -43,37 +43,53 @@ class Leg(BaseModel):
 
 
 class LegBrief(BaseModel):
-    max_stops: int
-    max_price: float | None
+    """The limits for the flight search of one leg."""
+
+    max_stops: int = Field(description="0 means nonstop flights only.")
+    max_price: float | None = Field(
+        description="Upper limit for one offer, all travellers together. Null means no limit."
+    )
 
 
 class StayBrief(BaseModel):
-    max_total: float | None
-    area_hint: str | None
+    """The limits for the hotel search of one stop."""
+
+    max_total: float | None = Field(
+        description="Upper limit for the whole stay, all travellers together. Null means no limit."
+    )
+    area_hint: str | None = Field(
+        description="The kind of area to look in. Null when the preferences suggest none."
+    )
 
 
 class Brief(BaseModel):
     """What the planner asks of the two searches, one entry per leg and per stop."""
 
-    legs: list[LegBrief]
-    stays: list[StayBrief]
-    note: str
+    legs: list[LegBrief] = Field(description="One entry per flight leg, in travel order.")
+    stays: list[StayBrief] = Field(description="One entry per hotel stay, in travel order.")
+    note: str = Field(description="One sentence on what the searches should favour.")
 
 
 class Picks(BaseModel):
     """A search's judgement: which offers to keep, best first, and why."""
 
-    offer_ids: list[str]
-    reason: str
+    offer_ids: list[str] = Field(description="Copied exactly from the offers, best first.")
+    reason: str = Field(description="One sentence on why the first offer is first.")
 
 
 class Judgement(BaseModel):
-    label: str
-    rank: int
-    rationale: str
+    """The planner's verdict on one candidate itinerary."""
+
+    label: str = Field(description="The judged itinerary's label, copied exactly.")
+    rank: int = Field(description="1 is the itinerary to recommend first.")
+    rationale: str = Field(
+        description="One or two sentences for the customer on the trade against the others."
+    )
 
 
 class Ranking(BaseModel):
+    """One judgement per candidate itinerary."""
+
     judgements: list[Judgement]
 
 
@@ -137,7 +153,9 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
                 offers = await airline.search(*asked, 1)
             if wanted.max_price is not None:
                 offers = [o for o in offers if o.price.amount <= wanted.max_price] or offers
-            kept.append(await _picked(ask, "flights", state.request, leg, offers))
+            kept.append(
+                await _picked(ask, "flights", state.request, leg, offers, note=state.brief.note)
+            )
         return {"flights": kept}
 
     async def hotel_search(state: PlannerState) -> dict:
@@ -149,7 +167,17 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
             )
             if wanted.max_total is not None:
                 offers = [o for o in offers if o.total.amount <= wanted.max_total] or offers
-            kept.append(await _picked(ask, "hotels", state.request, stop, offers))
+            kept.append(
+                await _picked(
+                    ask,
+                    "hotels",
+                    state.request,
+                    stop,
+                    offers,
+                    note=state.brief.note,
+                    area_hint=wanted.area_hint or "no particular area",
+                )
+            )
         return {"hotels": kept}
 
     def join(state: PlannerState) -> dict:
@@ -184,7 +212,7 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
     )
 
 
-async def _picked(ask: Ask, prompt: str, request, subject, offers: list) -> list:
+async def _picked(ask: Ask, prompt: str, request, subject, offers: list, **brief: str) -> list:
     """The search's judgement over what the supplier offered, never beyond it."""
     if not offers:
         raise LookupError(f"no supplier offers anything for {subject}")
@@ -195,6 +223,7 @@ async def _picked(ask: Ask, prompt: str, request, subject, offers: list) -> list
         subject=subject.model_dump_json(),
         offers="\n".join(o.model_dump_json() for o in offers),
         keep=PICKS,
+        **brief,  # the planner's words for this search
     )
     by_id = {offer.offer_id: offer for offer in offers}
     kept = [by_id[i] for i in dict.fromkeys(picks.offer_ids) if i in by_id][:PICKS]

@@ -402,6 +402,13 @@ model an adapter concern. The activator owns five things.
    definition of what an event class puts on the wire (its own fields as JSON values,
    without its attributes or its type tag), used by the activator on the way out and by a
    demo script publishing through the port.
+   A field's meaning is part of the contract wherever its name and type leave a question
+   open: a unit, the meaning of a null, an order, the owner of an identifier. It is written
+   as `Field(description=...)`, and the class's purpose as its docstring, never as a `#`
+   comment: Pydantic exports both into the JSON Schema (`description` on the property and
+   on the object), and a comment is absent from it. A field with a name that settles its
+   meaning has no description. The classes nested in an event class are described the same
+   way.
    Every `@event` class subclasses `EventContract`, whose one field,
    `attributes_: SkipJsonSchema[ContextAttributes | None] = None`, carries the event's
    attributes in the same `ContextAttributes` class as the envelope's. The activator fills it
@@ -673,8 +680,13 @@ code. Every prompt is a versioned file under the component (`prompts/<name>.v<N>
 compose file selects the version by environment (`PROMPT_VERSION`), and the activator stamps
 `promptversion` and `modelversion` on every event the agent publishes. Ch 10's prompt regression
 selects a faulty version and replays the dead-lettered events after a bump; ch 12's optimality
-regression replays recorded requests through a new version. A behaviour switch a later chapter
-enables (the reservation step, the barrier wait, the policy wait) is the same kind of
+regression replays recorded requests through a new version. A component's typed-output
+classes have field descriptions like the event classes (The Agent Activator, the catalog as
+code), and those descriptions are sent to the LLM with every call, inside the schema. The
+division is fixed: a description defines a field (what it is, its unit, the meaning of a
+null) and the prompt file instructs (how to decide). Descriptions are code and are fixed with
+the component, so a change of behaviour is always a new prompt version. A behaviour switch a
+later chapter enables (the reservation step, the barrier wait, the policy wait) is the same kind of
 configuration, a flag read by the component at start, off by default, and absent from every
 compose and configuration file until the chapter that switches it on. A flag is the default
 mechanism; a new version of the component (`<name>_v2`, selected by compose) is used only where

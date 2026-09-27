@@ -117,10 +117,12 @@ class FakeModel:
         raise AssertionError(f"no prompt named {name}")
 
 
-def brief(max_stops: int, max_price: float | None = None) -> Brief:
+def brief(
+    max_stops: int, max_price: float | None = None, area_hint: str | None = "by the river"
+) -> Brief:
     return Brief(
         legs=[LegBrief(max_stops=max_stops, max_price=max_price)] * 2,
-        stays=[StayBrief(max_total=None, area_hint="quiet")],
+        stays=[StayBrief(max_total=None, area_hint=area_hint)],
         note="favour the saving",
     )
 

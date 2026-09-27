@@ -59,7 +59,7 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    over MCP and flags a last room; the validator rejects anything breaking a hard constraint,
    including a connection that does not fit between one stop's check-out and the next leg; the
    planner node assembles and ranks. It publishes `planning.ItineraryProposed`: the trip id, the
-   proposal's id (its request's), and two or three ranked itineraries, each with a label, its
+   proposal's id (its request's), and one to three ranked itineraries, each with a label, its
    items in travel order with their offers and validity, a total, and a rationale. A multi-city
    itinerary is the same structure with more items. A trip accumulates proposals; none is
    "current", and the customer may choose from any of them.
@@ -516,7 +516,7 @@ Conventions:
 
 4+e| planning: trip planning, the proposals
 | ItineraryRequested | *open host.* The Booking Agent (the demo script in ch 1 and 2), in planning's published language: the trip id as key, the validated requirements, and on a re-plan the reason and the items carried over | Planner (its only inbound request), audit, Observer | ch 1
-| ItineraryProposed | Planner; every proposal immutable, keyed by the trip's id, identified by the `proposal_id` the Planner mints (from the ch 2 contract), carrying two or three ranked itineraries; one shape for the whole book | Booking Agent, Hotel Negotiator (from ch 7), Observer; the demo script in ch 1 and 2 | ch 1
+| ItineraryProposed | Planner; every proposal immutable, keyed by the trip's id, identified by the `proposal_id` the Planner mints (from the ch 2 contract), carrying one to three ranked itineraries; one shape for the whole book | Booking Agent, Hotel Negotiator (from ch 7), Observer; the demo script in ch 1 and 2 | ch 1
 | ItineraryRequestSuperseded | Planner, when a newer request for the same trip interrupts the run in progress; names the abandoned request, causation the newer one | Booking Agent (stops expecting that proposal), audit | ch 7
 
 4+e| booking: the trip's lifecycle, from request to confirmation or cancellation

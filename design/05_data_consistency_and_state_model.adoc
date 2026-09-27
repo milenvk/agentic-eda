@@ -375,7 +375,7 @@ moving the system keeps the guarantee by construction.
 * **Proposal:** owned by the Itinerary Planner. Identified by a `proposal_id` minted by the
   Planner at publish time, keyed by the trip id; each
   `planning.ItineraryProposed` is the immutable answer, published under its own event id and
-  carrying two or three ranked Itineraries with their items and offers; a re-request produces
+  carrying one to three ranked Itineraries with their items and offers; a re-request produces
   another proposal, re-planning the items the request does not name as carried over, and a
   request interrupted by a newer one is answered with `planning.ItineraryRequestSuperseded`.
   `booking.ItineraryApproved` marks the chosen itinerary. State: the requirements as they

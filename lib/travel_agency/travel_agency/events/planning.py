@@ -11,8 +11,10 @@ from ..event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 
 
 class Money(BaseModel):
+    """An amount in one currency."""
+
     amount: float
-    currency: str
+    currency: str = Field(description="ISO 4217 code, such as USD.")
 
 
 class Stop(BaseModel):
@@ -27,60 +29,72 @@ class Stop(BaseModel):
 class ItineraryRequested(EventContract):
     """Someone asks planning for itineraries. Whoever asks writes it."""
 
-    trip_id: int
-    origin: str
-    stops: list[Stop] = Field(min_length=1)
+    trip_id: int = Field(description="Identifies the trip across all of its events.")
+    origin: str = Field(description="The city where the trip starts and ends.")
+    stops: list[Stop] = Field(min_length=1, description="The places to stay, in travel order.")
     travellers: int = Field(ge=1)
-    budget: Money | None  # None says the customer set no limit
-    preferences: str  # in the customer's own words
-    car_class: str | None  # None says no car is wanted
+    budget: Money | None = Field(
+        description="Upper limit for the whole trip and all travellers. Null means no limit."
+    )
+    preferences: str = Field(description="Free text in the customer's own words.")
+    car_class: str | None = Field(
+        description="The class of rental car wanted. Null means no car is wanted."
+    )
 
 
 class Offer(BaseModel):
     """What a supplier quoted for an item, and until when the quote holds."""
 
     supplier: str
-    offer_id: str
-    price: Money
+    offer_id: str = Field(description="The supplier's own identifier for the quote.")
+    price: Money = Field(description="For all travellers together.")
     valid_until: datetime
 
 
 class FlightItem(BaseModel):
+    """One flight of an itinerary, its times in UTC."""
+
     kind: Literal["flight"]
     origin: str
     destination: str
     departs: datetime
     arrives: datetime
-    fare_conditions: str
-    offer: Offer | None
+    fare_conditions: str = Field(
+        description="The fare's rules in words, such as 'exchange for 150, no refund'."
+    )
+    offer: Offer | None = Field(description="Null when the item was planned without a quote.")
 
 
 class StayItem(BaseModel):
+    """One hotel stay of an itinerary."""
+
     kind: Literal["stay"]
     city: str
     hotel: str
     check_in: date
     check_out: date
-    cancellation: str
-    offer: Offer | None
+    cancellation: str = Field(description="The rate plan's cancellation terms in words.")
+    offer: Offer | None = Field(description="Null when the item was planned without a quote.")
 
 
 class Itinerary(BaseModel):
     """One ranked way to make the trip, its items in travel order."""
 
-    rank: int = Field(ge=1)
-    label: str  # what it optimises: cheapest, fastest, best value
-    rationale: str
+    rank: int = Field(ge=1, description="Position in the proposal. 1 is the recommended one.")
+    label: str = Field(description="What it optimises: cheapest, fastest, or best value.")
+    rationale: str = Field(description="What this itinerary trades against the others.")
     items: list[Annotated[FlightItem | StayItem, Field(discriminator="kind")]] = Field(
         min_length=1
     )
-    total: Money
+    total: Money = Field(description="The price of all items, for all travellers together.")
 
 
 @event(ITINERARY_PROPOSED, order_per="trip_id")
 class ItineraryProposed(EventContract):
-    """Planning's answer to one request: two or three ranked itineraries."""
+    """Planning's answer to one request: one to three ranked itineraries."""
 
-    trip_id: int
-    proposal_id: str  # minted by the Planner, the proposal's owner; the event's id is the broker's
-    itineraries: list[Itinerary] = Field(min_length=1, max_length=3)
+    trip_id: int = Field(description="Identifies the trip across all of its events.")
+    proposal_id: str = Field(
+        description="Identifies the proposal. Minted by the Planner, and not the event's id."
+    )
+    itineraries: list[Itinerary] = Field(min_length=1, max_length=3, description="Best first.")

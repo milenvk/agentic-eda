@@ -2,6 +2,7 @@
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from conftest import brief, request
 
@@ -12,6 +13,8 @@ from agentic_eda.hydration import NoHydration
 from itinerary_planner.graph import MAX_ATTEMPTS, build_graph, legs_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
+
+PROMPTS = Path(__file__).parent.parent / "prompts"
 
 
 def graph(model, airline, hotels):
@@ -91,6 +94,28 @@ async def test_a_nonstop_nobody_flies_is_searched_again_with_a_stop(model, airli
 
     assert airline.searches == [0, 1, 0, 1]  # each leg, asked twice
     assert proposal.itineraries
+
+
+async def test_the_brief_is_handed_to_both_searches(model, airline, hotels):
+    await planned(graph(model, airline, hotels), request())
+
+    # Rendered from the prompt files, so a variable missing from a file fails here.
+    prompts = {
+        name: (PROMPTS / f"{name}.v1.md").read_text().format(**variables)
+        for name, variables in model.asked
+    }
+    assert "favour the saving" in prompts["flights"]
+    assert "favour the saving" in prompts["hotels"]
+    assert "by the river" in prompts["hotels"]
+
+
+async def test_no_area_hint_is_stated_as_no_particular_area(model, airline, hotels):
+    model.briefs = [brief(max_stops=1, area_hint=None)]
+
+    await planned(graph(model, airline, hotels), request())
+
+    asked_of_hotels = next(variables for name, variables in model.asked if name == "hotels")
+    assert asked_of_hotels["area_hint"] == "no particular area"
 
 
 async def test_a_pick_nobody_offered_falls_back_to_price(model, airline, hotels):
