@@ -1,4 +1,4 @@
-"""Unit tests for the Kafka adapter: codec, minting, topics, lanes, and commit discipline.
+"""Unit tests for the Kafka adapter: codec, generated ids, topics, lanes, and commit discipline.
 
 aiokafka is replaced with fakes: no broker, no network.
 """
@@ -204,7 +204,7 @@ async def test_publish_mints_id_time_and_datacontenttype(fake_kafka):
     async with KafkaEventBroker("kafka:9092", client_name="test") as broker:
         published = await broker.publish("booking.SomethingHappened", "test", {"a": 1})
 
-    uuid.UUID(published.id)  # a real UUID was minted
+    uuid.UUID(published.id)  # a real UUID was generated
     topic, raw, key, _headers = FakeProducer.last.sent[0]
     envelope = json.loads(raw)
     assert topic == "booking"

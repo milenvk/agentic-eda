@@ -11,9 +11,10 @@ writing any code), and each chapter's runnable demo is in `chapters/chNN/`.
   idioms ("earns its keep"); no object relative clauses, with or without the pronoun
   ("rules the map carries" and "the interface that the inversion implies" become "the map's
   rules" and "the interface implied by the inversion"; a relative clause stays only when its
-  head noun is the clause's subject, as in "a consumer that dies mid-handler"); shell code
-  blocks contain commands only, with the explanation in a prose sentence before the block,
-  because zsh rejects `#` comments pasted interactively.
+  head noun is the clause's subject, as in "a consumer that dies mid-handler"); an id or a
+  value is generated, never minted; shell code blocks contain commands only, with the
+  explanation in a prose sentence before the block, because zsh rejects `#` comments pasted
+  interactively.
 - **The design documents are the authority.** `design/01`-`design/03` fix the
   architecture, workflows, events, and chapter mapping;
   `design/04_implementation_design.adoc` fixes the low-level conventions: the frozen

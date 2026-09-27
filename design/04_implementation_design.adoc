@@ -101,7 +101,7 @@ class EventBroker(Protocol):
 ----
 
 * `publish` returns the event as published, so a caller sees what the broker filled in as well
-  as what it passed: the id whether minted or supplied, the time, and the rest of the envelope.
+  as what it passed: the id whether generated or supplied, the time, and the rest of the envelope.
   Its `attributes` argument carries the optional and extension attributes a caller supplies.
 * `handler` is an async callable receiving an `WireEvent`, which reads every attribute by name:
   `event.id`, `event.time`, an extension as `event.correlationid`, and the business fact as
@@ -145,7 +145,7 @@ rule made visible. Business logic type-hints `EventBroker`, because publishing a
 subscribing is all it ever does; only the entry point needs the loop. Lifecycle stays off
 both surfaces, because the factory owns it.
 
-=== Minting rules
+=== Generation rules
 
 `publish` completes whatever the caller omits, so every event is spec-complete no matter how
 little is passed:
@@ -157,13 +157,13 @@ little is passed:
 * `datacontenttype`: `application/json` unless supplied in `attributes`.
 * `specversion`: declared on `ContextAttributes` as `Literal["1.0"]` with that default, so no
   caller sets it, and an event of another spec version is rejected when it is decoded.
-* `partitionkey` is never minted from nothing. It is the value of the field the event's class
+* `partitionkey` is never generated from nothing. It is the value of the field the event's class
   declares with `order_per` (The Agent Activator, below), because only the producer's side
   knows the aggregate; a key unique per event would be no order at all. From the ch 2
   practical the activator fills it on every publish, and `consumes` and `produces` refuse a
   class that declares nothing, at import; a class declaring `order_per=None` is published with a null key, as ch
   1's events are, and `order_per=OWN_ID` keys the event that starts a sequence on its own
-  minted id.
+  generated id.
 
 === Attributes
 
@@ -172,7 +172,7 @@ An `WireEvent` carries the declared context attributes (`specversion`, `id`, `ty
 by name, and `data`. A new extension needs no change to any class. The extension attributes,
 in order of introduction:
 
-* `correlationid` (ch 2): the execution thread's label, the conversation's id, minted at the
+* `correlationid` (ch 2): the execution thread's label, the conversation's id, generated at the
   first customer message (or by the demo script standing in for it) and copied to every event
   of the execution.
 * `causationid` (ch 2): the id of the event that directly caused this one.
@@ -435,7 +435,7 @@ model an adapter concern. The activator owns five things.
    reduces what comes back to zero or more instances of the classes in `produces` (an
    instance, a dict that validates as one, or JSON text parsed against `produces`, the
    wrapper unwrapped), rejects anything else at the boundary, and publishes each with its
-   envelope: type and key from the binding, `id` and `time` minted, `correlationid` and
+   envelope: type and key from the binding, `id` and `time` generated, `correlationid` and
    `causationid` from the inbound event, `promptversion` and `modelversion` from
    configuration (ch 10). Returning from the activation acknowledges. Every outbound event
    passes through this one path, so the outbound boundary is one function. The activator
@@ -574,7 +574,7 @@ promised.
    reason ADK's documentation gives: hallucinated destinations and malformed schemas.
 ** *`eda.publish(fact)`*, the code twin of the publish tool: callable from anywhere inside an
    activation, through the activation's context variable, and the same path (the class is
-   one of `produces`, the answer is validated, the envelope is minted from the inbound event,
+   one of `produces`, the answer is validated, the envelope is generated from the inbound event,
    the publish counts toward the activation's answer). It exists because a typed answer
    returned at the end cannot commit each of several facts before the next: the Booking
    Agent's reservation step (ch 7) publishes `FlightReserved` before it places the hotel

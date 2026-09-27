@@ -1,6 +1,6 @@
 """The customer's seat: asks planning for itineraries, and waits for the proposal as an event.
 
-A request starts a thread. The script mints the thread's `correlationid`, and the Planner's
+A request starts a thread. The script generates the thread's `correlationid`, and the Planner's
 activator copies it to everything the request causes, so a proposal is matched to its
 request by that label alone. The `partitionkey` is the trip's id: one trip's events stay
 in order, and two trips never wait for each other.
