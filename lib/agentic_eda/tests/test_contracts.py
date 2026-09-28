@@ -10,7 +10,7 @@ from examples import (
 )
 from pydantic import BaseModel
 
-from agentic_eda.contracts import OWN_ID, EventContract, Nothing, binding_of, event
+from agentic_eda.contracts import OWN_ID, EventContract, Nothing, binding_of, data_of, event
 
 def test_the_decorator_binds_a_class_to_its_type_and_its_ordering():
     binding = binding_of(ItineraryProposed)
@@ -69,6 +69,44 @@ def test_the_function_form_binds_a_class_you_do_not_own():
     assert isinstance(request, EventContract)
     assert binding_of(bound).type == "planning.ItineraryRequested"
     assert binding_of(TheirRequest) is None  # the original is left as it was
+
+
+def test_an_unset_optional_field_is_left_out_of_the_published_data():
+    class Budget(BaseModel):
+        amount: float
+        note: str | None = None
+
+    @event("planning.Asked", order_per="trip_id")
+    class Asked(EventContract):
+        trip_id: str
+        budget: Budget | None  # required, so published, null included
+        car_class: str | None = None  # optional, so left out while unset
+
+    assert data_of(Asked(trip_id="t-1", budget=None)) == {"trip_id": "t-1", "budget": None}
+    stated = Asked(trip_id="t-1", budget=Budget(amount=2800), car_class="compact")
+    assert data_of(stated) == {
+        "trip_id": "t-1",
+        "budget": {"amount": 2800.0},
+        "car_class": "compact",
+    }
+    assert Asked.model_validate(data_of(stated)) == stated  # nothing is lost on the way
+
+
+def test_the_only_default_a_contract_may_have_is_none():
+    class Room(BaseModel):
+        beds: int = 2
+
+    with pytest.raises(TypeError, match="Asked.priority has a default"):
+
+        @event("planning.Asked", order_per=None)
+        class Asked(EventContract):
+            priority: str = "normal"
+
+    with pytest.raises(TypeError, match="Room.beds has a default"):
+
+        @event("planning.Stayed", order_per=None)
+        class Stayed(EventContract):
+            rooms: list[Room]  # a class inside a contract is part of the contract
 
 
 def test_nothing_is_an_answer_with_a_reason():

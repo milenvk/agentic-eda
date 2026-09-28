@@ -20,7 +20,7 @@ def usd(amount: float) -> Money:
     return Money(amount=amount, currency="USD")
 
 
-def journey(origin: str, destination: str, on: str, days_before=0, days_after=0) -> dict:
+def journey(origin: str, destination: str, on: str, days_before=None, days_after=None) -> dict:
     window = {"days_before": days_before, "days_after": days_after}
     return {"origin": origin, "destination": destination, "departure_date": on, **window}
 

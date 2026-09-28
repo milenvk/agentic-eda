@@ -82,6 +82,6 @@ def _require_strict(cls: type[BaseModel]) -> None:
             continue
         if NoneType not in get_args(field.annotation):
             raise TypeError(
-                f"{cls.__name__}.{name} has a default, which a strict schema cannot "
-                f"express: declare it as `{name}: ... | None` with no default"
+                f"{cls.__name__}.{name} may be left out and cannot be null, which a strict "
+                f"schema cannot express: declare it as `{name}: ... | None = None`"
             )

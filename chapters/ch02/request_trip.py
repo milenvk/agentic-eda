@@ -51,7 +51,9 @@ def lisbon_trip() -> ItineraryRequested:
     )
 
 
-def journey(origin: str, destination: str, on: date, window: int = 0) -> OriginDestination:
+def journey(
+    origin: str, destination: str, on: date, window: int | None = None
+) -> OriginDestination:
     """A journey on a date, or within so many days before and after it."""
     return OriginDestination(
         origin=origin,

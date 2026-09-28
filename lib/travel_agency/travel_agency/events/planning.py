@@ -23,11 +23,11 @@ class OriginDestination(BaseModel):
     origin: str = Field(description="IATA city or airport code, such as NYC.")
     destination: str = Field(description="IATA city or airport code, such as MAD.")
     departure_date: date
-    days_before: int = Field(
-        ge=0, le=3, description="How many days earlier the journey may start. 0 means none."
+    days_before: int | None = Field(
+        default=None, ge=0, le=3, description="How many days earlier the journey may start."
     )
-    days_after: int = Field(
-        ge=0, le=3, description="How many days later the journey may start. 0 means none."
+    days_after: int | None = Field(
+        default=None, ge=0, le=3, description="How many days later the journey may start."
     )
 
 

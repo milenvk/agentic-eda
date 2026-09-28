@@ -400,7 +400,10 @@ model an adapter concern. The activator owns five things.
    edit to the agent: it returns a subclass of that class with `EventContract` mixed in, and
    the agent still receives an instance of its own class. `contracts.data_of(fact)` is the one
    definition of what an event class puts on the wire (its own fields as JSON values,
-   without its attributes or its type tag), used by the activator on the way out and by a
+   without its attributes or its type tag, and without an optional field left at its
+   default, so a required field is always there, null included; the only default a
+   contract may have is `None`, checked by `@event` at import through every class nested
+   in the contract, so no stated value is ever missing from the wire), used by the activator on the way out and by a
    demo script publishing through the port.
    A field's meaning is part of the contract wherever its name and type leave a question
    open: a unit, the meaning of a null, an order, the owner of an identifier. It is written

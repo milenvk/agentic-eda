@@ -7,7 +7,7 @@ around that data.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, create_model
 from pydantic.json_schema import SkipJsonSchema
@@ -25,6 +25,9 @@ class _OwnId:
 OWN_ID = _OwnId()
 
 _UNSET = object()
+
+# The two fields of an event class that are not its data: the envelope carries both.
+NOT_DATA = {"attributes_", "event_type"}
 
 
 class EventContract(BaseModel):
@@ -58,8 +61,13 @@ class Binding:
 
 
 def data_of(fact: EventContract) -> dict:
-    """An event's data as it is published: its own fields, as JSON values."""
-    return fact.model_dump(mode="json", exclude={"attributes_", "event_type"})
+    """An event's data as it is published: its own fields, as JSON values.
+
+    An optional field left at its default is left out, as an unset attribute of the
+    envelope is. A required field is always there, null included. Nothing stated is lost
+    that way, because `@event` refuses a class with any default other than None.
+    """
+    return fact.model_dump(mode="json", exclude=NOT_DATA, exclude_defaults=True)
 
 
 def binding_of(subject: object) -> Binding | None:
@@ -99,6 +107,7 @@ def event(*args, order_per: str | _OwnId | None = _UNSET):
 
 
 def _bind(cls: type[BaseModel], event_type: str, order_per) -> type[EventContract]:
+    _require_no_default_but_none(cls, checked=set())
     bases = (cls,) if issubclass(cls, EventContract) else (cls, EventContract)
     bound = create_model(
         cls.__name__,
@@ -114,3 +123,26 @@ def _bind(cls: type[BaseModel], event_type: str, order_per) -> type[EventContrac
         raise TypeError(f"{cls.__name__} has no field {order_per!r} to keep its order within")
     bound.__event__ = Binding(type=event_type, order_per=order_per)
     return bound
+
+
+def _require_no_default_but_none(cls: type[BaseModel], checked: set[type]) -> None:
+    """A default is left out of the published data, so the only one allowed says nothing."""
+    checked.add(cls)
+    for name, field in cls.model_fields.items():
+        if name in NOT_DATA:
+            continue
+        if not field.is_required() and (field.default_factory or field.default is not None):
+            raise TypeError(
+                f"{cls.__name__}.{name} has a default, which would be missing from the "
+                f"published data: make it required, or declare `{name}: ... | None = None`"
+            )
+        for nested in _classes_in(field.annotation):
+            if nested not in checked:
+                _require_no_default_but_none(nested, checked)
+
+
+def _classes_in(annotation) -> list[type[BaseModel]]:
+    """The Pydantic classes an annotation names, however deep: `list[Stop]`, `Money | None`."""
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return [annotation]
+    return [cls for part in get_args(annotation) for cls in _classes_in(part)]

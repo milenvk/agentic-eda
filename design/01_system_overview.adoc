@@ -334,8 +334,8 @@ book.
 | trip request
 | booking
 | What the customer asked for, in the travel industry's terms: the origin-destinations (each a
-  journey from one place to another with its date and, where the customer is flexible, a
-  window of up to three days before and after it, so one for a one-way trip, two
+  journey from one place to another with its date and, where the customer is flexible, an
+  optional window of up to three days before and after it, so one for a one-way trip, two
   for a round trip, and several for a multi-city one), the stays (each a city, its nights, and
   the rooms wanted), the party, a budget or an explicit "no limit", and the customer's
   preferences in their own words, including a car class when one is wanted. The fact that

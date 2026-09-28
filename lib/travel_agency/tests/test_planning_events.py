@@ -7,12 +7,11 @@ from agentic_eda.contracts import binding_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
 
-EXACTLY = {"days_before": 0, "days_after": 0}  # a journey on its date and no other
 REQUEST = {
     "trip_id": 1,
     "origin_destinations": [
-        {**EXACTLY, "origin": "NYC", "destination": "LIS", "departure_date": "2026-10-01"},
-        {**EXACTLY, "origin": "LIS", "destination": "NYC", "departure_date": "2026-10-04"},
+        {"origin": "NYC", "destination": "LIS", "departure_date": "2026-10-01"},
+        {"origin": "LIS", "destination": "NYC", "departure_date": "2026-10-04"},
     ],
     "stays": [{"city": "LIS", "check_in": "2026-10-01", "check_out": "2026-10-04", "rooms": 1}],
     "adults": 2,
@@ -66,6 +65,9 @@ def test_a_trip_may_be_one_way_and_need_no_hotel():
 def test_a_journey_may_start_up_to_three_days_earlier_or_later():
     def flying(**window) -> dict:
         return {**REQUEST, "origin_destinations": [{**REQUEST["origin_destinations"][0], **window}]}
+
+    exactly = ItineraryRequested.model_validate(flying()).origin_destinations[0]
+    assert (exactly.days_before, exactly.days_after) == (None, None)  # optional, and unset
 
     ItineraryRequested.model_validate(flying(days_before=3, days_after=1))
     with pytest.raises(ValidationError):

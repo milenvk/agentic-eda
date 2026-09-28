@@ -13,6 +13,7 @@ The model only ever judges among options that code has already fetched, and code
 the facts, so an offer's price or a flight's time is never something a model retyped.
 """
 
+import json
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
@@ -21,6 +22,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
+from agentic_eda.contracts import data_of
 from agentic_eda.hydration import Hydration
 from travel_agency.events.planning import (
     FlightItem,
@@ -235,14 +237,16 @@ async def _fare_calendar(airline: Airline, request: ItineraryRequested) -> str:
 
 def _window(journey: OriginDestination) -> list[date]:
     """Every date the journey may start on, or none where it has no window."""
-    if not (journey.days_before or journey.days_after):
+    before, after = journey.days_before or 0, journey.days_after or 0
+    if not (before or after):
         return []
-    first = journey.departure_date - timedelta(days=journey.days_before)
-    return [first + timedelta(days=n) for n in range(journey.days_before + journey.days_after + 1)]
+    first = journey.departure_date - timedelta(days=before)
+    return [first + timedelta(days=n) for n in range(before + after + 1)]
 
 
 def _on(journey: OriginDestination, day: date) -> OriginDestination:
-    return journey.model_copy(update={"departure_date": day, "days_before": 0, "days_after": 0})
+    exactly = {"departure_date": day, "days_before": None, "days_after": None}
+    return journey.model_copy(update=exactly)
 
 
 def _settled(
@@ -429,7 +433,7 @@ def _offer(supplied, price: Money) -> Offer:
 
 
 def _described(request: ItineraryRequested) -> str:
-    return request.model_dump_json(exclude={"attributes_", "event_type"})
+    return json.dumps(data_of(request))  # as it was published
 
 
 def _listed(candidates: list[Itinerary]) -> str:

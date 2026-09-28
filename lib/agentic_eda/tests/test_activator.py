@@ -115,12 +115,12 @@ def test_produces_with_no_classes_declares_a_pure_consumer():
     assert produced_classes(PureConsumer) == ()
 
 
-def test_produces_refuses_a_default_a_strict_schema_cannot_express():
+def test_produces_refuses_an_optional_field_a_strict_schema_cannot_express():
     @eda.event("planning.Loose", order_per=None)
     class Loose(eda.EventContract):
-        currency: str = "USD"
+        currency: str = None  # it may be left out, and its type has no null to answer with
 
-    with pytest.raises(TypeError, match="Loose.currency has a default"):
+    with pytest.raises(TypeError, match="Loose.currency may be left out and cannot be null"):
         eda.produces(Loose)
 
 

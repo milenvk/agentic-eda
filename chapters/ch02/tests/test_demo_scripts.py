@@ -33,7 +33,7 @@ def test_the_running_example_is_the_trip_chapter_1_opens_with():
     assert [stay.city for stay in trip.stays] == ["MAD", "LIS"]
     assert (trip.stays[0].check_out - trip.stays[0].check_in).days == 3  # three days in Madrid
     assert (trip.adults, trip.children) == (2, [])
-    assert all(j.days_before == j.days_after == 0 for j in trip.origin_destinations)
+    assert all(j.days_before is None and j.days_after is None for j in trip.origin_destinations)
 
 
 async def test_a_request_starts_a_thread_and_is_ordered_within_its_trip():
@@ -48,6 +48,8 @@ async def test_a_request_starts_a_thread_and_is_ordered_within_its_trip():
     assert ItineraryRequested.model_validate(request.data) == trip.model_copy(
         update={"attributes_": None}
     )
+    assert "days_before" not in request.data["origin_destinations"][0]  # unset, so left out
+    assert request.data["car_class"] is None  # required, so there, null included
 
 
 async def test_every_request_is_a_thread_of_its_own():
