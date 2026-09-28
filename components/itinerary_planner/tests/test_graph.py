@@ -183,7 +183,8 @@ async def test_the_planner_is_told_the_meaning_of_the_requests_fields(model, air
 
     prompts = {name: render(name, **variables) for name, variables in model.asked}
     for prompt in (prompts["brief"], prompts["rank"]):
-        assert "  budget: Upper limit for the whole trip and all travellers." in prompt
+        assert "  budget (Money or null): Upper limit for the whole trip" in prompt
+        assert "  stays (list of Stay): The hotel stays wanted." in prompt
         assert "  own_seat: False only for an infant under 2 held by an adult." in prompt
         assert "Stay: One hotel stay the travellers want." in prompt
 

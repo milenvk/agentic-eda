@@ -73,22 +73,43 @@ def data_of(fact: EventContract) -> dict:
 def meanings_of(contract: type[BaseModel]) -> str:
     """What a contract's fields mean, as text for a prompt.
 
-    Each class of the contract is one line with its docstring, and each described field one
-    line beneath it. The text is read from the contract's JSON Schema, so an LLM is told
-    what any other reader of the schema is told.
+    Each class of the contract is one line with its docstring. Beneath it, one line per
+    field that has a description or holds another class, which the line names:
+    `budget (Money or null): Upper limit for the whole trip.` The text is read from the
+    contract's JSON Schema, so an LLM is told what any other reader of the schema is told.
     """
     schema = contract.model_json_schema()
     classes = {schema["title"]: schema, **schema.get("$defs", {})}
     lines = []
     for name, described in classes.items():
-        fields = [
-            f"  {field}: {about['description']}"
-            for field, about in described.get("properties", {}).items()
-            if "description" in about
-        ]
+        fields = [_meaning(*field) for field in described.get("properties", {}).items()]
+        fields = [line for line in fields if line]
         if "description" in described or fields:
             lines += [f"{name}: {described.get('description', '')}".rstrip(": "), *fields]
     return "\n".join(lines)
+
+
+def _meaning(field: str, about: dict) -> str:
+    """One field's line, or nothing where the schema says nothing beyond its plain type."""
+    held = _classes_held(about)
+    name = f"{field} ({held})" if held else field
+    if "description" in about:
+        return f"  {name}: {about['description']}"
+    return f"  {name}" if held else ""
+
+
+def _classes_held(about: dict) -> str:
+    """The classes a field holds, in words: `Money or null`, `list of Stay`."""
+    if "$ref" in about:
+        return about["$ref"].rsplit("/", 1)[-1]
+    if about.get("type") == "array":
+        held = _classes_held(about.get("items", {}))
+        return f"list of {held}" if held else ""
+    options = about.get("anyOf") or about.get("oneOf") or []
+    held = [_classes_held(option) for option in options]
+    if not any(held):
+        return ""  # plain values only
+    return " or ".join(one or option["type"] for one, option in zip(held, options, strict=True))
 
 
 def binding_of(subject: object) -> Binding | None:

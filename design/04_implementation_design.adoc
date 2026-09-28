@@ -516,7 +516,8 @@ takes (`with_structured_output` or a graph's `output_schema`, ADK's `output_sche
 for a model that cannot). The activator never supplies a schema to a prompt, and the
 typed-output line is the only schema an LLM receives. The meaning of an inbound event's
 fields is the developer's to give: `contracts.meanings_of(cls)` renders a contract's
-docstrings and field descriptions as text, one line per class and per described field, read
+docstrings and field descriptions as text, one line per class and per field, each field
+holding another class naming it (`budget (Money or null)`), read
 from the same JSON Schema as any other reader's, and the Planner places it in its prompts
 beside the request. Where a framework exposes that declaration, `attach`
 compares it with `produces` at startup and fails loudly on a mismatch. The strict subset

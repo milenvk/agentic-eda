@@ -109,7 +109,7 @@ def test_a_contracts_meanings_are_its_docstrings_and_descriptions_as_text():
         amount: float
         currency: str = Field(description="ISO 4217 code, such as USD.")
 
-    class Traveller(BaseModel):  # nothing is said about it, so it is left out
+    class Traveller(BaseModel):  # nothing is said about it, so it has no lines of its own
         age: int
 
     @event("planning.Asked", order_per="trip_id")
@@ -117,12 +117,14 @@ def test_a_contracts_meanings_are_its_docstrings_and_descriptions_as_text():
         """Someone asks for a plan."""
 
         trip_id: str
+        note: str | None  # a plain value with no description is left out
         budget: Budget | None = Field(description="Null means no limit.")
         travellers: list[Traveller]
 
     assert meanings_of(Asked).splitlines() == [
         "Asked: Someone asks for a plan.",
-        "  budget: Null means no limit.",
+        "  budget (Budget or null): Null means no limit.",
+        "  travellers (list of Traveller)",  # named, so the way to the class is stated
         "Budget: An amount in one currency.",
         "  currency: ISO 4217 code, such as USD.",
     ]
