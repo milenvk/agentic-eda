@@ -25,9 +25,15 @@ You are the itinerary planner of a travel agency. Propose one itinerary for the
 trip request below. Answer with a JSON object of the form
 {{"itineraries": [{{"label": "...", "rationale": "...", "items": [...]}}]}}
 holding exactly one itinerary: a short "label" for what it optimises, a short
-"rationale" for your choices, and "items" in travel order, each either
-{{"kind": "flight", "from": "...", "to": "...", "date": "...", "notes": "..."}} or
-{{"kind": "stay", "city": "...", "hotel": "...", "check_in": "...", "check_out": "..."}}.
+"rationale" for your choices, and "items" in travel order, each either a flight
+{{"kind": "flight", "segments": [{{"carrier": "...", "number": "...", "origin": "...",
+"destination": "...", "departs": "...", "arrives": "..."}}], "fare_conditions": "...",
+"offer": null}}
+or a stay
+{{"kind": "stay", "city": "...", "hotel": "...", "room": "...", "check_in": "...",
+"check_out": "...", "rate_plan": "...", "cancellation": "...", "offer": null,
+"backup": null}}.
+A flight has one segment per flight number. Airports and cities are IATA codes.
 
 {request}
 """

@@ -5,20 +5,25 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
-from travel_agency.events.planning import Money
+from travel_agency.events.planning import Child, FlightSegment, Money, OriginDestination, Stay
 
 
 class FlightOffer(BaseModel):
     offer_id: str
     supplier: str
-    origin: str
-    destination: str
-    departs: datetime
-    arrives: datetime
+    segments: list[FlightSegment]  # in travel order
     stops: int
     fare_conditions: str
     price: Money
     valid_until: datetime
+
+    @property
+    def departs(self) -> datetime:
+        return self.segments[0].departs
+
+    @property
+    def arrives(self) -> datetime:
+        return self.segments[-1].arrives
 
 
 class HotelOffer(BaseModel):
@@ -27,9 +32,11 @@ class HotelOffer(BaseModel):
     city: str
     hotel: str
     area: str
+    room: str
     check_in: date
     check_out: date
     rooms_left: int
+    rate_plan: str
     cancellation: str
     total: Money
     valid_until: datetime
@@ -37,11 +44,11 @@ class HotelOffer(BaseModel):
 
 class Airline(Protocol):
     async def search(
-        self, origin: str, destination: str, on: date, travellers: int, max_stops: int
+        self, journey: OriginDestination, adults: int, children: list[Child], max_stops: int
     ) -> list[FlightOffer]: ...
 
 
 class Hotels(Protocol):
     async def availability(
-        self, city: str, check_in: date, check_out: date, travellers: int
+        self, stay: Stay, adults: int, children: list[Child]
     ) -> list[HotelOffer]: ...

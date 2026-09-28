@@ -16,12 +16,13 @@ from travel_agency.event_types import ITINERARY_REQUESTED
 
 PATIENCE_SECONDS = 30
 
-# No stops, no travellers, and a budget that is not money.
+# No journey, no adult, and a budget that is not money.
 NOT_A_TRIP = {
     "trip_id": new_trip_id(),
-    "origin": "New York",
-    "stops": [],
-    "travellers": 0,
+    "origin_destinations": [],
+    "stays": [],
+    "adults": 0,
+    "children": [],
     "budget": "cheap",
     "preferences": "Surprise me.",
     "car_class": None,

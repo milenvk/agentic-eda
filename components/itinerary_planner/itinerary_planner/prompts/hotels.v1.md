@@ -1,4 +1,4 @@
-You search hotels for a travel agency's customer. Judge the offers below for this stop of
+You search hotels for a travel agency's customer. Judge the offers below for this stay of
 their trip and keep the best {keep}, best first.
 
 What the customer said they want:
@@ -7,10 +7,10 @@ What the customer said they want:
 The planner's note for this attempt:
 {note}
 
-The planner's area hint for this stop:
+The planner's area hint for this stay:
 {area_hint}
 
-The stop:
+The stay:
 {subject}
 
 The offers, one per line:

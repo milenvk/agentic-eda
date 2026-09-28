@@ -16,7 +16,13 @@ from agentic_eda.broker import WireEvent, EventBroker
 from agentic_eda.connect import event_broker
 from agentic_eda.contracts import data_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
-from travel_agency.events.planning import ItineraryProposed, ItineraryRequested, Money, Stop
+from travel_agency.events.planning import (
+    ItineraryProposed,
+    ItineraryRequested,
+    Money,
+    OriginDestination,
+    Stay,
+)
 
 SOURCE = "RequestTripScript"
 
@@ -28,16 +34,25 @@ def lisbon_trip() -> ItineraryRequested:
     """The running example: New York to Lisbon for two, with three days in Madrid on the way."""
     return ItineraryRequested(
         trip_id=new_trip_id(),
-        origin="New York",
-        stops=[
-            Stop(city="Madrid", arrive=date(2027, 5, 10), depart=date(2027, 5, 13)),
-            Stop(city="Lisbon", arrive=date(2027, 5, 13), depart=date(2027, 5, 17)),
+        origin_destinations=[
+            journey("NYC", "MAD", date(2027, 5, 10)),
+            journey("MAD", "LIS", date(2027, 5, 13)),
+            journey("LIS", "NYC", date(2027, 5, 17)),
         ],
-        travellers=2,
+        stays=[
+            Stay(city="MAD", check_in=date(2027, 5, 10), check_out=date(2027, 5, 13), rooms=1),
+            Stay(city="LIS", check_in=date(2027, 5, 13), check_out=date(2027, 5, 17), rooms=1),
+        ],
+        adults=2,
+        children=[],
         budget=Money(amount=2800, currency="USD"),
         preferences="Quiet, walkable neighbourhoods. We would take a stop to save real money.",
         car_class=None,
     )
+
+
+def journey(origin: str, destination: str, on: date) -> OriginDestination:
+    return OriginDestination(origin=origin, destination=destination, departure_date=on)
 
 
 def new_trip_id() -> int:

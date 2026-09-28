@@ -102,7 +102,7 @@ component can read it without knowing any event's data.
 
 ## Act 2: a malformed request stops at the boundary
 
-Send a request that breaks its contract in three places: no stops, no travellers, and a
+Send a request that breaks its contract in three places: no journey, no adult, and a
 budget that is not money:
 
 ```sh

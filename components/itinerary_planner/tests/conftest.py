@@ -9,9 +9,9 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 
 from agentic_eda.envelope import ContextAttributes
-from itinerary_planner.graph import Brief, Judgement, LegBrief, Picks, Ranking, StayBrief
+from itinerary_planner.graph import Brief, JourneyBrief, Judgement, Picks, Ranking, StayBrief
 from itinerary_planner.suppliers import FlightOffer, HotelOffer
-from travel_agency.events.planning import ItineraryRequested, Money
+from travel_agency.events.planning import FlightSegment, ItineraryRequested, Money
 
 SOON = datetime.now(UTC) + timedelta(hours=2)
 
@@ -23,9 +23,13 @@ def usd(amount: float) -> Money:
 def request(event_id: str = "req-1", budget: float | None = 2900, **changes) -> ItineraryRequested:
     fields = {
         "trip_id": 1,
-        "origin": "New York",
-        "stops": [{"city": "Lisbon", "arrive": "2026-10-01", "depart": "2026-10-04"}],
-        "travellers": 2,
+        "origin_destinations": [
+            {"origin": "NYC", "destination": "LIS", "departure_date": "2026-10-01"},
+            {"origin": "LIS", "destination": "NYC", "departure_date": "2026-10-04"},
+        ],
+        "stays": [{"city": "LIS", "check_in": "2026-10-01", "check_out": "2026-10-04", "rooms": 1}],
+        "adults": 2,
+        "children": [],
         "budget": usd(budget) if budget else None,
         "preferences": "quiet, walkable, we'd take a stop to save real money",
         "car_class": None,
@@ -41,20 +45,28 @@ class FakeAirline:
 
     def __init__(self) -> None:
         self.searches: list[int] = []
+        self.parties: list[tuple] = []  # per search, the adults and the children asked for
         self.flies_nonstop = True
 
-    async def search(self, origin, destination, on: date, travellers, max_stops):
+    async def search(self, journey, adults, children, max_stops):
         self.searches.append(max_stops)
+        self.parties.append((adults, children))
+        on: date = journey.departure_date
         departs = datetime(on.year, on.month, on.day, 9, tzinfo=UTC)
 
         def offer(name: str, stops: int, hours: int, price: float) -> FlightOffer:
-            return FlightOffer(
-                offer_id=f"{name}-{origin[:3]}-{destination[:3]}",
-                supplier="Airline Reservation System",
-                origin=origin,
-                destination=destination,
+            flight = FlightSegment(  # one segment stands for the whole journey, stops or not
+                carrier="WW",
+                number="101",
+                origin=journey.origin,
+                destination=journey.destination,
                 departs=departs,
                 arrives=departs + timedelta(hours=hours),
+            )
+            return FlightOffer(
+                offer_id=f"{name}-{journey.origin}-{journey.destination}",
+                supplier="Airline Reservation System",
+                segments=[flight],
                 stops=stops,
                 fare_conditions="changes 150 USD, no refund",
                 price=usd(price),
@@ -70,17 +82,24 @@ class FakeAirline:
 
 
 class FakeHotels:
-    async def availability(self, city, check_in, check_out, travellers):
+    def __init__(self) -> None:
+        self.parties: list[tuple] = []
+
+    async def availability(self, stay, adults, children):
+        self.parties.append((adults, children))
+
         def offer(name: str, area: str, total: float, rooms: int) -> HotelOffer:
             return HotelOffer(
-                offer_id=f"{name}-{city[:3]}",
+                offer_id=f"{name}-{stay.city}",
                 supplier="Hotel Reservation System",
-                city=city,
+                city=stay.city,
                 hotel=name,
                 area=area,
-                check_in=check_in,
-                check_out=check_out,
+                room="double",
+                check_in=stay.check_in,
+                check_out=stay.check_out,
                 rooms_left=rooms,
+                rate_plan="FLEXIBLE",
                 cancellation="free until 48 hours before arrival",
                 total=usd(total),
                 valid_until=SOON,
@@ -121,7 +140,7 @@ def brief(
     max_stops: int, max_price: float | None = None, area_hint: str | None = "by the river"
 ) -> Brief:
     return Brief(
-        legs=[LegBrief(max_stops=max_stops, max_price=max_price)] * 2,
+        journeys=[JourneyBrief(max_stops=max_stops, max_price=max_price)] * 2,
         stays=[StayBrief(max_total=None, area_hint=area_hint)],
         note="favour the saving",
     )

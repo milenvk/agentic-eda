@@ -14,12 +14,13 @@ from typing import Annotated
 from fastapi import FastAPI, HTTPException, Query
 
 from travel_agency.sims import world
-from travel_agency.sims.world import City
 
 from . import flights
+from .flights import Place
 from .wire import FlightOffer, FlightOrder, Location, Pricing, Reply, TicketingAgreement
 
 HOLD_MINUTES = int(os.environ.get("HOLD_MINUTES", "15"))
+MOST_SEATS = 9
 # Every answer waits this long, which is how a slow supplier is staged.
 RESPONSE_DELAY_SECONDS = float(os.environ.get("RESPONSE_DELAY_SECONDS", "0"))
 
@@ -48,9 +49,18 @@ def search_flight_offers(
     destination: Annotated[str, Query(alias="destinationLocationCode")],
     on: Annotated[date, Query(alias="departureDate")],
     adults: Annotated[int, Query(ge=1, le=9)] = 1,
+    children: Annotated[int, Query(ge=0)] = 0,
+    infants: Annotated[int, Query(ge=0)] = 0,
     non_stop: Annotated[bool, Query(alias="nonStop")] = False,
 ) -> Reply[list[FlightOffer]]:
-    found = flights.search(_city(origin), _city(destination), on, adults, non_stop)
+    """Adults are 12 or older, children have a seat, and infants are held by an adult."""
+    if adults + children > MOST_SEATS:
+        raise HTTPException(400, f"one search seats {MOST_SEATS} travellers at most")
+    if infants > adults:
+        raise HTTPException(400, "an adult holds one infant at most")
+    found = flights.search(
+        _place(origin), _place(destination), on, adults, children, infants, non_stop
+    )
     offers.update({offer.id: offer for offer in found})
     return Reply(data=found)
 
@@ -85,11 +95,16 @@ def cancel_order(order_id: str) -> None:
     del orders[_held(order_id).id]
 
 
-def _city(code: str) -> City:
-    city = world.CITIES.get(code.upper())
-    if city is None:
-        raise HTTPException(400, f"{code} is no city code; see /v1/reference-data/locations")
-    return city
+def _place(code: str) -> Place:
+    """A city code stands for every airport of the city, an airport code for itself."""
+    code = code.upper()
+    city = world.CITIES.get(code)
+    if city is not None:
+        return Place(city, city.airports)
+    for city in world.CITIES.values():
+        if code in city.airports:
+            return Place(city, [code])
+    raise HTTPException(400, f"{code} is no city code; see /v1/reference-data/locations")
 
 
 def _still_offered(offer_id: str) -> FlightOffer:

@@ -87,6 +87,31 @@ def test_a_fare_says_what_a_change_and_a_refund_are_charged(client):
     assert flex["price"]["currency"] == "USD"
 
 
+def test_a_child_flies_for_less_and_a_held_infant_for_a_tenth(client):
+    def cheapest(**party) -> float:
+        return min(o["price"]["total"] for o in search(client, **party))
+
+    couple = cheapest(adults=2)
+    adult_fare = couple / 2
+
+    assert cheapest(adults=2, children=1) == pytest.approx(couple + 0.75 * adult_fare, abs=0.02)
+    assert cheapest(adults=2, infants=1) == pytest.approx(couple + 0.1 * adult_fare, abs=0.02)
+    assert search(client, adults=2, children=1, infants=1)[0]["id"].endswith("2ADT1CHD1INF")
+
+
+def test_an_adult_holds_one_infant_at_most(client):
+    asked = {**LISBON_TRIP, "adults": 1, "infants": 2}
+    response = client.get("/v2/shopping/flight-offers", params=asked)
+    assert response.status_code == 400
+    assert "infant" in response.json()["detail"]
+
+
+def test_an_airport_code_keeps_the_journey_to_that_airport(client):
+    from_newark = search(client, originLocationCode="EWR")
+    assert from_newark
+    assert {segments(o)[0]["departure"]["iataCode"] for o in from_newark} == {"EWR"}
+
+
 def test_an_unknown_city_code_is_refused_with_where_to_find_one(client):
     response = client.get(
         "/v2/shopping/flight-offers", params={**LISBON_TRIP, "destinationLocationCode": "XXX"}

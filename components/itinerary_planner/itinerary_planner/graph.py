@@ -36,14 +36,8 @@ PICKS = 3
 Ask = Callable[..., Awaitable[BaseModel]]
 
 
-class Leg(BaseModel):
-    origin: str
-    destination: str
-    on: date
-
-
-class LegBrief(BaseModel):
-    """The limits for the flight search of one leg."""
+class JourneyBrief(BaseModel):
+    """The limits for the flight search of one journey."""
 
     max_stops: int = Field(description="0 means nonstop flights only.")
     max_price: float | None = Field(
@@ -52,7 +46,7 @@ class LegBrief(BaseModel):
 
 
 class StayBrief(BaseModel):
-    """The limits for the hotel search of one stop."""
+    """The limits for the hotel search of one stay."""
 
     max_total: float | None = Field(
         description="Upper limit for the whole stay, all travellers together. Null means no limit."
@@ -63,9 +57,9 @@ class StayBrief(BaseModel):
 
 
 class Brief(BaseModel):
-    """What the planner asks of the two searches, one entry per leg and per stop."""
+    """What the planner asks of the two searches, one entry per journey and per stay."""
 
-    legs: list[LegBrief] = Field(description="One entry per flight leg, in travel order.")
+    journeys: list[JourneyBrief] = Field(description="One entry per journey, in travel order.")
     stays: list[StayBrief] = Field(description="One entry per hotel stay, in travel order.")
     note: str = Field(description="One sentence on what the searches should favour.")
 
@@ -98,22 +92,12 @@ class PlannerState(BaseModel):
     handling: str = ""  # the request event this run is for
     context: str = ""
     brief: Brief | None = None
-    flights: list[list[FlightOffer]] = []  # per leg, the search's picks, best first
-    hotels: list[list[HotelOffer]] = []  # per stop
+    flights: list[list[FlightOffer]] = []  # per journey, the search's picks, best first
+    hotels: list[list[HotelOffer]] = []  # per stay
     candidates: list[Itinerary] = []
     problems: list[str] = []
     attempts: int = 0
     proposal: ItineraryProposed | None = None
-
-
-def legs_of(request: ItineraryRequested) -> list[Leg]:
-    """Out to the first stop, on between stops, and home from the last."""
-    places = [request.origin, *(stop.city for stop in request.stops), request.origin]
-    days = [request.stops[0].arrive, *(stop.depart for stop in request.stops)]
-    return [
-        Leg(origin=a, destination=b, on=day)
-        for a, b, day in zip(places[:-1], places[1:], days, strict=True)
-    ]
 
 
 def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydration):
@@ -136,43 +120,41 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
             Brief,
             request=_described(request),
             context=state.context,
-            legs=len(legs_of(request)),
-            stops=len(request.stops),
+            journeys=len(request.origin_destinations),
+            stays=len(request.stays),
             problems="\n".join(state.problems) or "none yet",
         )
         return {**_fresh(state), "brief": brief, "attempts": state.attempts + 1, "problems": []}
 
     async def flight_search(state: PlannerState) -> dict:
-        kept = []
-        for number, leg in enumerate(legs_of(state.request)):
-            wanted = _at(state.brief.legs, number) or LegBrief(max_stops=1, max_price=None)
-            asked = (leg.origin, leg.destination, leg.on, state.request.travellers)
-            offers = await airline.search(*asked, wanted.max_stops)
+        request, kept = state.request, []
+        party = (request.adults, request.children)
+        for number, journey in enumerate(request.origin_destinations):
+            wanted = _at(state.brief.journeys, number) or JourneyBrief(max_stops=1, max_price=None)
+            offers = await airline.search(journey, *party, wanted.max_stops)
             if not offers and wanted.max_stops == 0:
                 # The brief wanted a nonstop on a route nobody flies nonstop.
-                offers = await airline.search(*asked, 1)
+                offers = await airline.search(journey, *party, 1)
             if wanted.max_price is not None:
                 offers = [o for o in offers if o.price.amount <= wanted.max_price] or offers
             kept.append(
-                await _picked(ask, "flights", state.request, leg, offers, note=state.brief.note)
+                await _picked(ask, "flights", request, journey, offers, note=state.brief.note)
             )
         return {"flights": kept}
 
     async def hotel_search(state: PlannerState) -> dict:
-        kept = []
-        for number, stop in enumerate(state.request.stops):
+        request, kept = state.request, []
+        for number, stay in enumerate(request.stays):
             wanted = _at(state.brief.stays, number) or StayBrief(max_total=None, area_hint=None)
-            offers = await hotels.availability(
-                stop.city, stop.arrive, stop.depart, state.request.travellers
-            )
+            offers = await hotels.availability(stay, request.adults, request.children)
             if wanted.max_total is not None:
                 offers = [o for o in offers if o.total.amount <= wanted.max_total] or offers
             kept.append(
                 await _picked(
                     ask,
                     "hotels",
-                    state.request,
-                    stop,
+                    request,
+                    stay,
                     offers,
                     note=state.brief.note,
                     area_hint=wanted.area_hint or "no particular area",
@@ -241,7 +223,7 @@ def _candidates(request, flights, hotels) -> list[Itinerary]:
     def first_pick(offers):
         return offers[0]  # the searches put their best judgement first
 
-    # Per label, how a flight is chosen for each leg and a hotel for each stop.
+    # Per label, how a flight is chosen for each journey and a hotel for each stay.
     choices = {
         "cheapest": (cheapest, cheapest),
         "fastest": (fastest, cheapest),
@@ -249,48 +231,58 @@ def _candidates(request, flights, hotels) -> list[Itinerary]:
     }
     candidates, seen = [], set()
     for label, (choose_flight, choose_hotel) in choices.items():
-        legs = [choose_flight(offers) for offers in flights]
+        flown = [choose_flight(offers) for offers in flights]
         stays = [choose_hotel(offers) for offers in hotels]
-        chosen = tuple(o.offer_id for o in (*legs, *stays))
+        chosen = tuple(o.offer_id for o in (*flown, *stays))
         if chosen in seen:
             continue
         seen.add(chosen)
-        candidates.append(_itinerary(label, request, legs, stays))
+        candidates.append(_itinerary(label, request, flown, stays))
     return candidates
 
 
-def _itinerary(label: str, request, legs: list[FlightOffer], stays: list[HotelOffer]) -> Itinerary:
-    items: list[FlightItem | StayItem] = []
-    for number, flight in enumerate(legs):
-        items.append(
-            FlightItem(
-                kind="flight",
-                origin=flight.origin,
-                destination=flight.destination,
-                departs=flight.departs,
-                arrives=flight.arrives,
-                fare_conditions=flight.fare_conditions,
-                offer=_offer(flight, flight.price),
-            )
+def _itinerary(
+    label: str, request, flown: list[FlightOffer], stays: list[HotelOffer]
+) -> Itinerary:
+    items = [
+        FlightItem(
+            kind="flight",
+            segments=flight.segments,
+            fare_conditions=flight.fare_conditions,
+            offer=_offer(flight, flight.price),
         )
-        if number < len(stays):
-            stay = stays[number]
-            items.append(
-                StayItem(
-                    kind="stay",
-                    city=stay.city,
-                    hotel=stay.hotel,
-                    check_in=stay.check_in,
-                    check_out=stay.check_out,
-                    cancellation=stay.cancellation,
-                    offer=_offer(stay, stay.total),
-                )
-            )
-    currency = (request.budget or legs[0].price).currency
-    total = sum(o.price.amount for o in legs) + sum(o.total.amount for o in stays)
+        for flight in flown
+    ] + [
+        StayItem(
+            kind="stay",
+            city=stay.city,
+            hotel=stay.hotel,
+            room=stay.room,
+            check_in=stay.check_in,
+            check_out=stay.check_out,
+            rate_plan=stay.rate_plan,
+            cancellation=stay.cancellation,
+            offer=_offer(stay, stay.total),
+            backup=None,
+        )
+        for stay in stays
+    ]
+    currency = (request.budget or flown[0].price).currency
+    total = sum(o.price.amount for o in flown) + sum(o.total.amount for o in stays)
     return Itinerary(
-        rank=1, label=label, rationale="", items=items, total=Money(amount=total, currency=currency)
+        rank=1,
+        label=label,
+        rationale="",
+        items=sorted(items, key=_start),
+        total=Money(amount=total, currency=currency),
     )
+
+
+def _start(item: FlightItem | StayItem) -> tuple[date, int]:
+    """Travel order: by day, and a flight before the stay beginning on its day."""
+    if item.kind == "flight":
+        return item.segments[0].departs.date(), 0
+    return item.check_in, 1
 
 
 def _broken_constraints(request: ItineraryRequested, candidate: Itinerary) -> list[str]:
@@ -304,8 +296,9 @@ def _broken_constraints(request: ItineraryRequested, candidate: Itinerary) -> li
         )
     flights = [item for item in candidate.items if item.kind == "flight"]
     for earlier, later in zip(flights, flights[1:], strict=False):
-        if later.departs <= earlier.arrives:
-            problems.append(f"{candidate.label}: leaves {later.origin} before arriving there")
+        leaving = later.segments[0]
+        if leaving.departs <= earlier.segments[-1].arrives:
+            problems.append(f"{candidate.label}: leaves {leaving.origin} before arriving there")
     now = datetime.now(UTC)
     for item in candidate.items:
         if item.offer and item.offer.valid_until <= now:

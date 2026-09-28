@@ -4,7 +4,14 @@ from mcp import Client
 
 from hotel_reservation_system_sim.server import mcp
 
-THREE_NIGHTS = {"city": "Lisbon", "check_in": "2026-10-01", "check_out": "2026-10-04", "guests": 2}
+THREE_NIGHTS = {
+    "city": "LIS",
+    "check_in": "2026-10-01",
+    "check_out": "2026-10-04",
+    "rooms": 1,
+    "adults": 2,
+    "child_ages": [],
+}
 
 
 async def search(**changes):
@@ -22,7 +29,8 @@ async def test_the_tool_describes_itself_to_a_client():
     async with Client(mcp) as client:
         (tool,) = (await client.list_tools()).tools
     assert tool.name == "search_availability"
-    assert set(tool.input_schema["required"]) == {"city", "check_in", "check_out", "guests"}
+    asked = {"city", "check_in", "check_out", "rooms", "adults", "child_ages"}
+    assert set(tool.input_schema["required"]) == asked
 
 
 async def test_the_same_question_finds_the_same_rooms_at_the_same_rates():
@@ -48,12 +56,30 @@ async def test_each_hotel_is_offered_under_each_rate_plan_with_its_cancellation_
 
 
 async def test_a_hotel_without_rooms_enough_for_the_party_is_left_out():
-    couple = await offers(guests=2)
-    big_party = await offers(guests=12)  # six rooms, the most any hotel ever has left
+    couple = await offers(rooms=1)
+    big_party = await offers(rooms=6, adults=12)  # the most rooms any hotel ever has left
 
     assert all(o["rooms_left"] >= 1 for o in couple)
     assert all(o["rooms_left"] == 6 for o in big_party)
     assert len(big_party) < len(couple)
+
+
+async def test_more_than_two_guests_to_a_room_take_a_family_room_at_a_higher_rate():
+    def cheapest(found) -> dict:
+        return min(found, key=lambda o: o["total"])
+
+    couple = cheapest(await offers())
+    family = cheapest(await offers(child_ages=[7, 9]))
+    with_a_baby = cheapest(await offers(child_ages=[1]))  # in a cot, and not counted
+
+    assert (couple["room"], family["room"], with_a_baby["room"]) == ("double", "family", "double")
+    assert family["total"] > couple["total"] == with_a_baby["total"]
+    assert family["offer_id"].endswith("1R4G")
+
+
+async def test_a_party_too_large_for_its_rooms_is_refused():
+    crowded = await search(adults=3, child_ages=[5, 8])
+    assert crowded.is_error and "5 guests do not fit in 1 rooms" in crowded.content[0].text
 
 
 async def test_a_longer_stay_costs_more():
@@ -64,8 +90,8 @@ async def test_a_longer_stay_costs_more():
 
 
 async def test_every_city_in_the_world_has_hotels_to_offer():
-    assert await offers(city="Nairobi")
-    assert await offers(city="Auckland")
+    assert await offers(city="NBO")
+    assert await offers(city="Auckland")  # a supplier also finds a city by its name
 
 
 async def test_a_question_that_cannot_be_answered_is_an_error_saying_why():

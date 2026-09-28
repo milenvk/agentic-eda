@@ -28,10 +28,11 @@ def proposal(**attributes) -> WireEvent:
 
 def test_the_running_example_is_the_trip_chapter_1_opens_with():
     trip = lisbon_trip()
-    assert trip.origin == "New York"
-    assert [stop.city for stop in trip.stops] == ["Madrid", "Lisbon"]
-    assert (trip.stops[0].depart - trip.stops[0].arrive).days == 3  # three days in Madrid
-    assert trip.travellers == 2
+    flown = [(j.origin, j.destination) for j in trip.origin_destinations]
+    assert flown == [("NYC", "MAD"), ("MAD", "LIS"), ("LIS", "NYC")]
+    assert [stay.city for stay in trip.stays] == ["MAD", "LIS"]
+    assert (trip.stays[0].check_out - trip.stays[0].check_in).days == 3  # three days in Madrid
+    assert (trip.adults, trip.children) == (2, [])
 
 
 async def test_a_request_starts_a_thread_and_is_ordered_within_its_trip():
@@ -68,10 +69,11 @@ def test_the_malformed_request_breaks_the_contract_in_three_places():
     with pytest.raises(ValidationError) as rejected:
         ItineraryRequested.model_validate(NOT_A_TRIP)
     broken = {error["loc"][0] for error in rejected.value.errors()}
-    assert broken == {"stops", "travellers", "budget"}
+    assert broken == {"origin_destinations", "adults", "budget"}
 
 
 @pytest.mark.parametrize("trip", [lisbon_trip(), nairobi_trip(), sydney_trip()])
 def test_every_city_a_demo_names_is_one_the_suppliers_know(trip):
-    for city in [trip.origin, *(stop.city for stop in trip.stops)]:
-        assert len(world.find_cities(city)) == 1, city
+    flown = [code for j in trip.origin_destinations for code in (j.origin, j.destination)]
+    for code in [*flown, *(stay.city for stay in trip.stays)]:
+        assert code in world.CITIES, code

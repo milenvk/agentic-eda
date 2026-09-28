@@ -44,13 +44,15 @@ CITIES = _load()
 
 
 def find_cities(keyword: str) -> list[City]:
-    """The cities matching a name, a city code, or an airport code, whatever the case."""
+    """The city with this code, or else the cities matching a name or an airport code."""
     wanted = keyword.strip().casefold()
+    coded = CITIES.get(wanted.upper())
+    if coded is not None:
+        return [coded]  # LON is London, although Barcelona's name contains it
     return [
         city
         for city in CITIES.values()
         if wanted in city.name.casefold()
-        or wanted == city.code.casefold()
         or wanted in (airport.casefold() for airport in city.airports)
     ]
 

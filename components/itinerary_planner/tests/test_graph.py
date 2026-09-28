@@ -9,7 +9,7 @@ from agentic_eda import connect, eda
 from agentic_eda.broker import WireEvent
 from agentic_eda.activator import Activator
 from agentic_eda.hydration import NoHydration
-from itinerary_planner.graph import MAX_ATTEMPTS, build_graph, legs_of
+from itinerary_planner.graph import MAX_ATTEMPTS, build_graph
 from itinerary_planner.prompts import render
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
@@ -26,22 +26,47 @@ async def planned(compiled, asked: ItineraryRequested, thread: str = "trip-1") -
     return state["proposal"]
 
 
-def test_a_trip_flies_out_on_between_stops_and_home():
-    one_stop = legs_of(request())
-    assert [(leg.origin, leg.destination) for leg in one_stop] == [
-        ("New York", "Lisbon"),
-        ("Lisbon", "New York"),
-    ]
-    two_stops = legs_of(
-        request(
-            stops=[
-                {"city": "Lisbon", "arrive": "2026-10-01", "depart": "2026-10-04"},
-                {"city": "Porto", "arrive": "2026-10-04", "depart": "2026-10-06"},
-            ]
-        )
+def journey(origin: str, destination: str, on: str) -> dict:
+    return {"origin": origin, "destination": destination, "departure_date": on}
+
+
+def stay(city: str, check_in: str, check_out: str) -> dict:
+    return {"city": city, "check_in": check_in, "check_out": check_out, "rooms": 1}
+
+
+async def test_the_items_are_in_travel_order_whatever_the_trip(model, airline, hotels):
+    model.briefs = [brief(max_stops=1)]
+    multi_city = request(
+        budget=None,
+        origin_destinations=[
+            journey("NYC", "LIS", "2026-10-01"),
+            journey("LIS", "OPO", "2026-10-04"),
+            journey("OPO", "NYC", "2026-10-06"),
+        ],
+        stays=[stay("LIS", "2026-10-01", "2026-10-04"), stay("OPO", "2026-10-04", "2026-10-06")],
     )
-    assert [leg.destination for leg in two_stops] == ["Lisbon", "Porto", "New York"]
-    assert str(two_stops[1].on) == "2026-10-04"
+    one_way_with_no_hotel = request(
+        budget=None, origin_destinations=[journey("NYC", "LIS", "2026-10-01")], stays=[]
+    )
+
+    there_and_back = await planned(graph(model, airline, hotels), multi_city, "trip-2")
+    one_way = await planned(graph(model, airline, hotels), one_way_with_no_hotel, "trip-3")
+
+    kinds = [item.kind for item in there_and_back.itineraries[0].items]
+    assert kinds == ["flight", "stay", "flight", "stay", "flight"]
+    stayed = [item.city for item in there_and_back.itineraries[0].items if item.kind == "stay"]
+    assert stayed == ["LIS", "OPO"]
+    assert [item.kind for item in one_way.itineraries[0].items] == ["flight"]
+
+
+async def test_both_suppliers_are_asked_for_the_whole_party(model, airline, hotels):
+    family = request(children=[{"age": 1, "own_seat": False}, {"age": 7, "own_seat": True}])
+
+    await planned(graph(model, airline, hotels), family)
+
+    for adults, children in (airline.parties[0], hotels.parties[0]):
+        assert adults == 2
+        assert [(child.age, child.own_seat) for child in children] == [(1, False), (7, True)]
 
 
 async def test_it_proposes_ranked_itineraries_carrying_the_suppliers_offers(model, airline, hotels):
@@ -53,7 +78,9 @@ async def test_it_proposes_ranked_itineraries_carrying_the_suppliers_offers(mode
     assert all(i.rationale.endswith("suits this trip") for i in proposal.itineraries)  # the model's
     cheapest = next(i for i in proposal.itineraries if i.label == "cheapest")
     assert [item.kind for item in cheapest.items] == ["flight", "stay", "flight"]  # travel order
-    assert cheapest.items[0].offer.offer_id == "onestop-New-Lis"  # the supplier's offer, as made
+    assert cheapest.items[0].offer.offer_id == "onestop-NYC-LIS"  # the supplier's offer, as made
+    assert cheapest.items[0].segments[0].carrier == "WW"  # and the airline's own flight
+    assert (cheapest.items[1].room, cheapest.items[1].rate_plan) == ("double", "FLEXIBLE")
     assert cheapest.total.amount == 700 + 600 + 700
 
 
@@ -130,10 +157,11 @@ async def test_a_new_request_for_the_same_trip_starts_from_a_clean_slate(model, 
     compiled = graph(model, airline, hotels)
 
     first = await planned(compiled, request("req-1"))
-    second = await planned(compiled, request("req-2", origin="Toronto"))  # the same thread
+    from_toronto = [journey("YTO", "LIS", "2026-10-01"), journey("LIS", "YTO", "2026-10-04")]
+    second = await planned(compiled, request("req-2", origin_destinations=from_toronto))
 
-    assert first.itineraries[0].items[0].origin == "New York"
-    assert second.itineraries[0].items[0].origin == "Toronto"
+    assert first.itineraries[0].items[0].segments[0].origin == "NYC"
+    assert second.itineraries[0].items[0].segments[0].origin == "YTO"  # on the same thread
 
 
 def test_the_agent_module_knows_nothing_of_events():

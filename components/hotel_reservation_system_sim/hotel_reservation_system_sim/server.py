@@ -21,12 +21,19 @@ class Availability(BaseModel):
 
 @mcp.tool()
 def search_availability(
-    city: str, check_in: date, check_out: date, guests: Annotated[int, Field(ge=1)]
+    city: str,
+    check_in: date,
+    check_out: date,
+    rooms: Annotated[int, Field(ge=1)],
+    adults: Annotated[int, Field(ge=1)],
+    child_ages: list[Annotated[int, Field(ge=0, le=17)]],
 ) -> Availability:
     """Rooms free in a city for the nights from check-in to check-out.
 
-    One offer per hotel and rate plan, each with the rooms left, the cancellation policy,
-    and the total for the whole stay. A hotel without rooms enough for the party is left out.
+    One offer per hotel and rate plan, each with the rooms left, the type of room, the
+    cancellation policy, and the total for the whole stay. A room sleeps four guests at
+    most, and an infant under 2 sleeps in a cot and is not counted. A hotel without rooms
+    enough is left out.
     """
     # A ToolError's message reaches the caller; any other exception's text stays here.
     if check_out <= check_in:
@@ -34,4 +41,8 @@ def search_availability(
     matches = world.find_cities(city)
     if len(matches) != 1:
         raise ToolError(f"no single city is called {city}")
-    return Availability(offers=inventory.availability(matches[0], check_in, check_out, guests))
+    guests = adults + sum(1 for age in child_ages if age >= 2)
+    if guests > rooms * inventory.MOST_GUESTS_PER_ROOM:
+        raise ToolError(f"{guests} guests do not fit in {rooms} rooms")
+    offers = inventory.availability(matches[0], check_in, check_out, rooms, guests)
+    return Availability(offers=offers)

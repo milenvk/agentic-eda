@@ -14,15 +14,33 @@ FAKE_ITINERARIES = [
         "label": "best value",
         "rationale": "Direct flights, three nights in Madrid on the way out.",
         "items": [
-            {"kind": "flight", "from": "JFK", "to": "MAD", "date": "day 1", "notes": ""},
+            {
+                "kind": "flight",
+                "segments": [
+                    {
+                        "carrier": "WW",
+                        "number": "421",
+                        "origin": "JFK",
+                        "destination": "MAD",
+                        "departs": "2027-05-10T08:30:00Z",
+                        "arrives": "2027-05-10T15:40:00Z",
+                    }
+                ],
+                "fare_conditions": "exchange for 150, no refund",
+                "offer": None,
+            },
             {
                 "kind": "stay",
-                "city": "Madrid",
+                "city": "MAD",
                 "hotel": "Hotel Example",
-                "check_in": "day 1",
-                "check_out": "day 4",
+                "room": "double",
+                "check_in": "2027-05-10",
+                "check_out": "2027-05-13",
+                "rate_plan": "FLEXIBLE",
+                "cancellation": "free cancellation until 48 hours before arrival",
+                "offer": None,
+                "backup": None,
             },
-            {"kind": "flight", "from": "MAD", "to": "LIS", "date": "day 4", "notes": ""},
         ],
     }
 ]

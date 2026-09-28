@@ -30,16 +30,16 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
 1. **The customer asks** [4]. The customer writes in the chat. The Front Desk records
    `customer.ChatMessageReceived` (the conversation id, the text, the channel); its intent
    classifier recognises a trip request and writes `booking.TripRequested` in booking's
-   published language: an origin, an ordered list of stops each with its dates or a window (one
-   stop for a simple trip, several for a multi-city one), the travellers, a budget, and the
-   preferences in the customer's own words. Its causation id is the chat message and its
+   published language: the origin-destinations, each with its date or a window (one for a
+   one-way trip, two for a round trip, several for a multi-city one), the stays, the party,
+   a budget, and the preferences in the customer's own words. Its causation id is the chat message and its
    partition key the conversation's id, since no trip exists yet. When `booking.TripCreated`
    arrives on the conversation's correlation id, the Front Desk records the link from the
    conversation to the trip and follows the trip's facts from here on. Nobody outside Customer Relations reads raw chat. In ch 3 the demo script writes
    `TripRequested`; the Router writes it for email from ch 4.
 2. **Booking validates and asks planning** [3]. The Booking Agent consumes `TripRequested`,
-   checks it as a business request (dates in the future and in order, at least one stop,
-   travellers named, a budget or an explicit "no limit"). A request that fails gets
+   checks it as a business request (dates in the future and in order, at least one
+   origin-destination, the party stated, a budget or an explicit "no limit"). A request that fails gets
    `booking.TripRequestRejected` (what is missing or wrong), which the Front Desk shows as a
    question; no itinerary is ever planned for it. A request that passes is recorded as the Trip
    under a store-assigned id, with the request's event id kept beside it under a unique index
@@ -53,11 +53,11 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    `ItineraryRequested` itself, with a trip id of its own generation.
 3. **Planning proposes itineraries** [1]. The Planner consumes `ItineraryRequested`, its only
    inbound request, and does all of its work inside: it asks the Research Agent over A2A what
-   destination knowledge holds about each stop [3]; the flight-search sub-agent decomposes the
-   stops into legs and explores routes, dates, nearby airports, and a train between two stops;
-   the hotel-search sub-agent matches the preferences per stop against the hotel sim's inventory
-   over MCP and flags a last room; the validator rejects anything breaking a hard constraint,
-   including a connection that does not fit between one stop's check-out and the next leg; the
+   destination knowledge holds about each stay's city [3]; the flight-search sub-agent
+   searches each requested origin-destination, across the airports of a city code and with or
+   without a stop; the hotel-search sub-agent matches the preferences per stay against the
+   hotel sim's inventory over MCP and flags a last room; the validator rejects anything breaking a hard constraint,
+   including a flight leaving before the one before it has landed; the
    planner node assembles and ranks. It publishes `planning.ItineraryProposed`: the trip id, the
    proposal's id (its request's), and one to three ranked itineraries, each with a label, its
    items in travel order with their offers and validity, a total, and a rationale. A multi-city
@@ -463,7 +463,10 @@ Not workflows but behaviors applied across W1 to W6:
 * **Observability and evolution (ch 14):** OTel spans (`llm.token_count`,
   `agent.reasoning_step`) across W1 end to end; the partner adapter writing
   `booking.TripRequested` V2 (traveller documents, a loyalty programme) and the Translator
-  serving V1 to the Booking Agent, immutable and unchanged, through a deprecation window.
+  serving V1 to the Booking Agent, immutable and unchanged, through a deprecation window. The
+  second case is a new member of a union: a rail item joins the flight and the stay in
+  `planning.ItineraryProposed`, and a consumer validating with the old classes rejects the
+  whole proposal on the unknown kind.
 * **Cloud (ch 15):** every Port re-implemented against managed services that order per key; the
   same workflows under load and chaos.
 

@@ -6,6 +6,7 @@ finds the same flights at the same prices on every run.
 
 from datetime import UTC, date, datetime, timedelta
 from random import Random
+from typing import NamedTuple
 
 from travel_agency.sims import world
 from travel_agency.sims.world import City
@@ -13,8 +14,17 @@ from travel_agency.sims.world import City
 from .wire import Endpoint, FareRule, FlightOffer, Itinerary, Price, Segment
 
 CARRIER = "WW"  # the simulator's one invented airline
+
+
+class Place(NamedTuple):
+    """Where a journey starts or ends: a city, and the airports of it the traveller accepts."""
+
+    city: City
+    airports: list[str]  # every airport of the city, or the one that was asked for
+
 CRUISE_KMH = 800
 BASE_FARE, FARE_PER_KM = 50, 0.09
+CHILD_FARE, INFANT_FARE = 0.75, 0.1  # of an adult's fare; the infant is held and has no seat
 ONE_STOP_DISCOUNT = 0.7  # a stop is the cheaper way to fly
 CONNECTIONS_OFFERED = 2
 OFFER_MINUTES = 30
@@ -42,12 +52,21 @@ BRANDED_FARES = {
 
 
 def search(
-    origin: City, destination: City, on: date, adults: int, non_stop: bool
+    origin: Place,
+    destination: Place,
+    on: date,
+    adults: int,
+    children: int,
+    infants: int,
+    non_stop: bool,
 ) -> list[FlightOffer]:
     """The day's offers: every way to fly, under each branded fare."""
-    roll = world.dice("flights", origin.code, destination.code, on)
+    roll = world.dice("flights", origin.city.code, destination.city.code, on)
     demand = roll.uniform(0.85, 1.25)  # how full the day is
-    fare = (BASE_FARE + FARE_PER_KM * world.distance_km(origin, destination)) * demand * adults
+    distance = world.distance_km(origin.city, destination.city)
+    adult_fare = (BASE_FARE + FARE_PER_KM * distance) * demand
+    fare = adult_fare * (adults + CHILD_FARE * children + INFANT_FARE * infants)
+    party = f"{adults}ADT{children}CHD{infants}INF"  # the passenger type codes
     expires_at = datetime.now(UTC) + timedelta(minutes=OFFER_MINUTES)
 
     offers = []
@@ -57,7 +76,7 @@ def search(
         for brand, (markup, rules) in BRANDED_FARES.items():
             offers.append(
                 FlightOffer(
-                    id=f"{flown}-{on:%Y%m%d}-{brand}-{adults}",
+                    id=f"{flown}-{on:%Y%m%d}-{brand}-{party}",
                     itineraries=[Itinerary(segments=segments)],
                     price=Price(currency=world.CURRENCY, total=round(fare * discount * markup, 2)),
                     branded_fare=brand,
@@ -69,20 +88,21 @@ def search(
 
 
 def _journeys(
-    roll: Random, origin: City, destination: City, on: date, non_stop: bool
+    roll: Random, origin: Place, destination: Place, on: date, non_stop: bool
 ) -> list[list[Segment]]:
+    a, b = origin.city, destination.city
     journeys = []
-    if world.nonstop(origin, destination):
+    if world.nonstop(a, b):
         for slot, hour in ((1, MORNING), (2, EVENING)):
             start, end = roll.choice(origin.airports), roll.choice(destination.airports)
-            journeys.append([_flight(origin, start, destination, end, _time(roll, on, hour), slot)])
+            journeys.append([_flight(a, start, b, end, _time(roll, on, hour), slot)])
     if not non_stop:
-        for hub in world.connections(origin, destination)[:CONNECTIONS_OFFERED]:
+        for hub in world.connections(a, b)[:CONNECTIONS_OFFERED]:
             start, end = roll.choice(origin.airports), roll.choice(destination.airports)
             transfer = hub.airports[0]  # a connection never changes airports
-            first = _flight(origin, start, hub, transfer, _time(roll, on, MIDDAY), slot=3)
+            first = _flight(a, start, hub, transfer, _time(roll, on, MIDDAY), slot=3)
             layover = timedelta(minutes=roll.choice((90, 120, 180)))
-            onward = _flight(hub, transfer, destination, end, first.arrival.at + layover, slot=3)
+            onward = _flight(hub, transfer, b, end, first.arrival.at + layover, slot=3)
             journeys.append([first, onward])
     return journeys
 

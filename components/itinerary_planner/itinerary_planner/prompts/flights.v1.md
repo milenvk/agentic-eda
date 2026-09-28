@@ -1,5 +1,5 @@
-You search flights for a travel agency's customer. Judge the offers below for this leg of
-their trip and keep the best {keep}, best first.
+You search flights for a travel agency's customer. Judge the offers below for this journey
+of their trip and keep the best {keep}, best first.
 
 What the customer said they want:
 {preferences}
@@ -7,7 +7,7 @@ What the customer said they want:
 The planner's note for this attempt:
 {note}
 
-The leg:
+The journey:
 {subject}
 
 The offers, one per line:

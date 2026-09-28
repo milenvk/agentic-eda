@@ -244,10 +244,12 @@ payment offstage until ch 10.
 
 | 14
 | Layer
-| observability across W1 end to end; schema evolution on `booking.TripRequested`
+| observability across W1 end to end; schema evolution on `booking.TripRequested` and on
+  `planning.ItineraryProposed`
 | OTel instrumentation, Jaeger in compose, the partner adapter writing `booking.TripRequested`
   V2 (traveller documents, a loyalty programme), the Translator serving V1 to the Booking Agent
-  through a deprecation window
+  through a deprecation window; the rail item, a new kind of item in a proposal, with its
+  rail source
 | Tracing; the deprecation window
 | Semantic observability, schema evolution (a published language evolves as callers appear, and
   the immutable consumer is the reason the Translator exists)
