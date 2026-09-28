@@ -32,6 +32,7 @@ class HotelOffer(BaseModel):
     city: str
     hotel: str
     area: str
+    rooms: int
     room: str
     check_in: date
     check_out: date

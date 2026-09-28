@@ -33,6 +33,7 @@ FAKE_ITINERARIES = [
                 "kind": "stay",
                 "city": "MAD",
                 "hotel": "Hotel Example",
+                "rooms": 1,
                 "room": "double",
                 "check_in": "2027-05-10",
                 "check_out": "2027-05-13",

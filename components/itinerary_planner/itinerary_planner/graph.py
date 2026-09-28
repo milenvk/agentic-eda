@@ -344,6 +344,7 @@ def _itinerary(
             kind="stay",
             city=stay.city,
             hotel=stay.hotel,
+            rooms=stay.rooms,
             room=stay.room,
             check_in=stay.check_in,
             check_out=stay.check_out,

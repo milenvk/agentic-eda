@@ -25,6 +25,7 @@ STAY = {
     "kind": "stay",
     "city": "LIS",
     "hotel": "Casa do Bairro",
+    "rooms": 1,
     "room": "double",
     "check_in": "2026-10-01",
     "check_out": "2026-10-04",

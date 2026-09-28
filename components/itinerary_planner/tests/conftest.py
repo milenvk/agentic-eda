@@ -101,6 +101,7 @@ class FakeHotels:
                 city=stay.city,
                 hotel=name,
                 area=area,
+                rooms=stay.rooms,
                 room="double",
                 check_in=stay.check_in,
                 check_out=stay.check_out,

@@ -128,6 +128,7 @@ def hotels_answering() -> HotelsClient:
             "check_in": check_in.isoformat(),
             "check_out": check_out.isoformat(),
             "rooms_left": 1,
+            "rooms": rooms,
             "room": "family" if guests > 2 else "double",
             "rate_plan": "FLEXIBLE",
             "cancellation": "free cancellation until 48 hours before arrival",
@@ -144,7 +145,7 @@ async def test_a_room_offer_is_answered_in_the_planners_terms():
     (offer,) = await hotels_answering().availability(IN_LISBON, 2, [Child(age=7, own_seat=True)])
 
     assert (offer.city, offer.hotel, offer.rooms_left) == ("LIS", "Pátio das Andorinhas", 1)
-    assert (offer.room, offer.rate_plan) == ("family", "FLEXIBLE")
+    assert (offer.rooms, offer.room, offer.rate_plan) == (1, "family", "FLEXIBLE")
     assert offer.offer_id.endswith("1R3G")  # the rooms and the guests, as they were asked for
     assert (offer.check_in, offer.check_out) == (date(2026, 10, 1), date(2026, 10, 4))
     assert (offer.total.amount, offer.total.currency) == (397.36, "USD")

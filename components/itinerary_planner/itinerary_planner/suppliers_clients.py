@@ -111,6 +111,7 @@ def _hotel_offer(city: str, offer: dict) -> HotelOffer:
         city=city,
         hotel=offer["hotel"],
         area=offer["area"],
+        rooms=offer["rooms"],
         room=offer["room"],
         check_in=offer["check_in"],
         check_out=offer["check_out"],

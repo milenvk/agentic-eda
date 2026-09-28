@@ -31,6 +31,7 @@ class RoomOffer(BaseModel):
     check_in: date
     check_out: date
     rooms_left: int
+    rooms: int  # as many as were asked for
     room: str  # double or family
     rate_plan: str
     cancellation: str
@@ -67,6 +68,7 @@ def availability(
                     check_in=check_in,
                     check_out=check_out,
                     rooms_left=rooms_left,
+                    rooms=rooms,
                     room="family" if family else "double",
                     rate_plan=plan,
                     cancellation=cancellation,

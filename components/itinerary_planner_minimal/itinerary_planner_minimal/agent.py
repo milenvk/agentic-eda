@@ -30,9 +30,9 @@ holding exactly one itinerary: a short "label" for what it optimises, a short
 "destination": "...", "departs": "...", "arrives": "..."}}], "fare_conditions": "...",
 "offer": null}}
 or a stay
-{{"kind": "stay", "city": "...", "hotel": "...", "room": "...", "check_in": "...",
-"check_out": "...", "rate_plan": "...", "cancellation": "...", "offer": null,
-"backup": null}}.
+{{"kind": "stay", "city": "...", "hotel": "...", "rooms": 1, "room": "...",
+"check_in": "...", "check_out": "...", "rate_plan": "...", "cancellation": "...",
+"offer": null, "backup": null}}.
 A flight has one segment per flight number. Airports and cities are IATA codes.
 
 {request}

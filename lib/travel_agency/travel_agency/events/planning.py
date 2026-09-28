@@ -119,7 +119,8 @@ class StayItem(BaseModel):
     kind: Literal["stay"]
     city: str = Field(description="IATA city code, such as MAD.")
     hotel: str
-    room: str = Field(description="The type of room, such as double.")
+    rooms: int = Field(ge=1, description="How many rooms the offer's price is for.")
+    room: str = Field(description="The type of each room, such as double.")
     check_in: date
     check_out: date
     rate_plan: str = Field(description="The supplier's name for the rate, such as FLEXIBLE.")

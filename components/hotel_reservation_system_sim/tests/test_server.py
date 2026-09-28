@@ -73,6 +73,7 @@ async def test_more_than_two_guests_to_a_room_take_a_family_room_at_a_higher_rat
     with_a_baby = cheapest(await offers(child_ages=[1]))  # in a cot, and not counted
 
     assert (couple["room"], family["room"], with_a_baby["room"]) == ("double", "family", "double")
+    assert (family["rooms"], (await offers(rooms=2, adults=4))[0]["rooms"]) == (1, 2)
     assert family["total"] > couple["total"] == with_a_baby["total"]
     assert family["offer_id"].endswith("1R4G")
 

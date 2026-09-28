@@ -125,7 +125,8 @@ async def test_it_proposes_ranked_itineraries_carrying_the_suppliers_offers(mode
     assert [item.kind for item in cheapest.items] == ["flight", "stay", "flight"]  # travel order
     assert cheapest.items[0].offer.offer_id == "onestop-NYC-LIS"  # the supplier's offer, as made
     assert cheapest.items[0].segments[0].carrier == "WW"  # and the airline's own flight
-    assert (cheapest.items[1].room, cheapest.items[1].rate_plan) == ("double", "FLEXIBLE")
+    stayed = cheapest.items[1]
+    assert (stayed.rooms, stayed.room, stayed.rate_plan) == (1, "double", "FLEXIBLE")
     assert cheapest.total.amount == 700 + 600 + 700
 
 
