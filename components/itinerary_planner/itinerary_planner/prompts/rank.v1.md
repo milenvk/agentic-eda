@@ -4,6 +4,9 @@ customer's hard constraints. Rank them for this customer and give each a reason.
 The trip request:
 {request}
 
+The meaning of the request's fields, from its contract:
+{meanings}
+
 The itineraries, one per line, each with a label:
 {candidates}
 

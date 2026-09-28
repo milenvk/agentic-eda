@@ -70,6 +70,27 @@ def data_of(fact: EventContract) -> dict:
     return fact.model_dump(mode="json", exclude=NOT_DATA, exclude_defaults=True)
 
 
+def meanings_of(contract: type[BaseModel]) -> str:
+    """What a contract's fields mean, as text for a prompt.
+
+    Each class of the contract is one line with its docstring, and each described field one
+    line beneath it. The text is read from the contract's JSON Schema, so an LLM is told
+    what any other reader of the schema is told.
+    """
+    schema = contract.model_json_schema()
+    classes = {schema["title"]: schema, **schema.get("$defs", {})}
+    lines = []
+    for name, described in classes.items():
+        fields = [
+            f"  {field}: {about['description']}"
+            for field, about in described.get("properties", {}).items()
+            if "description" in about
+        ]
+        if "description" in described or fields:
+            lines += [f"{name}: {described.get('description', '')}".rstrip(": "), *fields]
+    return "\n".join(lines)
+
+
 def binding_of(subject: object) -> Binding | None:
     """The binding of an event class or of an instance of one, if it has one."""
     cls = subject if isinstance(subject, type) else type(subject)

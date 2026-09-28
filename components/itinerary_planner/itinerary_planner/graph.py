@@ -22,7 +22,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
-from agentic_eda.contracts import data_of
+from agentic_eda.contracts import data_of, meanings_of
 from agentic_eda.hydration import Hydration
 from travel_agency.events.planning import (
     FlightItem,
@@ -130,7 +130,11 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
 
         if state.candidates and not state.problems:
             ranking = await ask(
-                "rank", Ranking, request=_described(request), candidates=_listed(state.candidates)
+                "rank",
+                Ranking,
+                request=_described(request),
+                meanings=meanings_of(ItineraryRequested),
+                candidates=_listed(state.candidates),
             )
             return {**_fresh(state), "proposal": _proposal(request, state.candidates, ranking)}
 
@@ -138,6 +142,7 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
             "brief",
             Brief,
             request=_described(request),
+            meanings=meanings_of(ItineraryRequested),
             context=state.context,
             fares=state.fares or "no journey has a window",
             journeys=len(request.origin_destinations),

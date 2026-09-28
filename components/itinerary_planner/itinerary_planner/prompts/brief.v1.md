@@ -4,6 +4,9 @@ flights for each journey of the trip, the other finds a hotel for each stay. Bri
 The trip request:
 {request}
 
+The meaning of the request's fields, from its contract:
+{meanings}
+
 What is already known about this trip:
 {context}
 

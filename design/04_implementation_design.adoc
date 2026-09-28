@@ -513,8 +513,12 @@ the activation holds its key's lane meanwhile like any other. The developer's on
 that the agent answers with `produces`, which every framework's own typed-output feature
 takes (`with_structured_output` or a graph's `output_schema`, ADK's `output_schema`, a task's
 `output_pydantic`, LiteLLM's `response_format`, with `supports_response_schema` as the probe
-for a model that cannot). The activator never supplies a schema to a prompt; the typed-output
-line is the only schema a model sees. Where a framework exposes that declaration, `attach`
+for a model that cannot). The activator never supplies a schema to a prompt, and the
+typed-output line is the only schema an LLM receives. The meaning of an inbound event's
+fields is the developer's to give: `contracts.meanings_of(cls)` renders a contract's
+docstrings and field descriptions as text, one line per class and per described field, read
+from the same JSON Schema as any other reader's, and the Planner places it in its prompts
+beside the request. Where a framework exposes that declaration, `attach`
 compares it with `produces` at startup and fails loudly on a mismatch. The strict subset
 also makes every property required, forbids extra properties, and does not enforce
 `pattern`, `minLength`, `minimum` and their kin, so an optional field on an event class is a

@@ -10,7 +10,17 @@ from examples import (
 )
 from pydantic import BaseModel
 
-from agentic_eda.contracts import OWN_ID, EventContract, Nothing, binding_of, data_of, event
+from pydantic import Field
+
+from agentic_eda.contracts import (
+    OWN_ID,
+    EventContract,
+    Nothing,
+    binding_of,
+    data_of,
+    event,
+    meanings_of,
+)
 
 def test_the_decorator_binds_a_class_to_its_type_and_its_ordering():
     binding = binding_of(ItineraryProposed)
@@ -90,6 +100,32 @@ def test_an_unset_optional_field_is_left_out_of_the_published_data():
         "car_class": "compact",
     }
     assert Asked.model_validate(data_of(stated)) == stated  # nothing is lost on the way
+
+
+def test_a_contracts_meanings_are_its_docstrings_and_descriptions_as_text():
+    class Budget(BaseModel):
+        """An amount in one currency."""
+
+        amount: float
+        currency: str = Field(description="ISO 4217 code, such as USD.")
+
+    class Traveller(BaseModel):  # nothing is said about it, so it is left out
+        age: int
+
+    @event("planning.Asked", order_per="trip_id")
+    class Asked(EventContract):
+        """Someone asks for a plan."""
+
+        trip_id: str
+        budget: Budget | None = Field(description="Null means no limit.")
+        travellers: list[Traveller]
+
+    assert meanings_of(Asked).splitlines() == [
+        "Asked: Someone asks for a plan.",
+        "  budget: Null means no limit.",
+        "Budget: An amount in one currency.",
+        "  currency: ISO 4217 code, such as USD.",
+    ]
 
 
 def test_the_only_default_a_contract_may_have_is_none():

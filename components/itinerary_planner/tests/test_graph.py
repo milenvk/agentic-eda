@@ -178,6 +178,16 @@ async def test_the_brief_is_handed_to_both_searches(model, airline, hotels):
     assert "by the river" in prompts["hotels"]
 
 
+async def test_the_planner_is_told_the_meaning_of_the_requests_fields(model, airline, hotels):
+    await planned(graph(model, airline, hotels), request())
+
+    prompts = {name: render(name, **variables) for name, variables in model.asked}
+    for prompt in (prompts["brief"], prompts["rank"]):
+        assert "  budget: Upper limit for the whole trip and all travellers." in prompt
+        assert "  own_seat: False only for an infant under 2 held by an adult." in prompt
+        assert "Stay: One hotel stay the travellers want." in prompt
+
+
 async def test_no_area_hint_is_stated_as_no_particular_area(model, airline, hotels):
     model.briefs = [brief(max_stops=1, area_hint=None)]
 
