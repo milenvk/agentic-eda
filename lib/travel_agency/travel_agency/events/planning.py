@@ -23,14 +23,20 @@ class OriginDestination(BaseModel):
     origin: str = Field(description="IATA city or airport code, such as NYC.")
     destination: str = Field(description="IATA city or airport code, such as MAD.")
     departure_date: date
+    days_before: int = Field(
+        ge=0, le=3, description="How many days earlier the journey may start. 0 means none."
+    )
+    days_after: int = Field(
+        ge=0, le=3, description="How many days later the journey may start. 0 means none."
+    )
 
 
 class Stay(BaseModel):
     """One hotel stay the travellers want."""
 
     city: str = Field(description="IATA city code, such as MAD.")
-    check_in: date
-    check_out: date
+    check_in: date = Field(description="Moves with the journey before the stay, when that moves.")
+    check_out: date = Field(description="Moves with the journey after the stay, when that moves.")
     rooms: int = Field(ge=1)
 
 

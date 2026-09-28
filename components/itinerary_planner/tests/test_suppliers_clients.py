@@ -16,7 +16,13 @@ from itinerary_planner import suppliers_clients
 from itinerary_planner.suppliers_clients import AirlineClient, HotelsClient
 from travel_agency.events.planning import Child, OriginDestination, Stay
 
-TO_LISBON = OriginDestination(origin="NYC", destination="LIS", departure_date=date(2026, 10, 1))
+TO_LISBON = OriginDestination(
+    origin="NYC",
+    destination="LIS",
+    departure_date=date(2026, 10, 1),
+    days_before=0,
+    days_after=0,
+)
 IN_LISBON = Stay(city="LIS", check_in=date(2026, 10, 1), check_out=date(2026, 10, 4), rooms=1)
 
 ONE_STOP_OFFER = {

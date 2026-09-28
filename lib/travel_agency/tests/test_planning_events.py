@@ -7,11 +7,12 @@ from agentic_eda.contracts import binding_of
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
 
+EXACTLY = {"days_before": 0, "days_after": 0}  # a journey on its date and no other
 REQUEST = {
     "trip_id": 1,
     "origin_destinations": [
-        {"origin": "NYC", "destination": "LIS", "departure_date": "2026-10-01"},
-        {"origin": "LIS", "destination": "NYC", "departure_date": "2026-10-04"},
+        {**EXACTLY, "origin": "NYC", "destination": "LIS", "departure_date": "2026-10-01"},
+        {**EXACTLY, "origin": "LIS", "destination": "NYC", "departure_date": "2026-10-04"},
     ],
     "stays": [{"city": "LIS", "check_in": "2026-10-01", "check_out": "2026-10-04", "rooms": 1}],
     "adults": 2,
@@ -59,6 +60,15 @@ def test_the_request_contract_rejects_a_trip_with_no_journey():
 def test_a_trip_may_be_one_way_and_need_no_hotel():
     one_way = {**REQUEST, "origin_destinations": REQUEST["origin_destinations"][:1], "stays": []}
     assert ItineraryRequested.model_validate(one_way).stays == []
+
+
+def test_a_journey_may_start_up_to_three_days_earlier_or_later():
+    def flying(**window) -> dict:
+        return {**REQUEST, "origin_destinations": [{**REQUEST["origin_destinations"][0], **window}]}
+
+    ItineraryRequested.model_validate(flying(days_before=3, days_after=1))
+    with pytest.raises(ValidationError):
+        ItineraryRequested.model_validate(flying(days_after=4))
 
 
 def test_an_infant_has_a_seat_or_is_held_and_an_older_child_always_has_a_seat():

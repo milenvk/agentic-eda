@@ -5,12 +5,16 @@ consolidates what they found into candidate itineraries, and a validator checks 
 constraints in code, never with a model. The validator always hands back to the planner:
 with problems, it briefs the searches again; without, it ranks what survived and proposes.
 
+A journey may have a window of dates. A hotel's price depends on its nights, so the dates
+are settled before either search starts: the planner reads the lowest fare on each date of
+a window, and its brief names the date to search.
+
 The model only ever judges among options that code has already fetched, and code carries
 the facts, so an offer's price or a flight's time is never something a model retyped.
 """
 
 from collections.abc import Awaitable, Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 from langgraph.checkpoint.memory import InMemorySaver
@@ -25,6 +29,8 @@ from travel_agency.events.planning import (
     ItineraryRequested,
     Money,
     Offer,
+    OriginDestination,
+    Stay,
     StayItem,
 )
 
@@ -34,15 +40,22 @@ MAX_ATTEMPTS = 3
 PICKS = 3
 
 Ask = Callable[..., Awaitable[BaseModel]]
+NOT_MOVED = timedelta(0)
 
 
 class JourneyBrief(BaseModel):
     """The limits for the flight search of one journey."""
 
+    departure_date: date | None = Field(
+        description="One of the dates the journey may start on. Null keeps the requested date."
+    )
     max_stops: int = Field(description="0 means nonstop flights only.")
     max_price: float | None = Field(
         description="Upper limit for one offer, all travellers together. Null means no limit."
     )
+
+
+NO_LIMITS = JourneyBrief(departure_date=None, max_stops=1, max_price=None)
 
 
 class StayBrief(BaseModel):
@@ -91,7 +104,10 @@ class PlannerState(BaseModel):
     request: ItineraryRequested
     handling: str = ""  # the request event this run is for
     context: str = ""
+    fares: str = ""  # the lowest fare on each date of each window, as the planner reads it
     brief: Brief | None = None
+    journeys: list[OriginDestination] = []  # each on the one date the brief settled
+    stays: list[Stay] = []  # moved with the journeys around them
     flights: list[list[FlightOffer]] = []  # per journey, the search's picks, best first
     hotels: list[list[HotelOffer]] = []  # per stay
     candidates: list[Itinerary] = []
@@ -108,6 +124,7 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
             # A thread is kept per trip, so a new request starts from a clean slate.
             state = PlannerState(request=request, handling=event_id)
             state.context = await hydration.context_for(str(request.trip_id))
+            state.fares = await _fare_calendar(airline, request)
 
         if state.candidates and not state.problems:
             ranking = await ask(
@@ -120,17 +137,26 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
             Brief,
             request=_described(request),
             context=state.context,
+            fares=state.fares or "no journey has a window",
             journeys=len(request.origin_destinations),
             stays=len(request.stays),
             problems="\n".join(state.problems) or "none yet",
         )
-        return {**_fresh(state), "brief": brief, "attempts": state.attempts + 1, "problems": []}
+        journeys, stays = _settled(request, brief)
+        return {
+            **_fresh(state),
+            "brief": brief,
+            "journeys": journeys,
+            "stays": stays,
+            "attempts": state.attempts + 1,
+            "problems": [],
+        }
 
     async def flight_search(state: PlannerState) -> dict:
         request, kept = state.request, []
         party = (request.adults, request.children)
-        for number, journey in enumerate(request.origin_destinations):
-            wanted = _at(state.brief.journeys, number) or JourneyBrief(max_stops=1, max_price=None)
+        for number, journey in enumerate(state.journeys):
+            wanted = _at(state.brief.journeys, number) or NO_LIMITS
             offers = await airline.search(journey, *party, wanted.max_stops)
             if not offers and wanted.max_stops == 0:
                 # The brief wanted a nonstop on a route nobody flies nonstop.
@@ -144,7 +170,7 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
 
     async def hotel_search(state: PlannerState) -> dict:
         request, kept = state.request, []
-        for number, stay in enumerate(request.stays):
+        for number, stay in enumerate(state.stays):
             wanted = _at(state.brief.stays, number) or StayBrief(max_total=None, area_hint=None)
             offers = await hotels.availability(stay, request.adults, request.children)
             if wanted.max_total is not None:
@@ -191,6 +217,67 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
         .add_edge("join", "validator")
         .add_edge("validator", "planner")
         .compile(checkpointer=InMemorySaver())
+    )
+
+
+async def _fare_calendar(airline: Airline, request: ItineraryRequested) -> str:
+    """The lowest fare on each date of every window, which the industry calls calendar shopping."""
+    lines = []
+    for journey in request.origin_destinations:
+        for day in _window(journey):
+            offers = await airline.search(_on(journey, day), request.adults, request.children, 1)
+            if offers:
+                lowest = min(offers, key=_price).price
+                route = f"{journey.origin} to {journey.destination}"
+                lines.append(f"{route} on {day}: from {lowest.amount:,.0f} {lowest.currency}")
+    return "\n".join(lines)
+
+
+def _window(journey: OriginDestination) -> list[date]:
+    """Every date the journey may start on, or none where it has no window."""
+    if not (journey.days_before or journey.days_after):
+        return []
+    first = journey.departure_date - timedelta(days=journey.days_before)
+    return [first + timedelta(days=n) for n in range(journey.days_before + journey.days_after + 1)]
+
+
+def _on(journey: OriginDestination, day: date) -> OriginDestination:
+    return journey.model_copy(update={"departure_date": day, "days_before": 0, "days_after": 0})
+
+
+def _settled(
+    request: ItineraryRequested, brief: Brief
+) -> tuple[list[OriginDestination], list[Stay]]:
+    """The journeys on the dates the brief chose, and the stays moved with them."""
+    requested = request.origin_destinations
+    journeys = []
+    for number, journey in enumerate(requested):
+        day = (_at(brief.journeys, number) or NO_LIMITS).departure_date
+        if day not in _window(journey):
+            day = journey.departure_date  # a date outside the window is never searched
+        journeys.append(_on(journey, day))
+    stays = [_following(stay, requested, journeys) for stay in request.stays]
+
+    days = [journey.departure_date for journey in journeys]
+    if days == sorted(days) and all(stay.check_in < stay.check_out for stay in stays):
+        return journeys, stays
+    # The chosen dates leave a stay without a night: the requested dates need no judgement.
+    return [_on(journey, journey.departure_date) for journey in requested], request.stays
+
+
+def _following(stay: Stay, requested: list, settled: list) -> Stay:
+    """A stay begins with the journey before it and ends with the journey after it."""
+    moved = [
+        (asked.departure_date, chosen.departure_date - asked.departure_date)
+        for asked, chosen in zip(requested, settled, strict=True)
+    ]
+    arriving = [by for day, by in moved if day <= stay.check_in]
+    leaving = [by for day, by in moved if day >= stay.check_out]
+    return stay.model_copy(
+        update={
+            "check_in": stay.check_in + (arriving[-1] if arriving else NOT_MOVED),
+            "check_out": stay.check_out + (leaving[0] if leaving else NOT_MOVED),
+        }
     )
 
 
@@ -327,7 +414,8 @@ def _proposal(request, candidates: list[Itinerary], ranking: Ranking) -> Itinera
 
 
 def _fresh(state: PlannerState) -> dict:
-    return {"handling": state.handling, "context": state.context, "proposal": None}
+    kept = {"handling": state.handling, "context": state.context, "fares": state.fares}
+    return {**kept, "proposal": None}
 
 
 def _offer(supplied, price: Money) -> Offer:

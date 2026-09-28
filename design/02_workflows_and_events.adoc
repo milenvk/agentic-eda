@@ -30,8 +30,9 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
 1. **The customer asks** [4]. The customer writes in the chat. The Front Desk records
    `customer.ChatMessageReceived` (the conversation id, the text, the channel); its intent
    classifier recognises a trip request and writes `booking.TripRequested` in booking's
-   published language: the origin-destinations, each with its date or a window (one for a
-   one-way trip, two for a round trip, several for a multi-city one), the stays, the party,
+   published language: the origin-destinations, each with its date and an optional window of
+   days before and after it (one for a one-way trip, two for a round trip, several for a
+   multi-city one), the stays, the party,
    a budget, and the preferences in the customer's own words. Its causation id is the chat message and its
    partition key the conversation's id, since no trip exists yet. When `booking.TripCreated`
    arrives on the conversation's correlation id, the Front Desk records the link from the
@@ -55,7 +56,8 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    inbound request, and does all of its work inside: it asks the Research Agent over A2A what
    destination knowledge holds about each stay's city [3]; the flight-search sub-agent
    searches each requested origin-destination, across the airports of a city code and with or
-   without a stop; the hotel-search sub-agent matches the preferences per stay against the
+   without a stop, on the date the planner node settled from the fares of its window; the
+   hotel-search sub-agent matches the preferences per stay against the
    hotel sim's inventory over MCP and flags a last room; the validator rejects anything breaking a hard constraint,
    including a flight leaving before the one before it has landed; the
    planner node assembles and ranks. It publishes `planning.ItineraryProposed`: the trip id, the

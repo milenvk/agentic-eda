@@ -20,12 +20,17 @@ def usd(amount: float) -> Money:
     return Money(amount=amount, currency="USD")
 
 
+def journey(origin: str, destination: str, on: str, days_before=0, days_after=0) -> dict:
+    window = {"days_before": days_before, "days_after": days_after}
+    return {"origin": origin, "destination": destination, "departure_date": on, **window}
+
+
 def request(event_id: str = "req-1", budget: float | None = 2900, **changes) -> ItineraryRequested:
     fields = {
         "trip_id": 1,
         "origin_destinations": [
-            {"origin": "NYC", "destination": "LIS", "departure_date": "2026-10-01"},
-            {"origin": "LIS", "destination": "NYC", "departure_date": "2026-10-04"},
+            journey("NYC", "LIS", "2026-10-01"),
+            journey("LIS", "NYC", "2026-10-04"),
         ],
         "stays": [{"city": "LIS", "check_in": "2026-10-01", "check_out": "2026-10-04", "rooms": 1}],
         "adults": 2,
@@ -46,6 +51,7 @@ class FakeAirline:
     def __init__(self) -> None:
         self.searches: list[int] = []
         self.parties: list[tuple] = []  # per search, the adults and the children asked for
+        self.savings: dict[date, float] = {}  # per day, how much cheaper every flight is
         self.flies_nonstop = True
 
     async def search(self, journey, adults, children, max_stops):
@@ -69,7 +75,7 @@ class FakeAirline:
                 segments=[flight],
                 stops=stops,
                 fare_conditions="changes 150 USD, no refund",
-                price=usd(price),
+                price=usd(price - self.savings.get(on, 0)),
                 valid_until=SOON,
             )
 
@@ -137,10 +143,16 @@ class FakeModel:
 
 
 def brief(
-    max_stops: int, max_price: float | None = None, area_hint: str | None = "by the river"
+    max_stops: int,
+    max_price: float | None = None,
+    area_hint: str | None = "by the river",
+    dates: tuple[str | None, str | None] = (None, None),  # per journey, the date to search
 ) -> Brief:
     return Brief(
-        journeys=[JourneyBrief(max_stops=max_stops, max_price=max_price)] * 2,
+        journeys=[
+            JourneyBrief(departure_date=day, max_stops=max_stops, max_price=max_price)
+            for day in dates
+        ],
         stays=[StayBrief(max_total=None, area_hint=area_hint)],
         note="favour the saving",
     )

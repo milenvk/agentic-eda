@@ -3,7 +3,9 @@
 import asyncio
 from contextlib import asynccontextmanager
 
-from conftest import brief, request
+from datetime import date
+
+from conftest import brief, journey, request
 
 from agentic_eda import connect, eda
 from agentic_eda.broker import WireEvent
@@ -24,10 +26,6 @@ async def planned(compiled, asked: ItineraryRequested, thread: str = "trip-1") -
         {"request": asked}, config={"configurable": {"thread_id": thread}}
     )
     return state["proposal"]
-
-
-def journey(origin: str, destination: str, on: str) -> dict:
-    return {"origin": origin, "destination": destination, "departure_date": on}
 
 
 def stay(city: str, check_in: str, check_out: str) -> dict:
@@ -57,6 +55,53 @@ async def test_the_items_are_in_travel_order_whatever_the_trip(model, airline, h
     stayed = [item.city for item in there_and_back.itineraries[0].items if item.kind == "stay"]
     assert stayed == ["LIS", "OPO"]
     assert [item.kind for item in one_way.itineraries[0].items] == ["flight"]
+
+
+async def test_a_journey_with_a_window_is_flown_on_the_date_the_brief_settles(
+    model, airline, hotels
+):
+    airline.savings = {date(2026, 9, 30): 200}  # a day earlier is the cheaper day
+    flexible = [journey("NYC", "LIS", "2026-10-01", 1, 1), journey("LIS", "NYC", "2026-10-04")]
+    model.briefs = [brief(max_stops=1, dates=("2026-09-30", None))]
+
+    proposal = await planned(graph(model, airline, hotels), request(origin_destinations=flexible))
+
+    told = next(variables for name, variables in model.asked if name == "brief")
+    assert told["fares"].splitlines() == [
+        "NYC to LIS on 2026-09-30: from 500 USD",
+        "NYC to LIS on 2026-10-01: from 700 USD",
+        "NYC to LIS on 2026-10-02: from 700 USD",
+    ]
+    out, stayed, back = proposal.itineraries[0].items
+    assert out.segments[0].departs.date() == date(2026, 9, 30)
+    assert (stayed.check_in, stayed.check_out) == (date(2026, 9, 30), date(2026, 10, 4))
+    assert back.segments[0].departs.date() == date(2026, 10, 4)  # it has no window
+
+
+async def test_a_date_outside_the_window_is_not_searched(model, airline, hotels):
+    flexible = [journey("NYC", "LIS", "2026-10-01", 1, 1), journey("LIS", "NYC", "2026-10-04")]
+    model.briefs = [brief(max_stops=1, dates=("2026-09-20", "2026-10-05"))]
+
+    proposal = await planned(graph(model, airline, hotels), request(origin_destinations=flexible))
+
+    out, stayed, back = proposal.itineraries[0].items
+    assert out.segments[0].departs.date() == date(2026, 10, 1)
+    assert (stayed.check_in, stayed.check_out) == (date(2026, 10, 1), date(2026, 10, 4))
+    assert back.segments[0].departs.date() == date(2026, 10, 4)
+
+
+async def test_dates_leaving_a_stay_without_a_night_are_not_searched(model, airline, hotels):
+    flexible = [
+        journey("NYC", "LIS", "2026-10-01", days_after=3),
+        journey("LIS", "NYC", "2026-10-04", days_before=3),
+    ]
+    model.briefs = [brief(max_stops=1, dates=("2026-10-04", "2026-10-02"))]  # home before out
+
+    proposal = await planned(graph(model, airline, hotels), request(origin_destinations=flexible))
+
+    out, stayed, back = proposal.itineraries[0].items
+    assert (stayed.check_in, stayed.check_out) == (date(2026, 10, 1), date(2026, 10, 4))
+    assert out.segments[0].departs.date() == date(2026, 10, 1)
 
 
 async def test_both_suppliers_are_asked_for_the_whole_party(model, airline, hotels):

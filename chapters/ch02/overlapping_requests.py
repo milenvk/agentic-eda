@@ -18,8 +18,8 @@ def nairobi_trip() -> ItineraryRequested:
     return ItineraryRequested(
         trip_id=new_trip_id(),
         origin_destinations=[
-            journey("SAO", "NBO", date(2027, 7, 2)),
-            journey("NBO", "SAO", date(2027, 7, 9)),
+            journey("SAO", "NBO", date(2027, 7, 2), window=2),  # the price matters, the day less
+            journey("NBO", "SAO", date(2027, 7, 9), window=2),
         ],
         stays=[Stay(city="NBO", check_in=date(2027, 7, 2), check_out=date(2027, 7, 9), rooms=1)],
         adults=1,

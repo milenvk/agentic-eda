@@ -333,7 +333,8 @@ book.
 | trip request
 | booking
 | What the customer asked for, in the travel industry's terms: the origin-destinations (each a
-  journey from one place to another with its date or a window, so one for a one-way trip, two
+  journey from one place to another with its date and, where the customer is flexible, a
+  window of up to three days before and after it, so one for a one-way trip, two
   for a round trip, and several for a multi-city one), the stays (each a city, its nights, and
   the rooms wanted), the party, a budget or an explicit "no limit", and the customer's
   preferences in their own words, including a car class when one is wanted. The fact that
@@ -772,15 +773,15 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   its only inbound request, and `booking.ItineraryApproved` (to mark the chosen itinerary), and
   nothing else. Inside one LangGraph graph: a planner node, a flight-search sub-agent that
   searches each requested origin-destination, across the airports of a city code and with or
-  without a stop; a hotel-search sub-agent that matches the customer's preferences per stay
+  without a stop, on the date the planner node settled; a hotel-search sub-agent that matches the customer's preferences per stay
   against the hotel sim's inventory over MCP and flags an offer as the last room from the
   sim's rooms-left field;
   a deterministic validator node that rejects anything breaking a hard constraint (never the
   model); and the join, where the planner node assembles and ranks one to three itineraries and
   writes a rationale for each. The division of labour inside is fixed: code fetches and code
   carries the facts, and the model only judges. The planner node briefs the two searches
-  (stops allowed and price limits per origin-destination, a spending limit and an area per
-  stay, and one
+  (the date, the stops allowed, and price limits per origin-destination, a spending limit and
+  an area per stay, and one
   note on what to favour); each search queries its supplier in code, applies the limits in
   code, and asks the model, given the customer's preferences, the note, and the area, which
   of the offers returned to keep, best first, falling back to price when the model names an
@@ -788,7 +789,12 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   first picks as best value) from the suppliers' offers exactly as made; the validator
   checks the budget, the order of the flights, and the offers' validity; and it always
   hands back to the planner, which briefs again with the problems it was told, up to three
-  attempts, or ranks the survivors and proposes. So a price or a flight time in a proposal
+  attempts, or ranks the survivors and proposes. Where a journey has a window, the dates are
+  settled before either search starts, because a hotel's price depends on its nights: the
+  planner node asks the airline for the lowest fare on each date of the window (the
+  industry's calendar shopping), its brief names the date to search, and each stay begins
+  with the journey before it and ends with the journey after it. A date outside the window,
+  or dates leaving a stay without a night, are replaced in code by the requested dates. So a price or a flight time in a proposal
   is never something a model retyped, and the graph has the five nodes 2.2 draws. It consults the Destination Research Agent over A2A (ch 3), and
   the flight search reaches the Airline Reservation System sim over REST. It publishes
   `planning.ItineraryProposed`, each proposal immutable and keyed by the trip's id, and places no

@@ -7,7 +7,7 @@ up, and needs no Kafka and no model.
 
 from datetime import date
 
-from conftest import FakeModel, brief, request
+from conftest import FakeModel, brief, journey, request
 
 from agentic_eda.hydration import NoHydration
 from itinerary_planner import suppliers_clients
@@ -15,7 +15,7 @@ from itinerary_planner.graph import build_graph
 from travel_agency.events.planning import Child, OriginDestination, Stay
 
 ARRIVE, DEPART = date(2027, 5, 10), date(2027, 5, 13)
-TO_MADRID = OriginDestination(origin="NYC", destination="MAD", departure_date=ARRIVE)
+TO_MADRID = OriginDestination(**journey("NYC", "MAD", "2027-05-10"))
 IN_MADRID = Stay(city="MAD", check_in=ARRIVE, check_out=DEPART, rooms=1)
 A_BABY_AND_A_CHILD = [Child(age=1, own_seat=False), Child(age=7, own_seat=True)]
 
@@ -57,8 +57,8 @@ async def test_the_graph_plans_a_trip_across_the_world_on_the_suppliers_offers()
     )
     asked = request(
         origin_destinations=[
-            {"origin": "SAO", "destination": "NBO", "departure_date": "2027-07-02"},
-            {"origin": "NBO", "destination": "SAO", "departure_date": "2027-07-09"},
+            journey("SAO", "NBO", "2027-07-02", days_before=2, days_after=2),
+            journey("NBO", "SAO", "2027-07-09"),
         ],
         stays=[{"city": "NBO", "check_in": "2027-07-02", "check_out": "2027-07-09", "rooms": 1}],
         budget=None,
@@ -71,4 +71,6 @@ async def test_the_graph_plans_a_trip_across_the_world_on_the_suppliers_offers()
     cheapest = next(i for i in proposal.itineraries if i.label == "cheapest")
     assert [item.kind for item in cheapest.items] == ["flight", "stay", "flight"]
     assert cheapest.items[1].city == "NBO"
+    fares = next(variables for name, variables in model.asked if name == "brief")["fares"]
+    assert len(fares.splitlines()) == 5  # the airline was asked about each day of the window
     assert cheapest.items[0].offer.supplier == "Airline Reservation System"
