@@ -650,8 +650,10 @@ Identity conventions, in the book's order of introduction:
   a link, correlation a label: following causation walks the thread hop by hop, filtering on
   correlation returns it whole. A second thread on the same trip (ch 8's duty of care, ch 9's
   disruption) gets its own correlation id.
-* **`partitionkey`:** the standard CloudEvents partitioning extension, on every event from the
-  ch 2 practical, carrying the id of the event's aggregate: the trip's id on every booking,
+* **`partitionkey`:** the standard CloudEvents partitioning extension, optional on an event and
+  set from the field named by its class's `order_per`. Before ch 4 no class declares one, and
+  every event is published without a key. From ch 4 every class of the catalog with an order
+  to keep declares one, carrying the id of the event's aggregate: the trip's id on every booking,
   planning, and policy fact, the conversation's id on every customer fact, and, where the
   context holds no aggregate, the id of the trip concerned or, before a trip exists, the
   conversation's. Ordering by key is part of the broker contract: events sharing a

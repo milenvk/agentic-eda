@@ -2,8 +2,7 @@
 
 A request starts a thread. The script generates the thread's `correlationid`, and the Planner's
 activator copies it to everything the request causes, so a proposal is matched to its
-request by that label alone. The `partitionkey` is the trip's id: one trip's events stay
-in order, and two trips never wait for each other.
+request by that label alone.
 """
 
 import asyncio
@@ -75,7 +74,7 @@ async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> 
         ITINERARY_REQUESTED,
         SOURCE,
         data_of(trip),
-        attributes={"correlationid": str(uuid4()), "partitionkey": str(trip.trip_id)},
+        attributes={"correlationid": str(uuid4())},
     )
     console.show("PUBLISHED", request)
     return request
@@ -101,7 +100,7 @@ async def show_proposals(broker: EventBroker, requests: list[WireEvent], patienc
         for itinerary in ItineraryProposed.model_validate(event.data).itineraries:
             total = itinerary.total
             print(f"  {itinerary.rank}. {itinerary.label}: {total.amount:,.0f} {total.currency}")
-        console.success(f"the proposal for {request.partitionkey} arrived on its request's thread.")
+        console.success(f"the proposal for {request.data['trip_id']} arrived on its request's thread.")
         if not unanswered:
             all_answered.set()
 

@@ -35,7 +35,7 @@ async def main() -> None:
             ITINERARY_REQUESTED,
             SOURCE,
             NOT_A_TRIP,
-            attributes={"correlationid": str(uuid4()), "partitionkey": str(NOT_A_TRIP["trip_id"])},
+            attributes={"correlationid": str(uuid4())},
         )
         console.show("PUBLISHED", request)
         print("\nThe broker took it. Waiting to see whether planning does...\n", flush=True)

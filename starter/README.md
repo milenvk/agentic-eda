@@ -14,15 +14,14 @@ of your own needs.
 Four files, about a hundred and fifty lines together, in this order:
 
 1. [review_triage/events.py](review_triage/events.py): the two contracts. Each is a
-   Pydantic class bound by `@event` to its type on the wire and to the field its order is
-   kept within.
+   Pydantic class bound by `@event` to its type on the wire.
 2. [review_triage/agent.py](review_triage/agent.py): the agent, a plain async function. A
    typed review comes in, a typed triage goes out, and nothing in the file knows that a
    broker exists.
 3. [review_triage/app.py](review_triage/app.py): the app hosting the agent, and the one
    line attaching the activator to it. The activator subscribes, validates each event
    against its contract, calls the agent, validates the answer, and publishes it with the
-   request's `correlationid`, its `causationid`, and the review's id as `partitionkey`.
+   request's `correlationid` and its `causationid`.
 4. [send_review.py](send_review.py): a script standing in for the shop. It publishes a
    review through the `EventBroker` port and waits for the triage as an event.
 
@@ -82,15 +81,16 @@ Work in this order, running `./test.sh` and the demo after each step.
    published by it, and its consumer group on the broker.
 2. **Replace the two events.** Write your own type constants and `@event` classes in
    `events.py`. A type is `<context>.<FactInPastTense>`, and the context before the dot
-   becomes the topic. `order_per` is never left unsaid: name the field holding the id of
-   the subject of your events (an order, a ticket, a patient), so that one subject's
-   events are handled in order while different subjects never wait for each other. Use
-   `order_per=None` only for an event with no such thing behind it.
+   becomes the topic. No order is kept between events by default. Where one subject (an
+   order, a ticket, a patient) has several events and their order matters, name the field
+   holding the subject's id, as in `@event(ORDER_SHIPPED, order_per="order_id")`: one
+   subject's events are then handled in publish order, one at a time, while different
+   subjects never wait for each other.
 3. **Replace the agent.** Keep its shape: one consumed class in, one produced class out.
    Let the model judge and let code carry the facts, as `triage` does with `review_id`:
    a model asked to retype an id or an amount will sometimes retype it wrong.
 4. **Publish from your own side.** `send_review.py` shows the whole of it: `data_of(fact)`
-   for the data, a fresh `correlationid` for a new thread, and the `partitionkey`.
+   for the data, and a fresh `correlationid` for a new thread.
 
 Where to look when the starter's shape is too small:
 

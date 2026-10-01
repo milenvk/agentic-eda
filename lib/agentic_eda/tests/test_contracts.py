@@ -42,9 +42,12 @@ def test_a_model_is_never_asked_to_fill_the_attributes():
     assert ItineraryRequested.model_validate(REQUEST).attributes_ is None
 
 
-def test_order_per_is_never_left_unsaid():
-    with pytest.raises(TypeError, match="declare order_per"):
-        event("planning.Something")
+def test_an_event_declaring_no_order_keeps_none():
+    @event("system.SweepDue")
+    class SweepDue(EventContract):
+        pass
+
+    assert binding_of(SweepDue).order_per is None
 
 
 def test_order_per_names_a_field_the_class_has():
@@ -55,17 +58,12 @@ def test_order_per_names_a_field_the_class_has():
             trip_id: str
 
 
-def test_the_two_other_orderings_are_written_out():
+def test_the_event_that_starts_a_sequence_is_ordered_within_its_own_id():
     @event("booking.TripRequested", order_per=OWN_ID)
     class TripRequested(EventContract):
         origin: str
 
-    @event("system.SweepDue", order_per=None)
-    class SweepDue(EventContract):
-        pass
-
     assert binding_of(TripRequested).order_per is OWN_ID
-    assert binding_of(SweepDue).order_per is None
 
 
 def test_the_function_form_binds_a_class_you_do_not_own():
@@ -136,13 +134,13 @@ def test_the_only_default_a_contract_may_have_is_none():
 
     with pytest.raises(TypeError, match="Asked.priority has a default"):
 
-        @event("planning.Asked", order_per=None)
+        @event("planning.Asked")
         class Asked(EventContract):
             priority: str = "normal"
 
     with pytest.raises(TypeError, match="Room.beds has a default"):
 
-        @event("planning.Stayed", order_per=None)
+        @event("planning.Stayed")
         class Stayed(EventContract):
             rooms: list[Room]  # a class inside a contract is part of the contract
 

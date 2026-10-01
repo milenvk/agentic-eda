@@ -126,9 +126,10 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
 `ItineraryRequested` and receives `ItineraryProposed`, matching on the request event's id; the
 audit consumer; one topic per context and per-key lanes in the adapter), ch 2 (the LangGraph
 Planner replacing the plain one on the same events; CloudEvents contracts, correlation and
-causation, `partitionkey`), ch 3 (the Booking Agent takes planning's end and the demo script the
+causation), ch 3 (the Booking Agent takes planning's end and the demo script the
 customer's: steps 2, 5, and 7; the Research Agent over A2A in step 3), ch 4 (the Front Desk and
-the Router take the customer's seat: steps 1 and 6 for chat and email), ch 7 (steps 4 and 9 and
+the Router take the customer's seat: steps 1 and 6 for chat and email; `partitionkey` on the
+trip's events), ch 7 (steps 4 and 9 and
 the partial re-plan: the demonstration ends with the trip reserved, both holds in place), ch 8
 (steps 8 and 11, the follow-up nudge), ch 10 (step 10, idempotent).
 
@@ -489,8 +490,8 @@ Conventions:
   (`04_implementation_design.adoc`, The Agent Activator); this catalog fixes names and
   ownership, not field lists, since full contract detail would be invalidated by
   chapter-level discoveries.
-* Every event carries `correlationid` and `partitionkey` (both from ch 2), `contextpath` (from
-  ch 7), `promptversion` and `modelversion` on what an agent publishes (from ch 10), and
+* Every event carries `correlationid` (from ch 2), `partitionkey` (from ch 4), `contextpath`
+  (from ch 7), `promptversion` and `modelversion` on what an agent publishes (from ch 10), and
   `identitytoken` (from ch 13) as CloudEvents extension attributes. `correlationid` is the
   conversation's id. `partitionkey` is the id of the event's aggregate: the trip's id on
   booking, planning, and policy facts, the conversation's id on customer facts, and, where the

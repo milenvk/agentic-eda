@@ -36,14 +36,13 @@ def test_the_running_example_is_the_trip_chapter_1_opens_with():
     assert all(j.days_before is None and j.days_after is None for j in trip.origin_destinations)
 
 
-async def test_a_request_starts_a_thread_and_is_ordered_within_its_trip():
+async def test_a_request_starts_a_thread():
     broker = RecordingBroker()
     trip = lisbon_trip()
 
     request = await request_itineraries(broker, trip)
 
     assert request.type == ITINERARY_REQUESTED
-    assert request.partitionkey == str(trip.trip_id)
     assert request.correlationid not in (request.id, str(trip.trip_id))  # a label of its own
     assert ItineraryRequested.model_validate(request.data) == trip.model_copy(
         update={"attributes_": None}
@@ -57,7 +56,6 @@ async def test_every_request_is_a_thread_of_its_own():
     first = await request_itineraries(broker, nairobi_trip())
     second = await request_itineraries(broker, sydney_trip())
     assert first.correlationid != second.correlationid
-    assert first.partitionkey != second.partitionkey
 
 
 async def test_a_proposal_answers_the_request_sharing_its_correlation_id():

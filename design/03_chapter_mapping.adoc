@@ -48,7 +48,7 @@ payment offstage until ch 10.
 
 | 2
 | Component
-| W1 hardening: the ch 1 round trip on a real Planner, contracted, correlated, and keyed
+| W1 hardening: the ch 1 round trip on a real Planner, contracted and correlated
 | The LangGraph Planner in place of the plain one (the book's one replacement: same events,
   new inside; a planner node, flight-search and hotel-search sub-agents, a validator node, the
   join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
@@ -57,15 +57,14 @@ payment offstage until ch 10.
   FastAPI app hosting the Planner,
   `consumes`, `produces`, and one `attach` line replacing ch 1's hand-rolled subscribe and
   publish, the validating boundary at the activator (inbound and outbound)
-| `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` becoming
-  the adapter's record key
+| `correlationid` and `causationid` on the wire
 | Agent traits, the domain map (seven contexts and the platform beside it), the glossary's two
   meanings of "trip", "request", and "confirmation", the component boundary and the ten
   criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, agent
   activator (the agent never learns a broker exists; the typed
   answer as the way an agent states a fact; publish tools, the attachment inside a
   framework's own app, and the push route as forward promises), data contracts, correlation and causation,
-  at-least-once floor, ordering per key in the contract; 2.8 shows the graph's shape and the
+  at-least-once floor; 2.8 shows the graph's shape and the
   two events only. The demo is three acts, one script-service each: `demo` (the running
   example's request, New York to Lisbon by way of Madrid, answered on its thread),
   `demo-malformed` (a request breaking its contract, rejected at the Planner's activator and
@@ -107,11 +106,13 @@ payment offstage until ch 10.
   through `output_pydantic`), the lanes
   demonstration (a burst of trip requests into one Planner process, every inference in flight,
   order kept per trip, a kill mid-burst replayed from the watermark)
-| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end
+| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end;
+  `partitionkey` on the wire, declared by `order_per` on the catalog's classes and becoming
+  the adapter's record key
 | Reflex agents (the classifier as the first), semantic routing (the same classification in an
   interactive message and a windowed burst, and why they are two components), semantic
   windowing, filters and payload mediation, broadcast vs competing consumers with per-key
-  serialization, concurrency inside the consumer (per-key lanes, the commit watermark, the
+  serialization, ordering per key in the contract, concurrency inside the consumer (per-key lanes, the commit watermark, the
   in-flight cap; lanes built by the client on Kafka and provided by the broker on Pub/Sub, SQS
   FIFO, and Service Bus), out-of-sequence handling (two patterns built, the Agentic Inbox as
   activation gated on completeness and the ingress re-sequencer at one line; NACK and retry

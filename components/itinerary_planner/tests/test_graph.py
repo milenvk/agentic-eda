@@ -263,7 +263,6 @@ async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
         source="RequestTripScript",
         data=request().model_dump(mode="json", exclude={"attributes_", "event_type"}),
         correlationid="req-1",
-        partitionkey="1",
     )
 
     async with activator.running():
@@ -272,6 +271,6 @@ async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
     (proposal,) = published
     assert proposal.type == ITINERARY_PROPOSED
     assert (proposal.causationid, proposal.correlationid) == ("req-1", "req-1")
-    assert proposal.partitionkey == "1"
+    assert not hasattr(proposal, "partitionkey")  # planning's events declare no order
     assert ItineraryProposed.model_validate(proposal.data).itineraries  # a valid contract, on the wire
 

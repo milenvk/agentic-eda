@@ -1,8 +1,8 @@
 """Event contracts: one Pydantic class per kind of event, bound with ``@event``.
 
 An ``@event`` class is the contract for a kind of event: what its data holds, which
-type names it on the wire, and which of its fields its order is kept within. The
-``WireEvent`` of the port is a different thing: one occurrence on the wire, the envelope
+type names it on the wire, and, for an event with an order to keep, which of its
+fields that order is kept within. The ``WireEvent`` of the port is a different thing: one occurrence on the wire, the envelope
 around that data.
 """
 
@@ -23,8 +23,6 @@ class _OwnId:
 # For the event that starts a sequence: it is keyed on its own id, which the events
 # that follow it then share.
 OWN_ID = _OwnId()
-
-_UNSET = object()
 
 # The two fields of an event class that are not its data: the envelope carries both.
 NOT_DATA = {"attributes_", "event_type"}
@@ -118,29 +116,25 @@ def binding_of(subject: object) -> Binding | None:
     return getattr(cls, "__event__", None)
 
 
-def event(*args, order_per: str | _OwnId | None = _UNSET):
-    """Bind a class to its event type and to the field its order is kept within.
+def event(*args, order_per: str | _OwnId | None = None):
+    """Bind a class to its event type.
 
     As a decorator, on a class of your own::
 
-        @event(ITINERARY_PROPOSED, order_per="trip_id")
+        @event(ITINERARY_PROPOSED)
         class ItineraryProposed(EventContract): ...
 
     As a function, on a class you do not own, which comes back as a subclass an agent
     still receives as an instance of its own class::
 
-        TripRequest = event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")
+        TripRequest = event(TripRequest, ITINERARY_REQUESTED)
 
-    ``order_per`` is never left unsaid. Events sharing that field's value are delivered
-    in publish order, one at a time, and nothing is promised across values. ``OWN_ID``
-    is for the event that starts a sequence, and ``None`` declares an event nothing
-    orders.
+    ``order_per`` is for an event with an order to keep, and names one of its fields:
+    ``@event(ITINERARY_PROPOSED, order_per="trip_id")``. Events sharing that field's value
+    are delivered in publish order, one at a time, and nothing is promised across values.
+    ``OWN_ID`` is for the event that starts a sequence. Without ``order_per``, no order is
+    kept: the event is published without a key.
     """
-    if order_per is _UNSET:
-        raise TypeError(
-            "declare order_per: the field this event's order is kept within, OWN_ID "
-            "for the event that starts a sequence, or None for an event nothing orders"
-        )
     if args and isinstance(args[0], type):
         cls, event_type = args
         return _bind(cls, event_type, order_per)

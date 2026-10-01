@@ -31,7 +31,7 @@ async def main() -> None:
             REVIEW_RECEIVED,
             SOURCE,
             data_of(review),
-            attributes={"correlationid": str(uuid4()), "partitionkey": review.review_id},
+            attributes={"correlationid": str(uuid4())},
         )
         console.show("PUBLISHED", sent)
         print("\nNothing is blocked; waiting for the triage...\n", flush=True)

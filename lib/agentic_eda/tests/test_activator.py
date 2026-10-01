@@ -116,7 +116,7 @@ def test_produces_with_no_classes_declares_a_pure_consumer():
 
 
 def test_produces_refuses_an_optional_field_a_strict_schema_cannot_express():
-    @eda.event("planning.Loose", order_per=None)
+    @eda.event("planning.Loose")
     class Loose(eda.EventContract):
         currency: str = None  # it may be left out, and its type has no null to answer with
 
@@ -278,8 +278,8 @@ async def test_the_event_that_starts_a_sequence_is_keyed_on_its_own_id(broker):
     assert published.partitionkey == published.id
 
 
-async def test_an_event_nothing_orders_carries_no_key(broker):
-    @eda.event("system.SweepDue", order_per=None)
+async def test_an_event_declaring_no_order_carries_no_key(broker):
+    @eda.event("system.SweepDue")
     class SweepDue(eda.EventContract):
         pass
 

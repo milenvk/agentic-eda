@@ -249,9 +249,10 @@ Clients must accept these trade-offs:
 
 == Ordering Guarantees: The Contract
 
-Within-aggregate order **is part of the `EventBroker` contract** (`ch02_delivery_guarantees`),
+Within-aggregate order **is part of the `EventBroker` contract** (`ch04_consumer_concurrency`),
 though the frozen `publish` surface takes no key: the key is the
-CloudEvents `partitionkey` extension attribute, on every event from the ch 2 practical, and the
+CloudEvents `partitionkey` extension attribute, on every event of a class declaring `order_per`
+(the catalog's classes from ch 4), and the
 adapter maps it to whatever its broker orders by. The contract sentence: *events sharing a
 `partitionkey` are delivered in publish order, one at a time, to one consumer.* It promises
 order per key, never partitions; partitions are one of the adapter's ways of keeping it.
