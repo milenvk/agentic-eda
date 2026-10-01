@@ -559,7 +559,7 @@ promised.
    server announces itself as for development and testing only, its production form brings
    a Postgres, a Redis, and a license the book never shows, `langgraph-api` releases weekly,
    and runs go through the server's own queue, which takes concurrency out of the
-   activator's hands. 2.7 says in one sentence that a team on the platform puts the same
+   activator's hands. 2.6 says in one sentence that a team on the platform puts the same
    block in that app and what it trades.
 ** *Publish tools* (ch 7), for a turn that runs tools: `publish_tool(EventClass)` returns a
    plain async function named and documented from the class, whose parameters are its

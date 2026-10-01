@@ -759,7 +759,7 @@ callbacks listed under The Platform. Every agent is named by the outline itself.
 
 === LLM agents
 
-Traits are the `ch02_defining_the_actors` vocabulary; the Type column names each agent's
+Traits are the `ch03_defining_the_actors` vocabulary; the Type column names each agent's
 dominant trait. "py" = plain Python against the Ports, calling models through LiteLLM (see Ports
 below). Chapter = where the component first appears in the book. Every component is complete
 from that chapter; a later chapter's compose file switches on what it teaches.

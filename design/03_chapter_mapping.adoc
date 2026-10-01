@@ -58,12 +58,12 @@ payment offstage until ch 10.
   `consumes`, `produces`, and one `attach` line replacing ch 1's hand-rolled subscribe and
   publish, the validating boundary at the activator (inbound and outbound)
 | `correlationid` and `causationid` on the wire
-| Agent traits, the domain map (seven contexts and the platform beside it), the glossary's two
+| The domain map (seven contexts and the platform beside it), the glossary's two
   meanings of "trip", "request", and "confirmation", the component boundary and the ten
   criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, agent
   activator (the agent never learns a broker exists; the typed
   answer as the way an agent states a fact; publish tools, the attachment inside a
-  framework's own app, and the push route as forward promises), data contracts, correlation and causation; 2.7 shows
+  framework's own app, and the push route as forward promises), data contracts, correlation and causation; 2.6 shows
   the graph's shape and the
   two events only. The demo is three acts, one script-service each: `demo` (the running
   example's request, New York to Lisbon by way of Madrid, answered on its thread),
@@ -87,7 +87,7 @@ payment offstage until ch 10.
   the Planner's A2A call to the Research Agent; ch 2's MCP and REST edges taught
 | Universal integration: four edges, four kinds of counterpart (a tool over MCP, an agent over
   A2A, a legacy system over REST, a person through edge prompting; tools over MCP, agents over
-  A2A), the synchronous-query rule, edge prompting, zero-trust seed; the customer, support, and
+  A2A), the synchronous-query rule, agent traits (3.3), edge prompting, zero-trust seed; the customer, support, and
   destination contexts by the boundary test; the open-host request (booking's requests, with
   ch 1 and 2's `planning.ItineraryRequested` named as the first instance)
 
