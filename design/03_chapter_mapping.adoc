@@ -116,7 +116,7 @@ payment offstage until ch 10.
   in-flight cap; lanes built by the client on Kafka and provided by the broker on Pub/Sub, SQS
   FIFO, and Service Bus), out-of-sequence handling (two patterns built, the Agentic Inbox as
   activation gated on completeness and the ingress re-sequencer at one line; NACK and retry
-  analyzed, not built), subscribe-all, pull vs push, delivery as a subscription with one adapter
+  analyzed, not built), subscribe-all, the capability intersection rule, pull vs push, delivery as a subscription with one adapter
   per channel; the practical shows the classifier and the Router's shape only
 
 | 5
@@ -205,7 +205,7 @@ payment offstage until ch 10.
   Payment entity on the trip, the DLQ replay tool, a faulty prompt version for the Planner
 | The payment step; `promptversion` and `modelversion` stamped by the activator; dead-letter
   routing on contract failure
-| At-least-once reality, deterministic idempotency, internal checkpointing, DLQ, time travel,
+| At-least-once reality and the three delivery guarantees, deterministic idempotency, internal checkpointing, DLQ, time travel,
   the prompt regression replayed by version, PCI DSS in one sentence beside the adapter
 
 | 11
