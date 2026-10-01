@@ -63,8 +63,8 @@ payment offstage until ch 10.
   criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, agent
   activator (the agent never learns a broker exists; the typed
   answer as the way an agent states a fact; publish tools, the attachment inside a
-  framework's own app, and the push route as forward promises), data contracts, correlation and causation,
-  at-least-once floor; 2.8 shows the graph's shape and the
+  framework's own app, and the push route as forward promises), data contracts, correlation and causation; 2.7 shows
+  the graph's shape and the
   two events only. The demo is three acts, one script-service each: `demo` (the running
   example's request, New York to Lisbon by way of Madrid, answered on its thread),
   `demo-malformed` (a request breaking its contract, rejected at the Planner's activator and
