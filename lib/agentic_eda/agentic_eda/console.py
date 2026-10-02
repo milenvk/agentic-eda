@@ -85,6 +85,7 @@ def quiet_client_logs() -> None:
     logging.getLogger("aiokafka").setLevel(logging.ERROR)
     logging.getLogger("LiteLLM").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)  # the MCP client's HTTP library
 
 
 def configure_logging() -> None:

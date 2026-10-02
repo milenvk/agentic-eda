@@ -46,6 +46,11 @@ demo. The **second terminal acts**: every command in the acts below runs there. 
 watch stream, every line is prefixed with the component it came from, and every event
 appears as a card: its attributes first, then its data, with long values truncated.
 
+The audit consumer prints a RECEIVED card for every event too, so each event appears in the
+stream more than once. Two components writing at the same moment interleave their lines,
+and the prefix says whose line it is. Each act's script runs in a container of its own,
+and the stream reports `exited with code 0` when the act is over.
+
 ### Terminal 1: start the system and watch
 
 Build and start the stack: Kafka, the Planner, the two simulators, and the audit
@@ -75,7 +80,7 @@ prices on every run, on any machine.
 ## Act 1: the same round trip, on a real agent
 
 In the second terminal, send the running example's request: New York to Lisbon for two,
-with three days in Madrid on the way, on a budget of 2,800 US dollars:
+with three days in Madrid on the way, on a budget of 3,500 US dollars:
 
 ```sh
 docker compose --profile demo up -d --build --force-recreate demo
@@ -94,8 +99,12 @@ Observe in the watch terminal, in order:
 3. `itinerary-planner-1` prints a PUBLISHED card for `planning.ItineraryProposed`. Its
    `correlationid` is the request's, its `causationid` is the request's event id, and its
    `partitionkey` is the trip's id. The agent set none of them: the activator did.
-4. `demo-1` receives the proposal, matched by `correlationid`, lists the ranked
-   itineraries with their totals, and prints a green ✔.
+4. `demo-1` receives the proposal, matched by `correlationid`, lists its one to three
+   ranked itineraries with their totals, and prints a green ✔.
+
+While the Planner works, `demo-1` prints `Still waiting for 1 proposal(s)...` every 15
+seconds. With `llama3.2` on an Apple GPU the proposal arrives in about half a minute, and a
+CPU takes longer.
 
 Chapter 1's script matched its reply by a `request_id` field inside the data. That
 convention is gone: the thread's label now travels in the envelope, where every
@@ -113,7 +122,8 @@ docker compose --profile demo up -d --build --force-recreate demo-malformed
 Observe in the watch terminal:
 
 1. `demo-malformed-1` prints a PUBLISHED card. The broker takes the event: a broker moves
-   bytes, and no contract is checked there.
+   bytes, and no contract is checked there. The card has no `partitionkey`, because this
+   script writes a plain dictionary through the port and no contract class supplies a key.
 2. `itinerary-planner-1` prints a RECEIVED card, then
    `ItineraryPlannerAgent rejected planning.ItineraryRequested ...` with three validation
    errors, one per broken field. The graph never ran and the model was never called.
@@ -147,7 +157,8 @@ the command printed for it by `demo-overlapping-1` (a `grep` for the thread's
 `correlationid` in `data/audit.log`) into the second terminal.
 
 The two lines returned are one request and the proposal answering it, and the proposal's
-`causationid` is the request's `id`. A longer thread is read the same way:
+`causationid` is the request's `id`. Each line is one event as JSON and can
+run to a few thousand characters, with `correlationid` and `causationid` at its end. A longer thread is read the same way:
 `correlationid` says which thread an event belongs to, and `causationid` says what caused
 what within it.
 
@@ -159,6 +170,9 @@ stored events and Ollama's downloaded models:
 ```sh
 docker compose --profile demo down
 ```
+
+The audit record in `data/audit.log` stays on disk. Delete the file to start the next run
+with an empty record.
 
 ## Tests
 

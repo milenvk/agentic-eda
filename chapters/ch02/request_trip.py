@@ -46,7 +46,7 @@ def lisbon_trip() -> ItineraryRequested:
         ],
         adults=2,
         children=[],
-        budget=Money(amount=2800, currency="USD"),
+        budget=Money(amount=3500, currency="USD"),
         preferences="Quiet, walkable neighbourhoods. We would take a stop to save real money.",
         car_class=None,
     )
