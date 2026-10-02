@@ -336,7 +336,7 @@ If a replacement stay must be argued with a hotel whose agent never converges (t
 non-converging auto-responder), the platform's livelock guard counts turns per `correlationid`
 in the `GuardStateStore`, the shape of ch 11's token budget guard, and publishes
 `system.LivelockDetected`, consumed by the Recovery Agent into the same compensation path. The
-counter is a guard over the thread, not state of any aggregate.
+counter is a guard over the workflow, not state of any aggregate.
 
 *Built in:* ch 9 (on ch 8's machinery; the refund step with ch 10's payment step).
 
@@ -393,7 +393,7 @@ is charged twice.
 *Flow:* all W1 events reach the Observer/Reflector Agent, which projects `TripView` upserts into
 the `SemanticViewStore`, keyed by the trip id; any waking agent hydrates by the trip id through
 the context path (`/trips/{trip_id}/...`, Tier 1 + Tier 2) instead of replaying history, with
-`correlationid` scoping the current thread only, since a second thread on the same trip generates
+`correlationid` scoping the current workflow only, since a second workflow on the same trip generates
 its own. Ch 5's A/B compares the summarizing and experiential variants of the same Observer,
 both running with no store behind them; ch 6 selects the store and the Planner's hydration
 adapter; ch 7 scopes views by `contextpath` (`/trips/{trip_id}/...`) so the Paris hotel work
@@ -403,17 +403,17 @@ they were learned.
 *The scenario ch 6 solves.* Before ch 6 the Planner runs on two things: the request it
 consumes, which carries the requirements as they now stand and the customer's last reason, and
 its own store of earlier proposals. That is enough for a fresh request and for
-one rejection. It is not enough for a thread that drifts. A customer rejects round one as too
+one rejection. It is not enough for a conversation that drifts. A customer rejects round one as too
 expensive; changes the dates in round two; says in round three that the hotel from round one
 was fine and only the flight was the problem; and meanwhile tells support, in a separate
 conversation on another topic, that they cannot fly before ten in the morning. Each
 `ItineraryRequested` carries the current requirements and the latest reason, and nothing
-carries the thread: the Planner re-plans against the last reason only, reintroduces what round
+carries what the customer said earlier: the Planner re-plans against the last reason only, reintroduces what round
 one rejected, never sees the support fact, and the proposals oscillate between two shapes until
 the customer gives up after seven rounds. From ch 6 the Observer, which sees every topic,
 projects the conversation's summary into the `TripView`: what was rejected and why, every
 constraint stated across the rounds, the support fact. The Planner hydrates it at wake-up, and
-round three's proposal respects everything said so far; the thread converges in four rounds.
+round three's proposal respects everything said so far; the conversation converges in four rounds.
 The demonstration runs the same recorded conversation twice, without and with the store, and
 the two audit records differ.
 

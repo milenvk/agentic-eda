@@ -18,7 +18,7 @@ async def publish_fact(
     """Publish an event instance through the port.
 
     The type and the key are taken from the event's class, and the data from its fields.
-    ``attributes`` holds what only the publisher knows, such as the thread's
+    ``attributes`` holds what only the publisher knows, such as the workflow's
     ``correlationid``.
     """
     attributes = dict(attributes or {})

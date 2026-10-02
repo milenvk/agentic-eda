@@ -151,14 +151,14 @@ async def test_the_agent_receives_its_own_class_and_the_activator_publishes_its_
     assert request.attributes_.source == "RequestTripScript"  # the attributes beside the data
     assert published.type == ITINERARY_PROPOSED
     assert published.source == "ItineraryPlannerAgent"
-    assert published.correlationid == "conv-7"  # the thread, carried on
+    assert published.correlationid == "conv-7"  # the workflow's label, carried on
     assert published.causationid == "req-1"  # the event it answers
     assert published.partitionkey == "trip-1"  # from order_per
     assert "event_type" not in published.data and "attributes_" not in published.data
     assert len(published.data["itineraries"]) == 2
 
 
-async def test_a_thread_starts_at_the_event_that_carries_no_correlation(broker):
+async def test_a_workflow_starts_at_the_event_that_carries_no_correlation(broker):
     async def plan(request):
         return ItineraryProposed.model_validate(PROPOSAL)
 

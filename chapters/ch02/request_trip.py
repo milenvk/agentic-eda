@@ -1,6 +1,6 @@
 """The customer's seat: asks planning for itineraries, and waits for the proposal as an event.
 
-A request starts a thread. The script generates the thread's `correlationid`, and the Planner's
+A request starts a workflow. The script generates the workflow's `correlationid`, and the Planner's
 activator copies it to everything the request causes, so a proposal is matched to its
 request by that label alone. The request's class names the trip's id as the field its
 order is kept within, so `publish_fact` sets it as the `partitionkey`: one trip's events
@@ -71,7 +71,7 @@ def new_trip_id() -> int:
 
 
 async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> WireEvent:
-    """Publish one request as the first event of a new thread."""
+    """Publish one request as the first event of a new workflow."""
     request = await publish_fact(
         broker, SOURCE, trip, attributes={"correlationid": str(uuid4())}
     )
@@ -80,7 +80,7 @@ async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> 
 
 
 def answers(request: WireEvent, event: WireEvent) -> bool:
-    """A proposal answers a request when both carry the same thread's label."""
+    """A proposal answers a request when both carry the same workflow's label."""
     return getattr(event, "correlationid", None) == request.correlationid
 
 
@@ -92,14 +92,14 @@ async def show_proposals(broker: EventBroker, requests: list[WireEvent], patienc
     async def show(event: WireEvent) -> None:
         request = next((r for r in unanswered if answers(r, event)), None)
         if request is None:
-            return  # another thread's proposal
+            return  # another workflow's proposal
         unanswered.remove(request)
         print(flush=True)
         console.show("RECEIVED", event)
         for itinerary in ItineraryProposed.model_validate(event.data).itineraries:
             total = itinerary.total
             print(f"  {itinerary.rank}. {itinerary.label}: {total.amount:,.0f} {total.currency}")
-        console.success(f"the proposal for {request.data['trip_id']} arrived on its request's thread.")
+        console.success(f"the proposal for {request.data['trip_id']} arrived in its request's workflow.")
         if not unanswered:
             all_answered.set()
 

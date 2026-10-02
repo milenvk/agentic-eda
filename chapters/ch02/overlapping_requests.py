@@ -2,7 +2,7 @@
 
 Both requests are published before either is answered, so their events interleave on
 the broker. Each proposal carries its request's `correlationid`, which is all it takes
-to pull one thread out of the record afterwards.
+to pull one workflow out of the record afterwards.
 """
 
 import asyncio
@@ -56,7 +56,7 @@ async def main() -> None:
             await request_itineraries(broker, nairobi_trip()),
             await request_itineraries(broker, sydney_trip()),
         ]
-        print("\nTwo threads are open. To read one of them from the audit record:\n", flush=True)
+        print("\nTwo workflows are running. To read one of them from the audit record:\n", flush=True)
         for request in requests:
             print(f"  grep {request.correlationid} data/audit.log", flush=True)
         print(flush=True)

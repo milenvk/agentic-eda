@@ -173,7 +173,7 @@ An `WireEvent` carries the declared context attributes (`specversion`, `id`, `ty
 by name, and `data`. A new extension needs no change to any class. The extension attributes,
 in order of introduction:
 
-* `correlationid` (ch 2): the execution thread's label, the conversation's id, generated at the
+* `correlationid` (ch 2): the workflow's label, the conversation's id, generated at the
   first customer message (or by the demo script standing in for it) and copied to every event
   of the execution.
 * `causationid` (ch 2): the id of the event that directly caused this one.

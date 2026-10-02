@@ -119,7 +119,7 @@ attributes.
 * **Correlation id:** all events in a logical flow share a correlation id, the conversation's
   id, generated at the first customer message (or by the demo script standing in for it) and
   inherited by everything that follows, the trip request included. The audit log can then
-  trace the entire workflow by correlation id. A second thread on the same trip (ch 8's duty
+  trace the entire workflow by correlation id. A second workflow on the same trip (ch 8's duty
   of care, ch 9's disruption) generates its own.
 
 Causation chains are stored in event `attributes` (see `04_implementation_design.adoc`). They

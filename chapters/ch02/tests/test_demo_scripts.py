@@ -36,7 +36,7 @@ def test_the_running_example_is_the_trip_chapter_1_opens_with():
     assert all(j.days_before is None and j.days_after is None for j in trip.origin_destinations)
 
 
-async def test_a_request_starts_a_thread_and_is_ordered_within_its_trip():
+async def test_a_request_starts_a_workflow_and_is_ordered_within_its_trip():
     broker = RecordingBroker()
     trip = lisbon_trip()
 
@@ -52,7 +52,7 @@ async def test_a_request_starts_a_thread_and_is_ordered_within_its_trip():
     assert request.data["car_class"] is None  # required, so there, null included
 
 
-async def test_every_request_is_a_thread_of_its_own():
+async def test_every_request_is_a_workflow_of_its_own():
     broker = RecordingBroker()
     first = await request_itineraries(broker, nairobi_trip())
     second = await request_itineraries(broker, sydney_trip())
@@ -64,8 +64,8 @@ async def test_a_proposal_answers_the_request_sharing_its_correlation_id():
     request = await request_itineraries(RecordingBroker(), lisbon_trip())
 
     assert answers(request, proposal(correlationid=request.correlationid))
-    assert not answers(request, proposal(correlationid="another-thread"))
-    assert not answers(request, proposal())  # an event outside any thread
+    assert not answers(request, proposal(correlationid="another-workflow"))
+    assert not answers(request, proposal())  # an event outside any workflow
 
 
 def test_the_malformed_request_breaks_the_contract_in_three_places():

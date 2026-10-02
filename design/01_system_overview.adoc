@@ -307,7 +307,7 @@ keeping a counter, the planning topic's per-key lane orders a trip's requests an
 the store lists a trip's proposals by the time of their requests. There is no current
 proposal either. Every proposal stays choosable, so its statuses are proposed and accepted;
 "superseded" and "rejected" are booking's facts about what the customer was shown, not states
-of the proposal. The Requirements sit on the Proposal, so a change of dates or budget mid-thread
+of the proposal. The Requirements sit on the Proposal, so a change of dates or budget mid-workflow
 keeps every earlier proposal readable against the requirements it answered. An itinerary's
 items carry the supplier offers the Planner found; the negotiated rate a stay item later wins
 is booking's fact, recorded on the Trip's Reservation, never written back into the proposal.
@@ -518,7 +518,7 @@ store.
 | Livelock guard
 | 9
 | Counts negotiation turns per `correlationid` in the `GuardStateStore`, the shape of the
-  token budget guard, and stops a loop that exceeds the threshold; a guard over the thread,
+  token budget guard, and stops a loop that exceeds the threshold; a guard over the workflow,
   not state of any aggregate.
 | `LivelockDetected`
 
@@ -644,11 +644,11 @@ Identity conventions, in the book's order of introduction:
   demo script matches on it. `ch02_correlation_id` promotes it to a `causationid` extension
   attribute (one attribute, since ids are globally unique); ch 14's `traceparent` carries
   parent identity for observability, not business causation.
-* **`correlationid`:** the execution-thread key (`ch02_correlation_id`), the conversation's id,
+* **`correlationid`:** the workflow's label (`ch02_correlation_id`), the conversation's id,
   generated at the first customer message (or by the demo script that stands in for it) and
   copied to every event of the execution; it replaces the synchronous call stack. Causation is
-  a link, correlation a label: following causation walks the thread hop by hop, filtering on
-  correlation returns it whole. A second thread on the same trip (ch 8's duty of care, ch 9's
+  a link, correlation a label: following causation walks the workflow hop by hop, filtering on
+  correlation returns it whole. A second workflow on the same trip (ch 8's duty of care, ch 9's
   disruption) gets its own correlation id.
 * **`partitionkey`:** the standard CloudEvents partitioning extension, optional on an event and
   read from the event's own data: the value of the field named by its class's `order_per`, so

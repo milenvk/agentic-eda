@@ -67,10 +67,10 @@ payment offstage until ch 10.
   framework's own app, and the push route as forward promises), data contracts, correlation and causation; 2.6 shows
   the graph's shape and the
   two events only. The demo is three acts, one script-service each: `demo` (the running
-  example's request, New York to Lisbon by way of Madrid, answered on its thread),
+  example's request, New York to Lisbon by way of Madrid, answered in its workflow),
   `demo-malformed` (a request breaking its contract, rejected at the Planner's activator and
   acknowledged, recorded by the audit consumer all the same), and `demo-overlapping` (two
-  trips elsewhere in the world at once, neither waiting for the other, then one thread read
+  trips elsewhere in the world at once, neither waiting for the other, then one workflow read
   out of the audit record by its `correlationid`). The audit consumer runs from the start.
 
 | 3
@@ -132,7 +132,7 @@ payment offstage until ch 10.
 | S1 complete
 | `SemanticViewStore` keyed by the trip id
 | The Observer's writes into the store; the Planner's hydration adapter (stateless hydration by
-  the trip id through the context path, `correlationid` scoping the current thread only); the
+  the trip id through the context path, `correlationid` scoping the current workflow only); the
   five-round scenario run without and with the store
 | Event sourcing (NDC and ONE Order as the sidebar), Agentic CQRS, materialized semantic views,
   Tier 1+2 hydration, idempotent projections, staging across topics
@@ -191,7 +191,7 @@ payment offstage until ch 10.
   request to planning, `RebookingProposed` after the barrier, its compensation step
   (`FlightReservationCancelled`, `TripCancelled`); the misconfigured rule behind the deadlock and
   the macro-timeout that breaks it
-| Sagas, semantic rollback, livelock circuit breaker as a guard over the thread, deadlock
+| Sagas, semantic rollback, livelock circuit breaker as a guard over the workflow, deadlock
   resolution (a cycle between two contexts from two locally sensible rules), the servicing
   context's second meaning of "trip"
 

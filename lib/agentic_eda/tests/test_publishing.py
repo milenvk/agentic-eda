@@ -25,12 +25,12 @@ async def test_the_type_the_data_and_the_key_come_from_the_event():
 
 async def test_the_publisher_adds_what_only_it_knows():
     request = ItineraryRequested.model_validate(REQUEST)
-    attributes = {"correlationid": "thread-7"}
+    attributes = {"correlationid": "workflow-7"}
 
     published = await publish_fact(RecordingBroker(), "RequestTripScript", request, attributes)
 
-    assert published.correlationid == "thread-7"
-    assert attributes == {"correlationid": "thread-7"}  # the caller's dictionary is left alone
+    assert published.correlationid == "workflow-7"
+    assert attributes == {"correlationid": "workflow-7"}  # the caller's dictionary is left alone
 
 
 async def test_an_event_declaring_no_order_is_published_without_a_key():
