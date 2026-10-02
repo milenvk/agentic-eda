@@ -398,9 +398,7 @@ model an adapter concern. The activator owns five things.
    own. The default is the weaker promise, so a class missing a needed declaration loses its
    order without a symptom, and ch 4 says so where ordering is taught. An event written
    before its subject exists (`booking.TripRequested`, before the trip has an id) is ordered
-   within the conversation, whose id its data names. The key is never inherited from the
-   causing event: an inherited key would depend on the path an event took, and a script, a
-   relay, or a replay has no cause to inherit from. The function form,
+   within the conversation, whose id its data names. The function form,
    `event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")`, binds a class the
    developer does not own, so an existing agent's own models become the contract with no
    edit to the agent: it returns a subclass of that class with `EventContract` mixed in, and
