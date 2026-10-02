@@ -48,7 +48,7 @@ payment offstage until ch 10.
 
 | 2
 | Component
-| W1 hardening: the ch 1 round trip on a real Planner, contracted and correlated
+| W1 hardening: the ch 1 round trip on a real Planner, contracted, correlated, and keyed
 | The LangGraph Planner in place of the plain one (the book's one replacement: same events,
   new inside; a planner node, flight-search and hotel-search sub-agents, a validator node, the
   join, a private checkpoint, an empty hydration port), the Airline Reservation System sim
@@ -57,7 +57,8 @@ payment offstage until ch 10.
   FastAPI app hosting the Planner,
   `consumes`, `produces`, and one `attach` line replacing ch 1's hand-rolled subscribe and
   publish, the validating boundary at the activator (inbound and outbound)
-| `correlationid` and `causationid` on the wire
+| `correlationid`, `causationid`, and `partitionkey` on the wire, the `partitionkey` read from
+  the event by its class's `order_per` and becoming the adapter's record key
 | The domain map (seven contexts and the platform beside it), the glossary's two
   meanings of "trip", "request", and "confirmation", the component boundary and the ten
   criteria (2.2: the searches stay inside, the proposal crosses), data on the outside, agent
@@ -106,9 +107,7 @@ payment offstage until ch 10.
   through `output_pydantic`), the lanes
   demonstration (a burst of trip requests into one Planner process, every inference in flight,
   order kept per trip, a kill mid-burst replayed from the watermark)
-| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end;
-  `partitionkey` on the wire, declared by `order_per` on the catalog's classes and becoming
-  the adapter's record key
+| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end
 | Reflex agents (the classifier as the first), semantic routing (the same classification in an
   interactive message and a windowed burst, and why they are two components), semantic
   windowing, filters and payload mediation, broadcast vs competing consumers with per-key

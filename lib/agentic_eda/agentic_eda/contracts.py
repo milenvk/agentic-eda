@@ -7,6 +7,7 @@ around that data.
 """
 
 from dataclasses import dataclass
+from types import NoneType
 from typing import Literal, get_args
 
 from pydantic import BaseModel, create_model
@@ -14,15 +15,6 @@ from pydantic.json_schema import SkipJsonSchema
 
 from .envelope import ContextAttributes
 
-
-class _OwnId:
-    def __repr__(self) -> str:
-        return "OWN_ID"
-
-
-# For the event that starts a sequence: it is keyed on its own id, which the events
-# that follow it then share.
-OWN_ID = _OwnId()
 
 # The two fields of an event class that are not its data: the envelope carries both.
 NOT_DATA = {"attributes_", "event_type"}
@@ -55,7 +47,7 @@ class Binding:
     """What ``@event`` records about a class: its type on the wire and its ordering."""
 
     type: str
-    order_per: str | _OwnId | None
+    order_per: str | None
 
 
 def data_of(fact: EventContract) -> dict:
@@ -66,6 +58,16 @@ def data_of(fact: EventContract) -> dict:
     that way, because `@event` refuses a class with any default other than None.
     """
     return fact.model_dump(mode="json", exclude=NOT_DATA, exclude_defaults=True)
+
+
+def key_of(fact: EventContract) -> str | None:
+    """The key an event is ordered by: the value of the field named by its class, if any.
+
+    The key is read from the event's own data, so every publisher of the event computes
+    the same one.
+    """
+    order_per = binding_of(fact).order_per
+    return None if order_per is None else str(getattr(fact, order_per))
 
 
 def meanings_of(contract: type[BaseModel]) -> str:
@@ -116,24 +118,24 @@ def binding_of(subject: object) -> Binding | None:
     return getattr(cls, "__event__", None)
 
 
-def event(*args, order_per: str | _OwnId | None = None):
-    """Bind a class to its event type.
+def event(*args, order_per: str | None = None):
+    """Bind a class to its event type and, for an event with an order to keep, to the
+    field that order is kept within.
 
     As a decorator, on a class of your own::
 
-        @event(ITINERARY_PROPOSED)
+        @event(ITINERARY_PROPOSED, order_per="trip_id")
         class ItineraryProposed(EventContract): ...
 
     As a function, on a class you do not own, which comes back as a subclass an agent
     still receives as an instance of its own class::
 
-        TripRequest = event(TripRequest, ITINERARY_REQUESTED)
+        TripRequest = event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")
 
-    ``order_per`` is for an event with an order to keep, and names one of its fields:
-    ``@event(ITINERARY_PROPOSED, order_per="trip_id")``. Events sharing that field's value
-    are delivered in publish order, one at a time, and nothing is promised across values.
-    ``OWN_ID`` is for the event that starts a sequence. Without ``order_per``, no order is
-    kept: the event is published without a key.
+    ``order_per`` names a required field holding the id of the subject of the events, such
+    as a trip. Events sharing that field's value are delivered in publish order, one at a
+    time, and nothing is promised across values. Without ``order_per`` no order is kept:
+    the event is published without a key.
     """
     if args and isinstance(args[0], type):
         cls, event_type = args
@@ -155,10 +157,22 @@ def _bind(cls: type[BaseModel], event_type: str, order_per) -> type[EventContrac
         event_type=(Literal[event_type], event_type),
     )
     bound.__qualname__ = cls.__qualname__
-    if isinstance(order_per, str) and order_per not in bound.model_fields:
-        raise TypeError(f"{cls.__name__} has no field {order_per!r} to keep its order within")
+    if order_per is not None:
+        _require_a_value_to_order_by(bound, order_per)
     bound.__event__ = Binding(type=event_type, order_per=order_per)
     return bound
+
+
+def _require_a_value_to_order_by(cls: type[BaseModel], order_per: str) -> None:
+    """An event's order is kept within a value, so the field is there on every event."""
+    field = cls.model_fields.get(order_per)
+    if field is None:
+        raise TypeError(f"{cls.__name__} has no field {order_per!r} to keep its order within")
+    if not field.is_required() or NoneType in get_args(field.annotation):
+        raise TypeError(
+            f"{cls.__name__}.{order_per} may be missing or null, and events without a "
+            f"value there would share one key: make the field required"
+        )
 
 
 def _require_no_default_but_none(cls: type[BaseModel], checked: set[type]) -> None:

@@ -16,7 +16,7 @@ agentic event-driven application needs and what only a travel agency needs.
 * **`agentic_eda`, the framework** (`lib/agentic_eda/`, distributed as `agentic-eda`): the
   `EventBroker` port and its adapters, the per-key lanes, `connect`, `envelope` (the
   `ContextAttributes` the port and the contracts both import, so neither imports the other),
-  the `@event` machinery (`EventContract`, `Nothing`, `OWN_ID`, `data_of`), the agent activator with its framework
+  the `@event` machinery (`EventContract`, `Nothing`, `data_of`, `key_of`), `publish_fact`, the agent activator with its framework
   adapters, the `eda` face imported by a developer, every other port with its adapters
   (hydration, the view store, the artifact store), producer identity's signing and
   verification, the supplier client's circuit breaker, the replay module, and the `console`
@@ -114,8 +114,8 @@ class EventBroker(Protocol):
   event. Extension values are `str | int | bool` because the spec allows integer and boolean
   extensions and a producer outside the book may send one; the book's own are strings.
 * Deferred capabilities carried by the frozen surface: `attributes` is exercised from ch 2
-  (CloudEvents, `correlationid`, and `causationid`) and carries `partitionkey` from ch 4,
-  with `mode="competing"` and the `"*"` subscribe-all sentinel. Ch 1 code uses none of them, and the adapter
+  (CloudEvents, `correlationid`, `causationid`, and `partitionkey`), `mode="competing"` and the
+  `"*"` subscribe-all sentinel from ch 4. Ch 1 code uses none of them, and the adapter
   underneath is already the production-shaped one (one topic per context, per-key lanes):
   ch 1 prints none of its internals, so nothing in the chapter changes when they are taught.
 * The port has no nack, no defer, and no key parameter. Returning from a handler acknowledges;
@@ -157,13 +157,14 @@ little is passed:
 * `datacontenttype`: `application/json` unless supplied in `attributes`.
 * `specversion`: declared on `ContextAttributes` as `Literal["1.0"]` with that default, so no
   caller sets it, and an event of another spec version is rejected when it is decoded.
-* `partitionkey` is never generated from nothing. It is the value of the field the event's class
-  declares with `order_per` (The Agent Activator, below), because only the producer's side
-  knows the aggregate; a key unique per event would be no order at all. The declaration
-  is optional: a class declaring no `order_per` is published with a null key, as the events
-  of ch 1 to 3 are, and the activator fills the key on every publish of a class declaring
-  one, which the catalog's classes do from ch 4. `order_per=OWN_ID` keys the event that
-  starts a sequence on its own generated id.
+* `partitionkey` is never generated from nothing and never written by hand. It is the value of
+  the field the event's class declares with `order_per` (The Agent Activator, below), read
+  from the event's own data by `contracts.key_of`; a key unique per event would be no order
+  at all. The declaration is optional: a class declaring no `order_per` is published with a
+  null key, as ch 1's events are. `publishing.publish_fact(broker, source, fact, attributes)`
+  is the one function deriving an event's type and key, and every publisher of an event
+  instance goes through it: the activator, a demo script, an edge adapter, a relay. The key
+  of an event is therefore the same whichever of them publishes it.
 
 === Attributes
 
@@ -176,8 +177,9 @@ in order of introduction:
   first customer message (or by the demo script standing in for it) and copied to every event
   of the execution.
 * `causationid` (ch 2): the id of the event that directly caused this one.
-* `partitionkey` (ch 4): the standard CloudEvents partitioning extension, on every event of
-  a class declaring `order_per`; the id of the event's aggregate: the trip's id on booking, planning, and policy
+* `partitionkey` (the ch 2 practical; ordering is taught in ch 4): the standard CloudEvents
+  partitioning extension, on every event of a class declaring `order_per`; the id of the
+  subject the event is ordered within: the trip's id on booking, planning, and policy
   facts, the conversation's id on customer facts, and, where the context holds no aggregate,
   the id of the trip concerned or, before a trip exists, the conversation's. On
   `booking.TripRequested` it is the conversation's id, and `booking.TripCreated` is the first
@@ -243,7 +245,7 @@ name one. The mapping is the same from ch 1 to the end of the book, and the port
   events of one aggregate on two topics are unordered whatever their key. One topic per
   context is the first of the contract's three conditions
   (`05_data_consistency_and_state_model.adoc`). Ch 1 shows the mapping in one listing and
-  says why in one sentence; the record key is null until ch 4 introduces
+  says why in one sentence; the record key is null until the ch 2 practical introduces
   `partitionkey`.
 * **Subscribe-all** is a regex subscription over the seven context topics and `system`; a
   new event type never creates a topic, so the audit consumer sees it with no discovery
@@ -291,8 +293,9 @@ from then on the component resumes from its own committed position.
 
 === Ordering: the contract and how the adapter keeps it
 
-The contract (ch 4): events sharing a `partitionkey` are delivered in publish order, one at
-a time, to one consumer, and nothing is promised for an event without one. It promises order per key, never
+The contract (on the wire from the ch 2 practical, taught in ch 4): events sharing a
+`partitionkey` are delivered in publish order, one at a time, to one consumer, and nothing
+is promised for an event without one. It promises order per key, never
 partitions: a Kafka adapter keeps it with the record key, a Pub/Sub adapter with the ordering
 key, a Service Bus adapter with the session id. A broker that cannot order per key is
 unsupported or reached through a workaround (`05_data_consistency_and_state_model.adoc` lists
@@ -385,18 +388,20 @@ model an adapter concern. The activator owns five things.
   `produces` until a chapter needs one.
 ** *The catalog as code.* One Pydantic model per event payload in `travel_agency.events`,
    one module per context mirroring the catalog in `02_workflows_and_events.adoc`, each bound
-   once to its type constant: `@event(ITINERARY_PROPOSED)`. A class with an order to keep
-   also names the field that order is kept within, from ch 4:
-   `@event(ITINERARY_PROPOSED, order_per="trip_id")`, events sharing that field's value
-   delivered in publish order, one at a time, and nothing promised across values.
-   `order_per=OWN_ID` is for the event that starts a sequence (`booking.TripRequested`,
-   keyed on its own id, which the events of the trip then share). `order_per` defaults to
-   `None`, since the key is optional in CloudEvents and on every supported broker: such an
-   event (`system.DutyOfCareSweepDue`, and every event before ch 4) is published with a null
-   key and handled in a lane of its own. The default is the weaker promise, so a class
-   missing a needed declaration loses its order without a symptom, and ch 4 says so where
-   the key is taught. The function form,
-   `event(TripRequest, ITINERARY_REQUESTED)`, binds a class the
+   once to its type constant and, where its events have an order to keep, to the field that
+   order is kept within: `@event(ITINERARY_PROPOSED, order_per="trip_id")`, events sharing
+   that field's value delivered in publish order, one at a time, and nothing promised across
+   values. The field is required and never null, checked when the class is bound, because
+   events without a value there would share one key. `order_per` defaults to `None`, since
+   the key is optional in CloudEvents and on every supported broker: such an event
+   (`system.DutyOfCareSweepDue`) is published with a null key and handled in a lane of its
+   own. The default is the weaker promise, so a class missing a needed declaration loses its
+   order without a symptom, and ch 4 says so where ordering is taught. An event written
+   before its subject exists (`booking.TripRequested`, before the trip has an id) is ordered
+   within the conversation, whose id its data names. The key is never inherited from the
+   causing event: an inherited key would depend on the path an event took, and a script, a
+   relay, or a replay has no cause to inherit from. The function form,
+   `event(TripRequest, ITINERARY_REQUESTED, order_per="trip_id")`, binds a class the
    developer does not own, so an existing agent's own models become the contract with no
    edit to the agent: it returns a subclass of that class with `EventContract` mixed in, and
    the agent still receives an instance of its own class. `contracts.data_of(fact)` is the one

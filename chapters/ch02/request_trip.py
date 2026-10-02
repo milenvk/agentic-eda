@@ -2,7 +2,9 @@
 
 A request starts a thread. The script generates the thread's `correlationid`, and the Planner's
 activator copies it to everything the request causes, so a proposal is matched to its
-request by that label alone.
+request by that label alone. The request's class names the trip's id as the field its
+order is kept within, so `publish_fact` sets it as the `partitionkey`: one trip's events
+stay in order, and two trips never wait for each other.
 """
 
 import asyncio
@@ -13,8 +15,8 @@ from uuid import uuid4
 from agentic_eda import console
 from agentic_eda.broker import WireEvent, EventBroker
 from agentic_eda.connect import event_broker
-from agentic_eda.contracts import data_of
-from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
+from agentic_eda.publishing import publish_fact
+from travel_agency.event_types import ITINERARY_PROPOSED
 from travel_agency.events.planning import (
     ItineraryProposed,
     ItineraryRequested,
@@ -70,11 +72,8 @@ def new_trip_id() -> int:
 
 async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> WireEvent:
     """Publish one request as the first event of a new thread."""
-    request = await broker.publish(
-        ITINERARY_REQUESTED,
-        SOURCE,
-        data_of(trip),
-        attributes={"correlationid": str(uuid4())},
+    request = await publish_fact(
+        broker, SOURCE, trip, attributes={"correlationid": str(uuid4())}
     )
     console.show("PUBLISHED", request)
     return request

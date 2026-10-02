@@ -651,10 +651,12 @@ Identity conventions, in the book's order of introduction:
   correlation returns it whole. A second thread on the same trip (ch 8's duty of care, ch 9's
   disruption) gets its own correlation id.
 * **`partitionkey`:** the standard CloudEvents partitioning extension, optional on an event and
-  set from the field named by its class's `order_per`. Before ch 4 no class declares one, and
-  every event is published without a key. From ch 4 every class of the catalog with an order
-  to keep declares one, carrying the id of the event's aggregate: the trip's id on every booking,
-  planning, and policy fact, the conversation's id on every customer fact, and, where the
+  read from the event's own data: the value of the field named by its class's `order_per`, so
+  every publisher of an event computes the same key. A class with an order to keep declares
+  the field from its first appearance (the planning events from the ch 2 practical), and the
+  book teaches ordering in ch 4. The key is the id of the subject the event is ordered within:
+  the trip's id on every booking, planning, and policy fact (a proposal is identified by its
+  `proposal_id` and ordered within its trip), the conversation's id on every customer fact, and, where the
   context holds no aggregate, the id of the trip concerned or, before a trip exists, the
   conversation's. Ordering by key is part of the broker contract: events sharing a
   `partitionkey` are delivered in publish order, one at a time, to one consumer. The adapter

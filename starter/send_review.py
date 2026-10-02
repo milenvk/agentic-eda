@@ -10,8 +10,8 @@ from uuid import uuid4
 from agentic_eda import console
 from agentic_eda.broker import WireEvent
 from agentic_eda.connect import event_broker
-from agentic_eda.contracts import data_of
-from review_triage.events import REVIEW_RECEIVED, REVIEW_TRIAGED, ReviewReceived
+from agentic_eda.publishing import publish_fact
+from review_triage.events import REVIEW_TRIAGED, ReviewReceived
 
 SOURCE = "SendReviewScript"
 A_REVIEW = "The left shoe split at the seam after two weeks. I would like a replacement."
@@ -27,11 +27,8 @@ async def main() -> None:
         text=" ".join(sys.argv[1:]) or A_REVIEW,
     )
     async with event_broker(SOURCE) as broker:
-        sent = await broker.publish(
-            REVIEW_RECEIVED,
-            SOURCE,
-            data_of(review),
-            attributes={"correlationid": str(uuid4())},
+        sent = await publish_fact(
+            broker, SOURCE, review, attributes={"correlationid": str(uuid4())}
         )
         console.show("PUBLISHED", sent)
         print("\nNothing is blocked; waiting for the triage...\n", flush=True)

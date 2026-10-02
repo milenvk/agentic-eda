@@ -11,7 +11,6 @@ import asyncio
 import json
 import logging
 import os
-import uuid
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -21,7 +20,8 @@ from pydantic import ValidationError
 from .. import connect
 from ..broker import PARTITION_KEY, EventBroker, WireEvent
 from ..envelope import ContextAttributes
-from ..contracts import OWN_ID, EventContract, Nothing, binding_of, data_of
+from ..contracts import EventContract, Nothing
+from ..publishing import publish_fact
 from .adapters import adapter_for
 from .declarations import Consumes, produced_classes
 
@@ -171,25 +171,12 @@ class Activator:
         # Validated again on the way out: a provider enforces a schema's shape and not its
         # constraints, and an instance may have been built without validation.
         fact = type(fact).model_validate(fact.model_dump(exclude={"attributes_"}))
-        binding = binding_of(fact)
         inbound = activation.event
         attributes = {
             "correlationid": str(getattr(inbound, "correlationid", inbound.id)),
             "causationid": inbound.id,
         }
-        event_id = None
-        if binding.order_per is OWN_ID:
-            event_id = str(uuid.uuid4())
-            attributes[PARTITION_KEY] = event_id
-        elif binding.order_per is not None:
-            attributes[PARTITION_KEY] = str(getattr(fact, binding.order_per))
-        published = await self._broker.publish(
-            binding.type,
-            self.source,
-            data_of(fact),
-            id=event_id,
-            attributes=attributes,
-        )
+        published = await publish_fact(self._broker, self.source, fact, attributes)
         activation.published.append(published)
         return published
 

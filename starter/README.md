@@ -89,8 +89,9 @@ Work in this order, running `./test.sh` and the demo after each step.
 3. **Replace the agent.** Keep its shape: one consumed class in, one produced class out.
    Let the model judge and let code carry the facts, as `triage` does with `review_id`:
    a model asked to retype an id or an amount will sometimes retype it wrong.
-4. **Publish from your own side.** `send_review.py` shows the whole of it: `data_of(fact)`
-   for the data, and a fresh `correlationid` for a new thread.
+4. **Publish from your own side.** `send_review.py` shows the whole of it: `publish_fact`
+   takes the event and a fresh `correlationid` for a new thread, and reads the type and
+   the key, where the class declares one, from the event itself.
 
 Where to look when the starter's shape is too small:
 

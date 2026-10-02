@@ -13,12 +13,12 @@ from pydantic import BaseModel
 from pydantic import Field
 
 from agentic_eda.contracts import (
-    OWN_ID,
     EventContract,
     Nothing,
     binding_of,
     data_of,
     event,
+    key_of,
     meanings_of,
 )
 
@@ -58,12 +58,24 @@ def test_order_per_names_a_field_the_class_has():
             trip_id: str
 
 
-def test_the_event_that_starts_a_sequence_is_ordered_within_its_own_id():
-    @event("booking.TripRequested", order_per=OWN_ID)
-    class TripRequested(EventContract):
-        origin: str
+def test_order_per_names_a_field_every_event_has_a_value_for():
+    with pytest.raises(TypeError, match="Something.trip_id may be missing or null"):
 
-    assert binding_of(TripRequested).order_per is OWN_ID
+        @event("planning.Something", order_per="trip_id")
+        class Something(EventContract):
+            trip_id: str | None
+
+
+def test_the_key_is_read_from_the_events_own_data():
+    assert key_of(ItineraryRequested.model_validate(REQUEST)) == "trip-1"
+
+
+def test_an_event_declaring_no_order_has_no_key():
+    @event("system.SweepDue")
+    class SweepDue(EventContract):
+        pass
+
+    assert key_of(SweepDue()) is None
 
 
 def test_the_function_form_binds_a_class_you_do_not_own():

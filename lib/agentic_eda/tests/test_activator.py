@@ -266,18 +266,6 @@ async def test_publish_is_only_available_inside_an_activation():
         await eda.publish(ItineraryProposed.model_validate(PROPOSAL))
 
 
-async def test_the_event_that_starts_a_sequence_is_keyed_on_its_own_id(broker):
-    @eda.event("booking.TripRequested", order_per=eda.OWN_ID)
-    class TripRequested(eda.EventContract):
-        origin: str
-
-    async def ask(request):
-        return TripRequested(origin="Nairobi")
-
-    (published,) = await activate(ask, broker, produces=eda.produces(TripRequested))
-    assert published.partitionkey == published.id
-
-
 async def test_an_event_declaring_no_order_carries_no_key(broker):
     @eda.event("system.SweepDue")
     class SweepDue(eda.EventContract):

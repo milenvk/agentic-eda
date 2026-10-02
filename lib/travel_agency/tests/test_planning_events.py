@@ -45,9 +45,11 @@ def itinerary(rank: int) -> dict:
     }
 
 
-def test_each_contract_is_bound_to_its_type():
+def test_each_contract_is_bound_to_its_type_and_ordered_within_its_trip():
     assert binding_of(ItineraryRequested).type == ITINERARY_REQUESTED
     assert binding_of(ItineraryProposed).type == ITINERARY_PROPOSED
+    assert binding_of(ItineraryRequested).order_per == "trip_id"
+    assert binding_of(ItineraryProposed).order_per == "trip_id"
 
 
 def test_the_request_contract_rejects_a_trip_with_no_journey():
