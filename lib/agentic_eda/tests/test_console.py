@@ -94,3 +94,13 @@ def test_client_errors_stay_visible(caplog):
     # explain rather than hide — pass; INFO chatter does not.
     assert "not found in cluster metadata" in caplog.text
     assert "routine chatter" not in caplog.text
+
+
+def test_a_clipped_list_shows_how_many_items_it_holds():
+    itineraries = [{"rank": rank, "rationale": "x" * 80} for rank in (1, 2, 3)]
+    event = WireEvent(
+        id="e-1", type="planning.ItineraryProposed", source="t", data={"itineraries": itineraries}
+    )
+    card = console.format_event("PUBLISHED", event)
+    assert "itineraries  [3 items] [{" in card
+    assert "[truncated:" in card

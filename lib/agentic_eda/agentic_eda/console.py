@@ -39,7 +39,9 @@ def _clip(value: object) -> str:
     text = " ".join(text.split())
     if original_length <= _VALUE_WIDTH:
         return text
-    return f"{text[:_VALUE_WIDTH]}… [truncated: {original_length:,} chars total]"
+    # A clipped list shows how many items it holds, since the row shows only the first.
+    count = f"[{len(value)} items] " if isinstance(value, list) else ""
+    return f"{count}{text[:_VALUE_WIDTH]}… [truncated: {original_length:,} chars total]"
 
 
 def format_event(action: str, event: WireEvent) -> str:

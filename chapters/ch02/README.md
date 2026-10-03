@@ -104,9 +104,12 @@ Observe in the watch terminal, in order:
    budget in code, and the planner ranks what survived.
 3. `itinerary-planner-1` prints a PUBLISHED card for `planning.ItineraryProposed`. Its
    `correlationid` is the request's, its `causationid` is the request's event id, and its
-   `partitionkey` is the trip's id. The agent set none of them: the activator did.
-4. `demo-1` receives the proposal, matched by `correlationid`, lists its one to three
-   ranked itineraries with their totals, and prints a green ✔.
+   `partitionkey` is the trip's id. The agent set none of them: the activator did. The
+   card's `itineraries` row shows how many itineraries the proposal holds and the start of
+   the first one, since a row is clipped to one line.
+4. `demo-1` receives the proposal, matched by `correlationid`, lists every ranked
+   itinerary it holds with its total, and prints a green ✔. Rank 1 is the Planner's first
+   choice, which is not always the cheapest.
 
 While the Planner works, `demo-1` prints `Still waiting for 1 proposal(s)...` every 15
 seconds. With `llama3.2` on an Apple GPU the proposal arrives in about half a minute, and a
