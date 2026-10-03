@@ -41,10 +41,16 @@ model in `.env.example`, `llama3.2` on Ollama, is enough for it.
 
 ## The demo, in two terminals
 
-Open two terminals, both in `chapters/ch02`. The **first terminal watches** for the whole
-demo. The **second terminal acts**: every command in the acts below runs there. In the
-watch stream, every line is prefixed with the component it came from, and every event
-appears as a card: its attributes first, then its data, with long values truncated.
+Open two terminals and change to the chapter directory in both:
+
+```sh
+cd chapters/ch02
+```
+
+The **first terminal watches** for the whole demo. The **second terminal acts**: every
+command in the acts below runs there. In the watch stream, every line is prefixed with the
+component it came from, and every event appears as a card: its attributes first, then its
+data, with long values truncated.
 
 The audit consumer prints a RECEIVED card for every event too, so each event appears in the
 stream more than once. Two components writing at the same moment interleave their lines,
