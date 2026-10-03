@@ -100,8 +100,10 @@ Observe in the watch terminal, in order:
    Chapter 4 explains what the `partitionkey` is for.
 2. `itinerary-planner-1` prints a RECEIVED card with the same event id. Between this card
    and the next, the graph runs: the planner node briefs two searches, each search
-   queries its simulator and asks the model which offers to keep, a validator checks the
-   budget in code, and the planner ranks what survived.
+   queries its simulator and asks the LLM which offers it favours, a join builds the
+   candidates (the cheapest and the fastest by arithmetic over every offer, the best value
+   from the searches' picks), a validator checks the budget in code, and the planner ranks
+   what survived.
 3. `itinerary-planner-1` prints a PUBLISHED card for `planning.ItineraryProposed`. Its
    `correlationid` is the request's, its `causationid` is the request's event id, and its
    `partitionkey` is the trip's id. The agent set none of them: the activator did. The
@@ -109,7 +111,9 @@ Observe in the watch terminal, in order:
    the first one, since a row is clipped to one line.
 4. `demo-1` receives the proposal, matched by `correlationid`, lists every ranked
    itinerary it holds with its total, and prints a green ✔. Rank 1 is the Planner's first
-   choice, which is not always the cheapest.
+   choice, which is not always the cheapest. The cheapest and the fastest totals are the
+   same on every run; the best value pick, the ranking, and the rationales are the LLM's
+   judgement and can differ from one LLM to another.
 
 While the Planner works, `demo-1` prints `Still waiting for 1 proposal(s)...` every 15
 seconds. With `llama3.2` on an Apple GPU the proposal arrives in about half a minute, and a

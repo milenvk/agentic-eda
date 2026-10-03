@@ -198,6 +198,20 @@ async def test_no_area_hint_is_stated_as_no_particular_area(model, airline, hote
     assert asked_of_hotels["area_hint"] == "no particular area"
 
 
+async def test_cheapest_and_fastest_are_arithmetic_over_every_offer(model, airline, hotels):
+    async def narrow(name, answer, **variables):
+        reply = await model(name, answer, **variables)
+        if name == "flights":
+            reply.offer_ids = [i for i in reply.offer_ids if i.startswith("flex")]  # the dearest
+        return reply
+
+    proposal = await planned(graph(narrow, airline, hotels), request(budget=None))
+    by_label = {i.label: i for i in proposal.itineraries}
+    assert by_label["cheapest"].items[0].offer.offer_id == "onestop-NYC-LIS"  # 700, never picked
+    assert by_label["fastest"].items[0].offer.offer_id == "nonstop-NYC-LIS"  # 7 hours, never picked
+    assert by_label["best value"].items[0].offer.offer_id == "flex-NYC-LIS"  # the search's judgement
+
+
 async def test_a_pick_nobody_offered_falls_back_to_price(model, airline, hotels):
     async def wayward(name, answer, **variables):
         reply = await model(name, answer, **variables)

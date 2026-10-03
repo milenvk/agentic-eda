@@ -25,5 +25,6 @@ async def ask(name: str, answer: type[Answer], **variables: object) -> Answer:
         model=os.environ["LLM_MODEL"],
         messages=[{"role": "user", "content": render(name, **variables)}],
         response_format=answer,
+        temperature=0,  # a judgement, not a creative task: the same prompt gets the same answer
     )
     return answer.model_validate_json(response.choices[0].message.content)

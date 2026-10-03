@@ -790,8 +790,9 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   note on what to favour); each search queries its supplier in code, applies the limits in
   code, and asks the model, given the customer's preferences, the note, and the area, which
   of the offers returned to keep, best first, falling back to price when the model names an
-  offer nobody made; the join assembles up to three candidates in code (cheapest, fastest, and the searches' own
-  first picks as best value) from the suppliers' offers exactly as made; the validator
+  offer nobody made; the join assembles up to three candidates in code from the suppliers' offers exactly as
+  made: cheapest and fastest by arithmetic over every offer that fit the brief, so they are
+  the same on every run, and the searches' own first picks as best value; the validator
   checks the budget, the order of the flights, and the offers' validity; and it always
   hands back to the planner, which briefs again with the problems it was told, up to three
   attempts, or ranks the survivors and proposes. Where a journey has a window, the dates are

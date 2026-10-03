@@ -10,7 +10,9 @@ are settled before either search starts: the planner reads the lowest fare on ea
 a window, and its brief names the date to search.
 
 The model only ever judges among options that code has already fetched, and code carries
-the facts, so an offer's price or a flight's time is never something a model retyped.
+the facts, so an offer's price or a flight's time is never something a model retyped. Of the
+three candidates, the cheapest and the fastest are arithmetic over every offer that fits the
+brief, the same on every run; the third, best value, is the searches' judgement.
 """
 
 import json
@@ -110,8 +112,10 @@ class PlannerState(BaseModel):
     brief: Brief | None = None
     journeys: list[OriginDestination] = []  # each on the one date the brief settled
     stays: list[Stay] = []  # moved with the journeys around them
-    flights: list[list[FlightOffer]] = []  # per journey, the search's picks, best first
+    flights: list[list[FlightOffer]] = []  # per journey, every offer that fits the brief
     hotels: list[list[HotelOffer]] = []  # per stay
+    flight_picks: list[list[FlightOffer]] = []  # per journey, the search's picks, best first
+    hotel_picks: list[list[HotelOffer]] = []  # per stay
     candidates: list[Itinerary] = []
     problems: list[str] = []
     attempts: int = 0
@@ -160,7 +164,7 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
         }
 
     async def flight_search(state: PlannerState) -> dict:
-        request, kept = state.request, []
+        request, found, kept = state.request, [], []
         party = (request.adults, request.children)
         for number, journey in enumerate(state.journeys):
             wanted = _at(state.brief.journeys, number) or NO_LIMITS
@@ -170,18 +174,20 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
                 offers = await airline.search(journey, *party, 1)
             if wanted.max_price is not None:
                 offers = [o for o in offers if o.price.amount <= wanted.max_price] or offers
+            found.append(offers)
             kept.append(
                 await _picked(ask, "flights", request, journey, offers, note=state.brief.note)
             )
-        return {"flights": kept}
+        return {"flights": found, "flight_picks": kept}
 
     async def hotel_search(state: PlannerState) -> dict:
-        request, kept = state.request, []
+        request, found, kept = state.request, [], []
         for number, stay in enumerate(state.stays):
             wanted = _at(state.brief.stays, number) or StayBrief(max_total=None, area_hint=None)
             offers = await hotels.availability(stay, request.adults, request.children)
             if wanted.max_total is not None:
                 offers = [o for o in offers if o.total.amount <= wanted.max_total] or offers
+            found.append(offers)
             kept.append(
                 await _picked(
                     ask,
@@ -193,10 +199,14 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
                     area_hint=wanted.area_hint or "no particular area",
                 )
             )
-        return {"hotels": kept}
+        return {"hotels": found, "hotel_picks": kept}
 
     def join(state: PlannerState) -> dict:
-        return {"candidates": _candidates(state.request, state.flights, state.hotels)}
+        return {
+            "candidates": _candidates(
+                state.request, state.flights, state.hotels, state.flight_picks, state.hotel_picks
+            )
+        }
 
     def validator(state: PlannerState) -> dict:
         valid, problems = [], []
@@ -309,26 +319,24 @@ async def _picked(ask: Ask, prompt: str, request, subject, offers: list, **brief
     return kept or sorted(offers, key=_price)[:PICKS]
 
 
-def _candidates(request, flights, hotels) -> list[Itinerary]:
+def _candidates(request, flights, hotels, flight_picks, hotel_picks) -> list[Itinerary]:
+    """Up to three candidates: two by arithmetic over every offer, one by the searches' picks."""
+
     def cheapest(offers):
         return min(offers, key=_price)
 
     def fastest(offers):
         return min(offers, key=_duration)
 
-    def first_pick(offers):
-        return offers[0]  # the searches put their best judgement first
-
-    # Per label, how a flight is chosen for each journey and a hotel for each stay.
+    # Per label, the flight for each journey and the hotel for each stay. The searches put
+    # their best judgement first, so best value is their first pick.
     choices = {
-        "cheapest": (cheapest, cheapest),
-        "fastest": (fastest, cheapest),
-        "best value": (first_pick, first_pick),
+        "cheapest": ([cheapest(o) for o in flights], [cheapest(o) for o in hotels]),
+        "fastest": ([fastest(o) for o in flights], [cheapest(o) for o in hotels]),
+        "best value": ([picks[0] for picks in flight_picks], [picks[0] for picks in hotel_picks]),
     }
     candidates, seen = [], set()
-    for label, (choose_flight, choose_hotel) in choices.items():
-        flown = [choose_flight(offers) for offers in flights]
-        stays = [choose_hotel(offers) for offers in hotels]
+    for label, (flown, stays) in choices.items():
         chosen = tuple(o.offer_id for o in (*flown, *stays))
         if chosen in seen:
             continue
