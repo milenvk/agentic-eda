@@ -56,11 +56,11 @@ async def main() -> None:
             await request_itineraries(broker, nairobi_trip()),
             await request_itineraries(broker, sydney_trip()),
         ]
-        print("\nTwo workflows are running. To read one of them from the audit record:\n", flush=True)
+        await show_proposals(broker, requests)
+        print("\nTo read one of the workflows from the audit record:\n", flush=True)
         for request in requests:
             print(f"  grep {request.correlationid} data/audit.log", flush=True)
         print(flush=True)
-        await show_proposals(broker, requests)
 
 
 if __name__ == "__main__":

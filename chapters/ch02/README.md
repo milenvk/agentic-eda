@@ -159,11 +159,11 @@ docker compose --profile demo up -d --build --force-recreate demo-overlapping
 Observe in the watch terminal:
 
 1. `demo-overlapping-1` prints two PUBLISHED cards, each with a `correlationid` and a
-   `partitionkey` of its own, then a `grep` command for each workflow.
+   `partitionkey` of its own.
 2. `itinerary-planner-1` prints both RECEIVED cards before either PUBLISHED card. The two
    trips have different partition keys, so neither waits for the other.
-3. Both proposals arrive, in whichever order the planning finished, and each is matched
-   to its own request.
+3. Both proposals arrive, in whichever order the planning finished, each is matched
+   to its own request, and `demo-overlapping-1` prints a `grep` command for each workflow.
 
 The audit record now holds the two workflows interleaved. Pull one of them out by copying
 the command printed for it by `demo-overlapping-1` (a `grep` for the workflow's
