@@ -1,11 +1,11 @@
 # Starter: your own application on `agentic_eda`
 
-The smallest application built on the book's framework, in a business that is not travel.
+The smallest application built on the book's `agentic_eda` library, in a business that is not travel.
 A shop receives product reviews. One agent triages each review: is it positive or negative,
 what does it say in a sentence, and does the customer need a reply from a person. A review
 comes in as `reviews.ReviewReceived`, and its triage goes out as `reviews.ReviewTriaged`.
 
-Nothing here imports the Travel Agency. The image holds the framework
+Nothing here imports the Travel Agency. The image holds the library
 ([lib/agentic_eda](../lib/agentic_eda)) and this directory, and that is all an application
 of your own needs.
 
@@ -107,12 +107,12 @@ Where to look when the starter's shape is too small:
 - **A second component.** Any component that declares `eda.consumes(ReviewTriaged)`
   receives every triage, and nothing in the agent here changes. Give each component its
   own directory, image, and `source`.
-- **How the inside works.** Each chapter of the book teaches one part of the framework,
+- **How the inside works.** Each chapter of the book teaches one part of the `agentic_eda` library,
   and [the design](../design/04_implementation_design.adoc) is its reference.
 
 ## Taking it with you
 
-The starter builds inside this repository because its `Dockerfile` copies the framework
+The starter builds inside this repository because its `Dockerfile` copies the `agentic_eda` library
 from the tree. To move it into a repository of your own:
 
 1. Copy this directory, and copy [compose/kafka.yaml](../compose/kafka.yaml) beside it.
@@ -122,7 +122,7 @@ from the tree. To move it into a repository of your own:
    `dockerfile` to `Dockerfile`, and point the `include` and `env_file` paths at your own
    copies.
 3. In the `Dockerfile`, replace the two `COPY` lines and the `RUN` line with these, which
-   install the framework from GitHub instead of from the tree:
+   install the library from GitHub instead of from the tree:
 
    ```dockerfile
    COPY . starter
@@ -134,5 +134,5 @@ from the tree. To move it into a repository of your own:
    For a build that never changes under you, replace `refs/heads/main` with a commit's
    hash.
 
-The framework is the book's reference implementation. It is read and taught chapter by
+The `agentic_eda` library is the book's reference implementation. It is read and taught chapter by
 chapter, and it carries no promise of a release cycle, so pin a commit.

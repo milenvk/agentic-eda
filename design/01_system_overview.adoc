@@ -239,7 +239,7 @@ under 18 with an age at the end of the trip and whether they have a seat of thei
 an infant under 2 is held by an adult or seated, and nothing is assumed), PersonName.
 The shared kernel is otherwise the identities and the catalog of event types, as code in
 `lib/travel_agency`. The event envelope is not in it: the envelope is the
-framework's (`lib/agentic_eda`), which no context owns and any business could use. Every cross-context reference is by id; no context holds a copy of another's aggregate.
+library's (`lib/agentic_eda`), which no context owns and any business could use. Every cross-context reference is by id; no context holds a copy of another's aggregate.
 
 ==== The Proposal
 

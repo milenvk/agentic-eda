@@ -7,7 +7,7 @@ name = "review-triage"
 version = "0.1.0"
 description = "A starter application on agentic_eda: one agent triaging a shop's product reviews."
 requires-python = ">=3.13"
-# The framework is installed beside this package; see Dockerfile.
+# The agentic_eda library is installed beside this package; see Dockerfile.
 dependencies = [
     "fastapi==0.141.1",
     "litellm==1.101.0",

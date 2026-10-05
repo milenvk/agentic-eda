@@ -7,7 +7,7 @@ name = "travel-agency"
 version = "0.1.0"
 description = "The Travel Agency application's shared code: the event-type constants, the event catalog as code, and the simulators' world seed."
 requires-python = ">=3.13"
-# The framework (lib/agentic_eda) is installed from the tree beside this package.
+# The library (lib/agentic_eda) is installed from the tree beside this package.
 dependencies = [
     "agentic-eda==0.1.0",
 ]

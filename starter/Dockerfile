@@ -1,4 +1,4 @@
-# Build with the repository root as context, so the framework can be copied in.
+# Build with the repository root as context, so the agentic_eda library can be copied in.
 # Outside this repository, see "Taking it with you" in README.md.
 FROM python:3.14-slim
 WORKDIR /app

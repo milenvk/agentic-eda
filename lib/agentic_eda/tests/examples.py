@@ -1,4 +1,4 @@
-"""Two example events for the framework's own tests, so the suite needs no application.
+"""Two example events for the library's own tests, so the suite needs no application.
 
 They are a small copy of the book's running example: a request, and the proposal answering it.
 """
