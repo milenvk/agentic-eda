@@ -136,16 +136,16 @@ def build_graph(*, ask: Ask, airline: Airline, hotels: Hotels, hydration: Hydrat
             ranking = await ask(
                 "rank",
                 Ranking,
-                request=_described(request),
+                request=_as_published(request),
                 meanings=meanings_of(ItineraryRequested),
-                candidates=_listed(state.candidates),
+                candidates=_one_per_line(state.candidates),
             )
             return {**_fresh(state), "proposal": _proposal(request, state.candidates, ranking)}
 
         brief = await ask(
             "brief",
             Brief,
-            request=_described(request),
+            request=_as_published(request),
             meanings=meanings_of(ItineraryRequested),
             context=state.context,
             fares=state.fares or "no journey has a window",
@@ -445,11 +445,13 @@ def _offer(supplied, price: Money) -> Offer:
     )
 
 
-def _described(request: ItineraryRequested) -> str:
-    return json.dumps(data_of(request))  # as it was published
+def _as_published(request: ItineraryRequested) -> str:
+    """The request's data as JSON, exactly as it was published."""
+    return json.dumps(data_of(request))
 
 
-def _listed(candidates: list[Itinerary]) -> str:
+def _one_per_line(candidates: list[Itinerary]) -> str:
+    """Each candidate as one line of JSON, leaving out the rank and rationale still to be judged."""
     return "\n".join(c.model_dump_json(exclude={"rank", "rationale"}) for c in candidates)
 
 
