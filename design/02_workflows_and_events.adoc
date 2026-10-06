@@ -140,6 +140,170 @@ the Router take the customer's seat: steps 1 and 6 for chat and email), ch 7 (st
 the partial re-plan: the demonstration ends with the trip reserved, both holds in place), ch 8
 (steps 8 and 11, the follow-up nudge), ch 10 (step 10, idempotent).
 
+==== W1 at a glance
+
+The end-state flow as one table: each step's event, who publishes it and from which context,
+who consumes it, its partition key, and the chapter where the step first runs. Steps 12 to 5
+loop until the customer approves. The Booking Agent never reads a `customer.*` type, and the
+Planner reads none of booking's facts except the approval.
+
+[cols="1,3,3,3,1,1", options="header"]
+|===
+| Step | Event | Publisher (context) | Consumers | Key | Ch
+
+| 1. The customer writes in chat
+| `customer.ChatMessageReceived` (conversation id, text, channel)
+| Front Desk (customer)
+| audit, Observer
+| conversation
+| 4
+
+| 1'. Or by email
+| `customer.EmailReceived`
+| email replay script (customer)
+| Semantic Router
+| conversation
+| 4
+
+| 2. Intake recognises a trip request
+| `booking.TripRequested` (origin-destinations with dates and windows, stays, party, budget,
+  preferences in the customer's words)
+| Front Desk's classifier or the Router (customer), in booking's language; the demo script in
+  ch 3
+| Booking Agent, audit, Observer
+| conversation, no trip yet
+| 3
+
+| 3a. Validation fails
+| `booking.TripRequestRejected` (what is missing or wrong)
+| Booking Agent (booking), a deterministic step
+| Front Desk, as a question to the customer; audit
+| conversation
+| 3
+
+| 3b. Validation passes
+| `booking.TripCreated` (the store-assigned trip id, the accepted request)
+| Booking Agent, a deterministic step
+| whoever wrote the request, matching by correlation id; audit, Observer
+| trip, the first event keyed by it
+| 3
+
+| 4. Booking asks planning
+| `planning.ItineraryRequested` (the validated requirements)
+| Booking Agent (booking), in planning's language; the demo script in ch 1 and 2
+| Planner
+| trip
+| 1
+
+| 5. Planning proposes; inside the Planner's graph: the Research Agent over A2A, the Airline sim
+  over REST, the Hotel sim over MCP, the validator node, the planner node's ranking
+| `planning.ItineraryProposed` (proposal id, one to three ranked itineraries)
+| Planner (planning)
+| Booking Agent, Hotel Negotiator from ch 7, Observer; the demo script in ch 1 and 2
+| trip
+| 1
+
+| 6. Rates negotiated
+| `booking.RateNegotiated` (one per distinct stay, an edge observation)
+| Hotel Negotiator (booking's edge), over A2A with each hotel's agent
+| Booking Agent's barrier, audit
+| trip
+| 7
+
+| 7. Booking declares the proposal ready
+| `booking.ProposalReady` (the itineraries as the customer should see them; at once until ch 7,
+  after the barrier from ch 7)
+| Booking Agent, a deterministic step
+| Front Desk filtered by its trips, email delivery adapter, audit; the demo script in ch 3
+| trip
+| 3
+
+| 8. The customer sees the itineraries
+| `customer.CustomerNotified`
+| Front Desk or email delivery adapter (customer)
+| audit, Observer
+| conversation
+| 4
+
+| 8'. No reply in time
+| `booking.CustomerFollowUpDue`
+| `EventScheduler`, scheduled from `ProposalReady`
+| Booking Agent, which chooses the nudge or the release
+| trip
+| 8
+
+| 9. The customer replies
+| `customer.ChatMessageReceived`
+| Front Desk (customer)
+| audit, Observer
+| conversation
+| 4
+
+| 10. Intake recognises a reply about the trip
+| `booking.CustomerReplied` (the proposal answered, the customer's words about it)
+| Front Desk's classifier or the Router (customer); the demo script in ch 3
+| Booking Agent only
+| trip
+| 3
+
+| 11. Booking reads the reply and commits
+| `booking.ItineraryApproved` (proposal id, rank), `booking.ItineraryRejected` (reason),
+  `booking.TripChanged` (changed requirements), or `booking.ClarificationRequested` (what is
+  unclear, the options)
+| Booking Agent, its reasoning step through one of the Trip's operations
+| approval: Planner, Policy Gate from ch 8, the reservation step from ch 7, Observer; rejection
+  and change: Observer, audit; clarification: Front Desk or email delivery adapter as a
+  question, audit
+| trip
+| 3
+
+| 12. After a rejection or a change
+| `planning.ItineraryRequested` again (requirements as they now stand, the reason, the
+  carried-over items from ch 7); `planning.ItineraryRequestSuperseded` when it interrupts a run
+| Booking Agent; the Planner for the superseding
+| Planner; Booking Agent
+| trip
+| 3, 7
+
+| 13. Policy
+| `policy.PolicyCheckPassed` or `policy.PolicyViolationDetected`, the latter opening W4
+  (`booking.ApprovalRequested` through the outbox, the manager's decision, the 48-hour timeout)
+| Policy Gate (policy); Booking Agent
+| Booking Agent; approval console
+| trip
+| 8
+
+| 14. Reservation
+| `booking.FlightReserved`, `booking.HotelReserved` (holds with an expiry), or
+  `booking.ReservationFailed`
+| Booking Agent's reservation step, on the Airline and Hotel sims
+| Rental Car Agent, Front Desk, Observer; a failed hold back to the Booking Agent's reasoning
+| trip
+| 7
+
+| 15. The car, by choreography
+| `booking.CarRentalReserved` or `booking.CarRentalUnavailable` (edge observations), then
+  `booking.CarReserved`
+| Rental Car Agent; Booking Agent
+| Booking Agent; Front Desk, Observer
+| trip
+| 7
+
+| 16. Payment
+| `booking.PaymentRequested` (amount, idempotency key), then `booking.PaymentAuthorized`
+| Booking Agent; payment provider adapter
+| payment provider adapter; Booking Agent, Observer
+| trip
+| 10
+
+| 17. Confirmation
+| `booking.TripConfirmed` (customer reference), then `customer.CustomerNotified`
+| Booking Agent; Front Desk
+| Front Desk, email delivery adapter, Observer
+| trip
+| 8
+|===
+
 [source,mermaid]
 ----
 sequenceDiagram
