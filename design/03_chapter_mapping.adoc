@@ -76,7 +76,10 @@ payment offstage until ch 10.
 | 3
 | Component
 | W1 slice 2: booking takes planning's end; the customer's decision; support wired
-| Booking Agent (event-only, consuming only `booking.*`, the Trip's writer, assigning the trip's
+| Booking Agent (ADK custom agent inside ADK's own app, the first attachment inside a
+  framework's own app: deterministic steps on `TripRequested` and `ItineraryProposed`, an
+  `LlmAgent` sub-agent on `CustomerReplied` with the Trip's operations as its tools; event-only,
+  consuming only `booking.*`, the Trip's writer, assigning the trip's
   id from the `WorkflowStateStore`'s in-memory adapter and announcing it by
   `booking.TripCreated`, every later step present and off), Research Agent (LlamaIndex, A2A server), support
   adapter and Support Desk AaaS sim, `InMemoryBroker`, first agent mock test; the demo script
@@ -84,11 +87,14 @@ payment offstage until ch 10.
   and `support.SupportRequested`
 | The Booking Agent's validation (`TripRequestRejected`), the trip's creation (`TripCreated`),
   its request to planning, `ProposalReady`,
-  and its reply step (`ItineraryApproved`, `ItineraryRejected`, `TripChanged`, the re-request);
+  and its reply step, the chapter's reasoning step (`ItineraryApproved`, `ItineraryRejected`,
+  `TripChanged`, `ClarificationRequested`, the re-request);
   the Planner's A2A call to the Research Agent; ch 2's MCP and REST edges taught
 | Universal integration: four edges, four kinds of counterpart (a tool over MCP, an agent over
   A2A, a legacy system over REST, a person through edge prompting; tools over MCP, agents over
-  A2A), the synchronous-query rule, agent traits (3.3), edge prompting, zero-trust seed; the customer, support, and
+  A2A), the synchronous-query rule, agent traits (3.3) with the Booking Agent as the case of
+  deterministic steps and a reasoning sub-agent in one agent, edge prompting, zero-trust seed
+  (the customer's words reaching a reasoning LLM); the customer, support, and
   destination contexts by the boundary test; the open-host request (booking's requests, with
   ch 1 and 2's `planning.ItineraryRequested` named as the first instance)
 
@@ -143,13 +149,15 @@ payment offstage until ch 10.
   in place; the two Paris runs; the newer-request interrupt
 | Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`
   through the book's first publish tool; running inside ADK's FastAPI app with the activator
-  attached in its lifespan, the first attachment inside a framework's own app),
+  attached in its lifespan, as every ADK agent does),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
   `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
   recording for ch 12
 | The Booking Agent's wait at the barrier before `ProposalReady` and its reservation step
   (`FlightReserved`, `HotelReserved`, `ReservationFailed`, `CarReserved`, holds with an expiry,
-  fallback to the backup); the partial re-plan (items carried over on a re-request); the
+  the fallback decided by reasoning among the backup, a re-plan, and a question to the
+  customer); the partial re-plan (items carried over on a re-request, the re-plan brief a
+  reasoning step); the
   Planner's own request type declared interrupting for its key, the older request answered with
   `planning.ItineraryRequestSuperseded`; context paths and lessons filed
   under them, hydrated by the Planner in the second run

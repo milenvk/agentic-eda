@@ -36,7 +36,9 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    a budget, and the preferences in the customer's own words. Its causation id is the chat message and its
    partition key the conversation's id, since no trip exists yet. When `booking.TripCreated`
    arrives on the conversation's correlation id, the Front Desk records the link from the
-   conversation to the trip and follows the trip's facts from here on. Nobody outside Customer Relations reads raw chat. In ch 3 the demo script writes
+   conversation to the trip and follows the trip's facts from here on. Nobody outside Customer Relations reads the
+   conversation; a request may carry the customer's words for one field, as `TripRequested`
+   carries the preferences and `CustomerReplied` the reply. In ch 3 the demo script writes
    `TripRequested`; the Router writes it for email from ch 4.
 2. **Booking validates and asks planning** [3]. The Booking Agent consumes `TripRequested`,
    checks it as a business request (dates in the future and in order, at least one
@@ -85,12 +87,18 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
 7. **The customer chooses** [3]. The customer replies in the chat, another
    `ChatMessageReceived`; the Front Desk knows which trip the conversation concerns, and its
    classifier writes `booking.CustomerReplied` in booking's published language: the trip id,
-   the proposal it answers, the recognised intent with its content (chose itinerary two; too
-   expensive; make it the 14th to the 17th). The Booking Agent consumes it and, as the Trip's
-   one writer, commits one of three facts: `booking.ItineraryApproved` (the proposal's id and
+   the proposal it answers, and the customer's words about it ("the one with the morning
+   flight"; "too expensive"; "make it the 14th to the 17th"). What the reply means is
+   booking's reading, since it takes the proposal and the trip's requirements as they now
+   stand: the Booking Agent's reasoning step reads the words against both and, as the Trip's
+   one writer, commits one of four facts: `booking.ItineraryApproved` (the proposal's id and
    the chosen itinerary's rank, from any of the trip's proposals),
-   `booking.ItineraryRejected` (the customer's reason), or `booking.TripChanged` (the changed
-   requirements). After a rejection or a change it asks planning again with a new
+   `booking.ItineraryRejected` (the customer's reason), `booking.TripChanged` (the changed
+   requirements), or, when the words do not settle it, `booking.ClarificationRequested` (what
+   is unclear and the options), shown to the customer as a question the way
+   `TripRequestRejected` is; the next reply is read against the proposal and the pending
+   question, and the aggregate caps the questions per proposal (decided 2026-10-06). After a
+   rejection or a change it asks planning again with a new
    `ItineraryRequested`: the requirements as they now stand, the customer's reason, and from
    ch 7 the items that carry over, named by proposal and rank (the partial re-plan). The Planner
    reads its own store for what it already proposed, has one inbound type, and never reacts to
@@ -233,8 +241,8 @@ redelivers both in order and the rerun supersedes again. A request arriving afte
 activation has finished is an ordinary event and the trip gets a second proposal.
 
 *Demonstration.* The Planner is mid-assembly of a multi-city trip; the customer writes "make it
-the 14th to the 17th"; the Front Desk writes `CustomerReplied`, the Booking Agent commits
-`TripChanged` and asks planning again; the Planner's running activation takes the new request
+the 14th to the 17th"; the Front Desk writes `CustomerReplied` with the words, the Booking Agent reads
+them as a change, commits `TripChanged`, and asks planning again; the Planner's running activation takes the new request
 from its inbox between tool steps, publishes `ItineraryRequestSuperseded` for the old one,
 restarts from its checkpoint with the new requirements, and carries over the items the request
 names as unchanged. The book's other cases stay
@@ -528,11 +536,12 @@ Conventions:
 | TripRequested | *open host.* Whoever asks, in booking's published language: the demo script (ch 3), the Front Desk and the Router (ch 4), the partner adapter in V2 (ch 14); keyed by the conversation's id, since no trip exists yet | Booking Agent (validates and records the trip), audit, Observer | ch 3
 | TripCreated | Booking Agent, on recording the Trip: the store-assigned trip id and the accepted request; causation the `TripRequested`; the first event keyed by the trip's id | Whoever wrote the request (the demo script in ch 3, the Front Desk and the email delivery adapter from ch 4, matching by correlation id), audit, Observer | ch 3
 | TripRequestRejected | Booking Agent, when validation fails; what is missing or wrong | Front Desk (as a question to the customer), audit | ch 3
-| CustomerReplied | *open host.* Whoever asks: the demo script (ch 3), the Front Desk and the Router (ch 4); the proposal answered and the recognised intent | Booking Agent | ch 3
+| CustomerReplied | *open host.* Whoever asks: the demo script (ch 3), the Front Desk and the Router (ch 4); the proposal answered and the customer's words about it; what it means is booking's reading | Booking Agent | ch 3
 | ProposalReady | Booking Agent, on recording a proposal (at once until ch 7, after the barrier from ch 7); the itineraries as the customer should see them | Front Desk, email delivery adapter, audit | ch 3
 | ItineraryApproved | Booking Agent, naming the proposal by its id and the chosen itinerary by its rank | Planner (marks the itinerary), Policy Gate (from ch 8), the reservation step (from ch 7), Observer | ch 3
 | ItineraryRejected | Booking Agent, with the customer's reason; followed by a new `ItineraryRequested` | Observer, audit | ch 3
 | TripChanged | Booking Agent, with the changed requirements; followed by a new `ItineraryRequested` | Observer, audit | ch 3
+| ClarificationRequested | Booking Agent, when the reply does not settle the decision: what is unclear and the options; puts the proposal in an awaiting-clarification state, capped per proposal | Front Desk and email delivery adapter (as a question to the customer), audit | ch 3
 | RateNegotiated | Hotel Negotiator, one per distinct stay, an edge observation | Booking Agent (the barrier), audit | ch 7
 | FlightReserved | Booking Agent (reservation step, via the Airline Reservation System sim); a hold with an expiry | Rental Car Agent, Front Desk, Observer | ch 7
 | HotelReserved | Booking Agent (reservation step, via the Hotel Reservation System sim, at the negotiated rate) | Front Desk, Observer | ch 7

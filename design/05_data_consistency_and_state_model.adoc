@@ -68,8 +68,9 @@ principle, not violations of it:
 * **A context's requests.** A context is an open-host service for the requests it serves: it
   publishes their schema as its published language, and whoever asks writes the request under
   the serving context's prefix. `booking.TripRequested` creates the Trip rather than changing
-  it, and `booking.CustomerReplied` records what the customer said about a proposal, a fact
-  about the request rather than a change to the trip; the demo script (ch 3), the Front Desk
+  it, and `booking.CustomerReplied` records what the customer said about a proposal, in the
+  customer's words, a fact about the request rather than a change to the trip, read by the
+  Booking Agent, which alone commits what it means; the demo script (ch 3), the Front Desk
   and the Router (ch 4), and a partner adapter (ch 14) write them. `planning.ItineraryRequested`
   is written by the Booking Agent (the demo script in ch 1 and 2), `support.SupportRequested`
   and `destination.InspirationRequested` by the classifiers. Every transition of the thing
@@ -86,7 +87,8 @@ This principle does not prevent reads. The Audit Consumer reads all events. The 
 consumes `planning.ItineraryProposed` to know what has been proposed (a read). But when the
 Itinerary Planner answers a request, only it publishes the `planning.ItineraryProposed`. The
 customer's decision on a proposal is booking's fact (`booking.ItineraryApproved`,
-`booking.ItineraryRejected`, `booking.TripChanged`), published by the Booking Agent; the
+`booking.ItineraryRejected`, `booking.TripChanged`, or `booking.ClarificationRequested` when
+the reply does not settle it), published by the Booking Agent; the
 Planner consumes only the approval, to mark the chosen itinerary, and learns of a rejection or
 a change through the next `planning.ItineraryRequested` the Booking Agent writes. The two writers share a key value, the trip id, and share neither a topic nor a
 writer.

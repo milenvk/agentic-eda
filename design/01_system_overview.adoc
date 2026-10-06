@@ -49,9 +49,11 @@ reconciliation of 2026-09-11:
   real supplier surface behind it.
 * **Frameworks:** the roster is fixed by section 1.5: **LangGraph, Google ADK, LlamaIndex,
   CrewAI**. Framework agents are the showcases; every other agent is plain Python against
-  the Ports. Debut order: LangGraph in ch 2 (the Planner), LlamaIndex in ch 3 (the Research
-  Agent), CrewAI in ch 4 (the Destination Inspiration crew), ADK in ch 7 (the Hotel Negotiator)
-  and again in ch 9 (the Recovery Agent).
+  the Ports. Debut order: LangGraph in ch 2 (the Planner), LlamaIndex and ADK in ch 3 (the
+  Research Agent as an A2A server; the Booking Agent as a custom agent hosting deterministic
+  steps beside a reasoning sub-agent), CrewAI in ch 4 (the Destination Inspiration crew), ADK
+  again in ch 7 (the Hotel Negotiator) and ch 9 (the Recovery Agent). Every ADK agent runs
+  inside ADK's own app with the activator attached in its lifespan (decided 2026-10-06).
 * **Repo model:** the code, and these design docs, are in this repository, separate from
   the book manuscript, on a single `main` branch. Each component is a self-contained
   directory (sources, Dockerfile, dependencies, unit tests); each chapter owns
@@ -173,11 +175,12 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
 
 | Booking (supporting; the book's spine)
 | `booking`
-| trip request, trip, validation, proposal ready, reply, approval, rejection, change,
-  negotiated rate, reservation, hold, confirmation (a supplier's, then the trip's),
+| trip request, trip, validation, proposal ready, reply, clarification, approval, rejection,
+  change, negotiated rate, reservation, hold, confirmation (a supplier's, then the trip's),
   cancellation, car class, follow-up, approval wait, payment request, rebooking, compensation,
   refund; TripRequested, TripRequestRejected, TripCreated, CustomerReplied, ProposalReady,
-  ItineraryApproved, ItineraryRejected, TripChanged, RateNegotiated, FlightReserved,
+  ItineraryApproved, ItineraryRejected, TripChanged, ClarificationRequested, RateNegotiated,
+  FlightReserved,
   HotelReserved, ReservationFailed, CarRentalReserved, CarRentalUnavailable, CarReserved,
   SupplierUpdateReceived, ApprovalRequested, ApprovalTimedOut, CustomerFollowUpDue,
   TripConfirmed, RebookingProposed, TripCancelled, FlightReservationCancelled,
@@ -185,8 +188,10 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   Booking Agent's: the Trip, created on `TripRequested` under an id assigned by the store and
   announced by `TripCreated`,
   holding the trip request, the proposals it has consumed (event-carried state, immutable),
-  the accepted proposal's id and the chosen itinerary's rank,
-  its status (requested, planning, proposed, approved, awaiting policy approval, reserving,
+  the accepted proposal's id and the chosen itinerary's rank, the pending clarification per
+  proposal and how many were asked,
+  its status (requested, planning, proposed, awaiting clarification, approved, awaiting policy
+  approval, reserving,
   reserved, confirmed, cancelled), its Traveler entities, its Reservation entities (one per
   item of the accepted itinerary: kind, supplier reference, status pending, hold, confirmed, or cancelled, hold
   expiry, price, the negotiated rate where one was won), from ch 8 the customer reference, and
@@ -570,7 +575,7 @@ flowchart TB
     end
 
     subgraph Agents["LLM agents"]
-        BA[Booking Agent - py]
+        BA[Booking Agent - ADK]
         ROUTER[Semantic Router - py/Ollama]
         PLANNER[Itinerary Planner - LangGraph]
         RESEARCH[Destination Research - LlamaIndex, A2A server]
@@ -707,13 +712,20 @@ Identity conventions, in the book's order of introduction:
 
 Agents exist only where non-deterministic reasoning is genuinely needed: where inputs are
 unstructured or the decision is open-ended. That is intake and classification (the Front Desk's
-classifier, the Router), the Planner's composition of ranked itineraries and its sub-agents'
+classifier, the Router), the Booking Agent's reading of the customer's reply against the
+proposal and, later, its re-plan brief, its choice when a hold fails, and its approval brief,
+the Planner's composition of ranked itineraries and its sub-agents'
 judgement over routes and hotels, the Negotiator's argument with a hotel's agent, the crew's
 inspiration, the Recovery Agent's compensation plan, the Monitor's impact judgement, and the
 Rental Car Agent joining a flow with no orchestrator behind it. Everything else is deterministic
-code or a simulated vendor: the Booking Agent's validation and its reservation step, the Policy
-Gate, the payment provider adapter, the Planner's validator node, the projections, and every
-simulator. Reasoning proposes; a deterministic owner commits.
+code or a simulated vendor, and the same test applies step by step inside an agent: the
+Booking Agent's validation, its bookkeeping (recording the trip, recording a proposal,
+`ProposalReady`), and its reservation calls are deterministic steps that make no LLM call, as
+the Planner's validator node is a deterministic node in its graph; the Policy Gate, the payment
+provider adapter, the projections, and every simulator are deterministic components. Reasoning
+proposes; a deterministic owner commits. In the Booking Agent both halves live in one
+component: the LLM proposes which of the Trip's intent-named operations to call, and the
+operation enforces the invariant and commits (decided 2026-10-06).
 
 Chapter 1's request-response scenario and its cascade figure use design-true components only:
 the Booking Agent calls the Itinerary Planner Agent, the Planner calls the Airline Reservation
@@ -817,38 +829,55 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 
 | Booking Agent
 | Tool-Using; Durable from 8
-| py
+| ADK
 | 3
-| The booking context's agent and the Trip's one writer, event-only: it has no HTTP surface and
-  consumes only `booking.*` types. Its choices among facts are deterministic code, never the
-  model's: its activation returns the facts it commits and the activator publishes them. On
+| The booking context's agent, the Trip's one writer, and the orchestrator of W1, event-only:
+  it has no HTTP surface of its own and consumes only `booking.*` types. It is an ADK custom
+  agent that dispatches on the inbound event's class: bookkeeping events run deterministic
+  steps with no LLM call, and events carrying judgement run an `LlmAgent` sub-agent whose tools
+  are the Trip's intent-named operations. An operation enforces the state machine's invariants,
+  commits, and states the fact; a rejected operation returns to the sub-agent as an
+  observation. Which events carry judgement follows the realism rule, event by event. On
   `TripRequested` it validates the request as a business
   request (dates in the future and in order, at least one origin-destination, the party
-  stated, a budget or an explicit "no limit"); a request that fails gets
+  stated, a budget or an explicit "no limit"), in code; a request that fails gets
   `TripRequestRejected`, and one that passes
   is recorded as the Trip under a store-assigned id (the `WorkflowStateStore`: in memory in
   ch 3, a PostgreSQL row from ch 4), announced by `TripCreated`, and sent to planning as
   `planning.ItineraryRequested`. On `planning.ItineraryProposed` it records the proposal
   as received (event-carried state) and publishes `ProposalReady`, at once until ch 7 and after
   the barrier collects every `RateNegotiated` from then on; on
-  `planning.ItineraryRequestSuperseded` it stops expecting that proposal. On `CustomerReplied`
-  it commits `ItineraryApproved`, `ItineraryRejected`, or `TripChanged`, and after a rejection
-  or a change asks planning again with the requirements as they now stand and the reason (from
-  ch 7 naming the items that carry over). It runs the deterministic reservation step from ch 7
-  as intent-named aggregate operations: it reserves what the accepted itinerary contains, from
-  the proposal it received, on the Airline and Hotel Reservation System sims
-  (`FlightReserved`, `HotelReserved`, holds with an expiry, at the negotiated rate where one was
-  won), falls back to the stay item's backup when a reservation fails (`ReservationFailed`),
-  and records the car (`CarReserved`). From ch 8 it owns the trip's workflow: macro-state in
+  `planning.ItineraryRequestSuperseded` it stops expecting that proposal. On `CustomerReplied`,
+  its first reasoning step, the sub-agent reads the customer's words against the proposal and
+  the trip's requirements as they now stand and calls one operation: `ItineraryApproved` (the
+  proposal and the rank, resolved from the customer's description of the itinerary),
+  `ItineraryRejected` (the reason), `TripChanged` (the changed requirements), or, when the reply
+  does not settle it, `ClarificationRequested` (what is unclear and the options), which puts
+  the proposal in an awaiting-clarification state read by the next reply; the aggregate caps
+  clarifications per proposal, and the agent never guesses on the trip. After a rejection or a
+  change it asks planning again with the requirements as they now stand and the reason (from
+  ch 7 naming the items that carry over, the re-plan brief being a reasoning step from then
+  on). It runs the reservation step from ch 7 as intent-named aggregate operations: it reserves
+  what the accepted itinerary contains, from the proposal it received, on the Airline and Hotel
+  Reservation System sims (`FlightReserved`, `HotelReserved`, holds with an expiry, at the
+  negotiated rate where one was won), decides by reasoning on `ReservationFailed` between the
+  stay item's backup, a re-plan, and a question to the customer, and records the car
+  (`CarReserved`). From ch 8 it owns the trip's workflow: macro-state in
   the `WorkflowStateStore`, the wait for `policy.PolicyCheckPassed` or the manager's decision,
-  `ApprovalRequested` through the outbox, the 48-hour timeout through the `EventScheduler`, the
-  follow-up nudge scheduled from its own `ProposalReady`, and `TripConfirmed` with the customer
+  `ApprovalRequested` through the outbox with the approval brief composed by the sub-agent (the
+  semantic checkpoint), the timeouts through the `EventScheduler` (the manager's 48 hours, the
+  customer's follow-up scheduled from its own `ProposalReady`) and the choice each forces when
+  it fires (a nudge, or the holds released), and `TripConfirmed` with the customer
   reference; in ch 9 the wait for `policy.EntitlementDetermined`, the rebooking request to
-  planning, `RebookingProposed` after the barrier, the compensation step, and `TripCancelled`;
+  planning, `RebookingProposed` after the barrier, the deterministic compensation step applying
+  the Recovery Agent's draft, and `TripCancelled`;
   in ch 10 the payment request (`PaymentRequested`, recorded on the adapter's
   `PaymentAuthorized`, idempotent). Every one of those steps exists in ch 3's code, switched on
-  by its chapter's compose file. In ch 1 and 2 the demo script publishes `ItineraryRequested`
-  directly as booking's stand-in.
+  by its chapter's compose file. It runs inside ADK's own app with the activator attached in
+  its lifespan, the first attachment inside a framework's own app; its ADK session, keyed by
+  the trip like every activation's, is its private working memory and the trip's reasoning
+  trace, never re-sent to the LLM, and the Trip lives only in the `WorkflowStateStore`. In ch 1 and 2 the demo script
+  publishes `ItineraryRequested` directly as booking's stand-in.
 
 | Front Desk
 | Reflex
@@ -858,13 +887,15 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   aggregates. Records `customer.ChatMessageReceived` (conversation id, customer id) for each
   customer message; its intent classifier, a single-prompt judgement of what the customer
   wants and the book's first Reflex-trait agent, writes the serving context's request as its
-  one turn's typed answer (structured output): `booking.TripRequested` for a decided customer, `booking.CustomerReplied` (the proposal it
-  answers, the recognised intent: chose itinerary two; too expensive; make it the 14th to the
-  17th) when the conversation already concerns a trip, `support.SupportRequested` for a
+  one turn's typed answer (structured output): `booking.TripRequested` for a decided customer,
+  `booking.CustomerReplied` (the proposal it answers and the customer's words about it; what
+  the reply means is booking's reading) when the conversation already concerns a trip,
+  `support.SupportRequested` for a
   question, `destination.InspirationRequested` for a customer who has not decided where to go.
   It records which trips a conversation concerns, subscribes to the booking topic filtered by
   those trips, shows the customer each fact worth hearing (`ProposalReady` with the offers'
-  validity, `TripRequestRejected` as a question, `TripConfirmed`, `TripCancelled`,
+  validity, `TripRequestRejected` and `ClarificationRequested` as questions, `TripConfirmed`,
+  `TripCancelled`,
   `RebookingProposed`), shows `support.SupportTicketResolved` and
   `destination.SuggestionPackReady` by conversation id, and records `customer.CustomerNotified`
   for each delivery. Its chat UI and live event-stream view are out of the page budget; the
@@ -931,9 +962,10 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   (the stay, the hotel, the list rate, the negotiated rate, the terms, the validity), an edge
   observation the Booking Agent records at the barrier. The fact is stated from inside the A2A
   loop through the activator's publish tool, the book's first, once, at the loop's end; the
-  agent runs inside ADK's own FastAPI app with the activator attached in its lifespan, the
-  book's first attachment inside a framework's own app, so ADK's sessions and UI apply to it. A checkpoint
-  between turns (ADK session state) lets ch 8 run a negotiation across a slow counter. Nobody negotiates after an
+  agent runs inside ADK's own FastAPI app with the activator attached in its lifespan, as
+  every ADK agent does, so ADK's sessions and UI apply to it. A checkpoint
+  between turns (ADK session state) lets ch 8 run a negotiation across a slow counter, the
+  book's first session kept across turns. Nobody negotiates after an
   approval.
 
 | Rental Car Agent
@@ -958,7 +990,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   and drafts `servicing.CompensationDrafted` through the activator's publish tool: the
   customer's message and a compensation plan
   computed from the entitlement, an immutable payload superseded by a new draft if rejected.
-  Its sub-agents and tools are organised by ADK (the framework's second appearance, for its
+  Its sub-agents and tools are organised by ADK (the framework's third appearance, for its
   sub-agent and tool organisation, not for GCP); its working state is its private session. The
   Booking Agent's deterministic compensation step performs the actual mutations. The draft does
   not depend on which replacement itinerary is chosen, so it runs in parallel with the re-plan.

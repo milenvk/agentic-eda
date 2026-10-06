@@ -492,7 +492,9 @@ model an adapter concern. The activator owns five things.
 | ADK
 | `Runner(agent, app_name, session_service).run_async(user_id, session_id=thread_id,
   new_message=request as the user message)`, iterated
-| the event whose `is_final_response()` is true, its content parsed against `produces`
+| the event whose `is_final_response()` is true, its content parsed against `produces`; for
+  an agent whose facts leave through its operations' `eda.publish` (the Booking Agent) there
+  is nothing to parse, and the final response is ignored
 
 | CrewAI
 | `crew.kickoff_async(inputs=request.model_dump())` (the natively async `akickoff` where
@@ -549,9 +551,10 @@ promised.
    CloudEvents HTTP binding in and the same core behind it. ADK's own server offers the
    nearest alternative, `/apps/{app}/trigger/pubsub` and `/trigger/eventarc` routes that
    decode a cloud's payload and run the agent; they are the rejected alternative because they
-   couple the agent's host to one cloud's delivery, where the attachment does not. The ch 7 Negotiator is the first
-   attachment inside a framework's own app (ADK's); the ch 4 Front Desk and Inspiration crew
-   attach inside their own apps. The ch 2 Planner runs in a FastAPI app of its own, the
+   couple the agent's host to one cloud's delivery, where the attachment does not. The ch 3 Booking Agent is the first
+   attachment inside a framework's own app (ADK's), and every ADK agent after it (the ch 7
+   Negotiator, the ch 9 Recovery Agent) is hosted the same way; the ch 4 Front Desk and
+   Inspiration crew attach inside their own apps. The ch 2 Planner runs in a FastAPI app of its own, the
    compiled graph invoked in-process and the activator's lanes governing concurrency. That
    is the shape most teams run LangGraph in production, the library inside their own
    service, with ch 8 swapping `InMemorySaver` for `PostgresSaver`. LangGraph Server, the
@@ -564,6 +567,16 @@ promised.
    and runs go through the server's own queue, which takes concurrency out of the
    activator's hands. 2.6 says in one sentence that a team on the platform puts the same
    block in that app and what it trades.
+** *Framework sessions* (decided 2026-10-06). An agent's framework session is its private
+   working memory and the activation's trace, never an aggregate's state. The Booking Agent's
+   ADK session, keyed by the trip like every activation's, accumulates each activation's events
+   as the trip's reasoning trace; its `LlmAgent` sub-agent re-sends none of it (`include_contents`
+   off) and is hydrated from the `WorkflowStateStore` by the custom agent's deterministic
+   steps, which is ch 6's stateless rule applied to a framework that would otherwise re-send
+   the history. Under the in-memory session service the trace is forgotten at restart, under a
+   database session service it is a table of traces, and in neither is it the Trip. The
+   Negotiator's session is the exception that proves the rule: one negotiation's working
+   memory across turns, and ch 8's checkpoint.
 ** *Publish tools* (ch 7), for a turn that runs tools: `publish_tool(EventClass)` returns a
    plain async function named and documented from the class, whose parameters are its
    fields, flattened (the form every framework's tool wrapper reads natively, LangChain's
@@ -605,13 +618,22 @@ and its inbound event is redelivered, the rerun states it again under a new id, 
 consumer can deduplicate. A durable agent resumes from its checkpoint past the fact (ch 8);
 until then the design's agents state their facts at the end of the activation (the Planner's
 typed answer, the classifier's one request, the Negotiator's one `RateNegotiated` at the end
-of its loop, made durable in ch 8), and the Booking Agent's steps are deterministic code
-whose activation returns the facts it commits. To confirm in code before ch 2: that
+of its loop, made durable in ch 8), and the Booking Agent's facts are committed by the Trip's
+operations, deterministic code whether a step or the sub-agent's tool call reaches them, each
+recording the inbound event's id so a rerun after a mid-activation death finds its fact
+already committed (ch 3's dedup by event id, applied to every operation). To confirm in code
+before ch 2: that
 `ainvoke` on a compiled graph accepts the request under a field found by type, and that the
 wrapper `produces` returns for several classes is accepted as
-`response_format` by the readers' four model choices; before ch 7: that a lifespan task in ADK's app can obtain
-a `Runner` on the app's session service, and that ADK accepts the flattened function with
-Pydantic-typed fields (dates, enums, nested items).
+`response_format` by the readers' four model choices; before ch 3: that a lifespan task in
+ADK's app can obtain a `Runner` on the app's session service (the ADK version pinned for the
+host's constructor, whose signature has moved between releases), that a custom `BaseAgent`
+receives the typed request to dispatch on (the user message as the carrier, so a developer can
+drive the agent from ADK's UI by pasting an event), that an `LlmAgent` with `include_contents`
+off re-sends no session history, and that LiteLLM's mock response passes through ADK's
+`LiteLlm` wrapper for the ch 3 mock test (else a fake model object in its place); before ch 7:
+that ADK accepts the flattened function with Pydantic-typed fields (dates, enums, nested
+items).
 * **One key at a time.** The activator handles the events of one key sequentially and
   acknowledges each by returning; the adapter runs keys concurrently in lanes and commits by
   watermark. Deferral to the next activation is the default for anything that arrives on the
