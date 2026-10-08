@@ -503,7 +503,9 @@ model an adapter concern. The activator owns five things.
   `produces`
 
 | LlamaIndex
-| `await agent.run(user_msg=request.model_dump_json())`
+| `await agent.run(user_msg=request.model_dump_json())`; no component of the book attaches a
+  LlamaIndex agent to the broker (the Research Agent is an MCP tool server consuming nothing
+  from it), so this adapter serves the reader's own agents
 | `response.get_pydantic_model(produces)` or `structured_response`; LlamaIndex formats the
   answer after the run rather than constraining it during the run
 
@@ -732,8 +734,9 @@ compose and configuration file until the chapter that switches it on. A flag is 
 mechanism; a new version of the component (`<name>_v2`, selected by compose) is used only where
 the added behaviour cannot be segregated cleanly behind a flag inside one version. A port
 present and switched off is the same kind of setting: the Planner's hydration adapter is
-`HYDRATION_ADAPTER` (default `none`, an adapter that loads nothing) and its A2A client is
-`RESEARCH_AGENT_URL` (unset by default, meaning off), each read at start, switched on by the
+`HYDRATION_ADAPTER` (default `none`, an adapter that loads nothing) and its destination
+knowledge tool is `RESEARCH_AGENT_URL` (the Research Agent's MCP server, unset by default,
+meaning off, switched on in ch 5), each read at start, switched on by the
 compose file of the chapter that teaches it, and mentioned by no earlier chapter's compose
 file, configuration file, or prose.
 
@@ -776,7 +779,7 @@ file, configuration file, or prose.
   published or received (the `EventBroker` logger, INFO), so `docker compose logs <component>`
   shows that component's side of the conversation.
 * `compose/`: one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
-  later `postgres.yaml`, `minio.yaml`, and so on). A chapter's `compose.yaml` uses `include:`
+  `postgres.yaml` from ch 3, later `minio.yaml`, and so on). A chapter's `compose.yaml` uses `include:`
   to pull exactly the needed fragments, so no chapter drags unused infrastructure. The compose
   file is the only thing that differs between chapters: which components it selects (ch 2
   selects the LangGraph Planner in place of ch 1's), which adapter each port gets (in-memory

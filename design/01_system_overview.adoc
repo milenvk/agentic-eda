@@ -49,10 +49,11 @@ reconciliation of 2026-09-11:
   real supplier surface behind it.
 * **Frameworks:** the roster is fixed by section 1.5: **LangGraph, Google ADK, LlamaIndex,
   CrewAI**. Framework agents are the showcases; every other agent is plain Python against
-  the Ports. Debut order: LangGraph in ch 2 (the Planner), LlamaIndex and ADK in ch 3 (the
-  Research Agent as an A2A server; the Booking Agent as a custom agent hosting deterministic
-  steps beside a reasoning sub-agent), CrewAI in ch 4 (the Destination Inspiration crew), ADK
-  again in ch 7 (the Hotel Negotiator) and ch 9 (the Recovery Agent). Every ADK agent runs
+  the Ports. Debut order: LangGraph in ch 2 (the Planner), ADK in ch 3 (the Booking Agent as a
+  custom agent hosting deterministic steps beside a reasoning sub-agent), CrewAI in ch 4 (the
+  Destination Inspiration crew), LlamaIndex in ch 5 (the Research Agent as an MCP tool server
+  over the claim-checked brochures), ADK again in ch 7 (the Hotel Negotiator) and ch 9 (the
+  Recovery Agent) (debut order revised 2026-10-07). Every ADK agent runs
   inside ADK's own app with the activator attached in its lifespan (decided 2026-10-06).
 * **Repo model:** the code, and these design docs, are in this repository, separate from
   the book manuscript, on a single `main` branch. Each component is a self-contained
@@ -67,8 +68,8 @@ reconciliation of 2026-09-11:
   teaches is present from the start and switched off by configuration until that chapter's
   compose file switches it on: the Booking Agent's reservation, compensation, and payment
   steps exist in ch 3's code and are enabled in ch 7, 9, and 10; a port's adapter is chosen by
-  configuration (the trip store is in-memory in ch 3 and Postgres from ch 8, both adapters
-  present from ch 3). A chapter differs from the one before only in its compose file: the
+  configuration (the trip store is PostgreSQL from ch 3, its in-memory adapter present for the
+  tests). A chapter differs from the one before only in its compose file: the
   infrastructure fragments it includes, the components it selects, and the configuration it
   applies. Every behaviour flag defaults to off, so a chapter's compose and configuration
   files mention only what that chapter switches on and an early chapter's files never name a
@@ -196,8 +197,9 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   item of the accepted itinerary: kind, supplier reference, status pending, hold, confirmed, or cancelled, hold
   expiry, price, the negotiated rate where one was won), from ch 8 the customer reference, and
   from ch 10 a Payment entity (provider reference, amount, status, never card data). The
-  `WorkflowStateStore` is the Trip's persistence: an in-memory adapter in ch 3, a PostgreSQL row
-  from ch 4, and from ch 8 the workflow's macro-state with the version check as the fence.
+  `WorkflowStateStore` is the Trip's persistence: a PostgreSQL row from ch 3 (an in-memory
+  adapter for the tests), and from ch 8 the workflow's macro-state with the version check as the
+  fence.
 | Booking Agent (the demo script stands in during ch 1 and 2), Hotel Negotiator, Rental Car
   Agent, payment provider adapter (ch 10, with the Payment sim behind it), partner adapter
   (ch 14)
@@ -219,7 +221,7 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   CompensationDrafted, TravelRiskDetected; no aggregate: the record of a disruption's handling
   is the trip's event stream read through the Observer's views, the compensation plan is the
   immutable payload of the Recovery Agent's draft (superseded by a new draft if rejected), and
-  the Recovery Agent's working state is its private ADK session. Every mutation of the trip is
+  the Recovery Agent's working memory is its private ADK session. Every mutation of the trip is
   booking's fact, caused by the draft.
 | Duty-of-Care Monitor, Recovery Agent
 
@@ -484,9 +486,11 @@ The map's rules:
   Booking Agent consumes only `booking.*` types and knows nothing about channels or
   conversations.
 * **Synchronous queries across contexts are allowed for perishable answers nobody else acts
-  on.** The Planner asks the Research Agent over A2A and reads the hotel sim's inventory over
-  MCP because a search result expires in minutes and no other component reacts to it. A fact
-  anyone else acts on goes on the broker (`05_data_consistency_and_state_model.adoc`).
+  on.** The Planner reads the hotel sim's inventory over MCP (ch 2) and, from ch 5, asks the
+  Research Agent's tool what destination knowledge holds, because a search result expires in
+  minutes and no other component reacts to it; the rule is taught in ch 5 with the Research
+  Agent, the earlier instance covered by 2.2's boundary criteria. A fact anyone else acts on
+  goes on the broker (`05_data_consistency_and_state_model.adoc`).
 * **`system` is the platform's technical namespace, outside the map.** BudgetExceeded,
   LivelockDetected, ModelFallbackActivated, EventQuarantined, and DutyOfCareSweepDue are
   technical events in ch 1's sense, facts about the system's own behavior, each owned by the
@@ -578,7 +582,7 @@ flowchart TB
         BA[Booking Agent - ADK]
         ROUTER[Semantic Router - py/Ollama]
         PLANNER[Itinerary Planner - LangGraph]
-        RESEARCH[Destination Research - LlamaIndex, A2A server]
+        RESEARCH[Destination Research - LlamaIndex, MCP tool server]
         CREW[Destination Inspiration - CrewAI]
         NEGOTIATOR[Hotel Negotiator - ADK, A2A client]
         CAR[Rental Car - py]
@@ -624,7 +628,7 @@ Inbox, Barrier, Idempotency, GuardState stores)]
     SCHED --> BROKER
     PLANNER -.REST.-> AIR
     PLANNER -.MCP.-> HOTEL
-    PLANNER -.A2A.-> RESEARCH
+    PLANNER -.MCP.-> RESEARCH
     NEGOTIATOR -.A2A.-> HOTEL
     BA -.REST.-> AIR
     BA -.REST.-> HOTEL
@@ -672,7 +676,7 @@ Identity conventions, in the book's order of introduction:
   `05_data_consistency_and_state_model.adoc`; the mapping is in `04_implementation_design.adoc`.
 * **The trip's id** is assigned by the Booking Agent, the Trip's one writer, when it records
   the Trip on `booking.TripRequested`: the primary key of the `trips` row, an integer generated
-  by the store (a counter in ch 3's in-memory adapter, PostgreSQL's serial column from ch 4).
+  by the store (PostgreSQL's serial column, from ch 3).
   The row also holds the request's event id under a unique index, so a redelivered request
   finds its trip instead of creating a second one. `booking.TripCreated` announces the id, with
   causation pointing at the request, and is the first event keyed by it; `TripRequested` itself
@@ -773,9 +777,11 @@ callbacks listed under The Platform. Every agent is named by the outline itself.
 
 === LLM agents
 
-Traits are the `ch03_defining_the_actors` vocabulary; the Type column names each agent's
-dominant trait. "py" = plain Python against the Ports, calling models through LiteLLM (see Ports
-below). Chapter = where the component first appears in the book. Every component is complete
+Traits are the `ch03_reasoning_over_state` vocabulary (one table, ch 3); the Type column lists an
+agent's traits, with the chapter where a later one switches on. Traits compose and nearly every
+agent is tool-using; a row lists what the design text supports and is completed when its chapter
+is planned (no dominant trait, 2026-10-07). "py" = plain Python against the Ports, calling
+models through LiteLLM (see Ports below). Chapter = where the component first appears in the book. Every component is complete
 from that chapter; a later chapter's compose file switches on what it teaches.
 
 [cols="2,1,1,1,3", options="header"]
@@ -813,7 +819,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   industry's calendar shopping), its brief names the date to search, and each stay begins
   with the journey before it and ends with the journey after it. A date outside the window,
   or dates leaving a stay without a night, are replaced in code by the requested dates. So a price or a flight time in a proposal
-  is never something a model retyped, and the graph has the five nodes 2.2 draws. It consults the Destination Research Agent over A2A (ch 3), and
+  is never something a model retyped, and the graph has the five nodes 2.2 draws. It consults the Destination Research Agent's tool (ch 5), and
   the flight search reaches the Airline Reservation System sim over REST. It publishes
   `planning.ItineraryProposed`, each proposal immutable and keyed by the trip's id, and places no
   holds; the activator publishes the join's typed answer, the one class in its `produces`
@@ -842,8 +848,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   request (dates in the future and in order, at least one origin-destination, the party
   stated, a budget or an explicit "no limit"), in code; a request that fails gets
   `TripRequestRejected`, and one that passes
-  is recorded as the Trip under a store-assigned id (the `WorkflowStateStore`: in memory in
-  ch 3, a PostgreSQL row from ch 4), announced by `TripCreated`, and sent to planning as
+  is recorded as the Trip under a store-assigned id (the `WorkflowStateStore`, a PostgreSQL row
+  from ch 3), announced by `TripCreated`, and sent to planning as
   `planning.ItineraryRequested`. On `planning.ItineraryProposed` it records the proposal
   as received (event-carried state) and publishes `ProposalReady`, at once until ch 7 and after
   the barrier collects every `RateNegotiated` from then on; on
@@ -903,11 +909,13 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 
 | Destination Research Agent
 | Tool-Using
-| LlamaIndex (A2A server)
-| 3
-| Destination knowledge: indexes brochures (claim-checked PDFs from ch 5), answers the
-  Planner's questions about a destination over A2A, the book's first agent-to-agent edge and
-  the worked case of the synchronous-query rule.
+| LlamaIndex (MCP tool server)
+| 5
+| Destination knowledge: indexes brochures (claim-checked PDFs) and answers the Planner's
+  questions about a destination as a tool, the way the hotel inventory is read; it consumes
+  nothing from the broker and needs no activator. The worked case of the synchronous-query
+  rule (a perishable answer nobody else acts on). Reshaped from an A2A server on 2026-10-07;
+  the Negotiator is the book's first A2A edge.
 
 | Semantic Router
 | Reflex
@@ -948,7 +956,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   Runs beside the ch 1 audit consumer rather than replacing it.
 
 | Hotel Negotiator
-| Tool-Using
+| Tool-Using, Negotiating; Durable from 8
 | ADK (A2A client)
 | 7
 | Booking's edge with the hotels' agents. Consumes `planning.ItineraryProposed` and opens one
@@ -982,7 +990,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   orchestrator behind it is the point.
 
 | Recovery Agent
-| Reflective
+| Reflective, Tool-Using
 | ADK
 | 9
 | Semantic rollback in the servicing context: catches the failure event (`HotelSoldOut`, or
@@ -991,7 +999,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   customer's message and a compensation plan
   computed from the entitlement, an immutable payload superseded by a new draft if rejected.
   Its sub-agents and tools are organised by ADK (the framework's third appearance, for its
-  sub-agent and tool organisation, not for GCP); its working state is its private session. The
+  sub-agent and tool organisation, not for GCP); its working memory is its private session. The
   Booking Agent's deterministic compensation step performs the actual mutations. The draft does
   not depend on which replacement itinerary is chosen, so it runs in parallel with the re-plan.
 
@@ -1026,11 +1034,13 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   ch 7's first Paris run is ch 12's historical event file.
 
 | Support adapter
-| 3
+| 4
 | The support context's edge: on `support.SupportRequested` it templates the request into the
   vendor's prompt (Deterministic Edge Prompting), hands it to the Support Desk AaaS sim, and
-  publishes `support.SupportTicketResolved` with the answer. In ch 3 the demo script writes the
-  request; from ch 4 the classifiers do.
+  publishes `support.SupportTicketResolved` with the answer. The classifiers write the request.
+  The first component not our code, taught in ch 4 as the adapter at a vendor's edge (moved
+  from ch 3 on 2026-10-07; if ch 4's plan finds it too much it moves to ch 5 beside the
+  Research Agent).
 
 | Email delivery adapter
 | 4
@@ -1121,11 +1131,11 @@ code a flight search takes, so nearby airports (JFK and Newark) appear in one se
   (`/v1/booking/flight-orders`, `HOLD_MINUTES`); retrieve; cancel. The airline honours only
   the offers it made, at the price it quoted, until they expire. Slow-vendor mode
   (`RESPONSE_DELAY_SECONDS`, off by default; the trigger of ch 11's supplier breaker).
-  Ch 3 teaches it as the REST edge.
+  Ch 5 teaches it as the REST edge, with the Planner's other tools.
 
 | Hotel Reservation System sim
 | 2
-| Hotel supplier with two faces. Its inventory over MCP (ch 2, taught in ch 3), one tool,
+| Hotel supplier with two faces. Its inventory over MCP (ch 2, taught in ch 5), one tool,
   `search_availability`, on the MCP SDK's streamable HTTP transport at `/mcp`, asked with the
   rooms wanted, the adults, and the children's ages: one offer per hotel and rate plan
   (flexible, or advance purchase at a discount) with a rooms-left field, the rooms quoted and
@@ -1155,7 +1165,7 @@ code a flight search takes, so nearby airports (JFK and Newark) appear in one se
   the demo.
 
 | Support Desk AaaS sim
-| 3
+| 4
 | An external "agent as a service" answering support requests; integrated via Deterministic
   Edge Prompting, PII-scrubbed by the ch 13 egress interceptor. Deliberately *not* our code.
 |===

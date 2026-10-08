@@ -55,8 +55,8 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
    per-key lane orders a trip's requests. In ch 1 and 2 the demo script writes
    `ItineraryRequested` itself, with a trip id of its own generation.
 3. **Planning proposes itineraries** [1]. The Planner consumes `ItineraryRequested`, its only
-   inbound request, and does all of its work inside: it asks the Research Agent over A2A what
-   destination knowledge holds about each stay's city [3]; the flight-search sub-agent
+   inbound request, and does all of its work inside: it asks the Research Agent's tool what
+   destination knowledge holds about each stay's city [5]; the flight-search sub-agent
    searches each requested origin-destination, across the airports of a city code and with or
    without a stop, on the date the planner node settled from the fares of its window; the
    hotel-search sub-agent matches the preferences per stay against the
@@ -135,7 +135,7 @@ requests and printing what booking publishes; the Front Desk takes that seat in 
 audit consumer; one topic per context and per-key lanes in the adapter), ch 2 (the LangGraph
 Planner replacing the plain one on the same events; CloudEvents contracts, correlation and
 causation, `partitionkey`), ch 3 (the Booking Agent takes planning's end and the demo script the
-customer's: steps 2, 5, and 7; the Research Agent over A2A in step 3), ch 4 (the Front Desk and
+customer's: steps 2, 5, and 7), ch 5 (the Research Agent's tool in step 3), ch 4 (the Front Desk and
 the Router take the customer's seat: steps 1 and 6 for chat and email), ch 7 (steps 4 and 9 and
 the partial re-plan: the demonstration ends with the trip reserved, both holds in place), ch 8
 (steps 8 and 11, the follow-up nudge), ch 10 (step 10, idempotent).
@@ -195,8 +195,8 @@ Planner reads none of booking's facts except the approval.
 | trip
 | 1
 
-| 5. Planning proposes; inside the Planner's graph: the Research Agent over A2A, the Airline sim
-  over REST, the Hotel sim over MCP, the validator node, the planner node's ranking
+| 5. Planning proposes; inside the Planner's graph: the Airline sim over REST, the Hotel sim
+  over MCP, from ch 5 the Research Agent's tool, the validator node, the planner node's ranking
 | `planning.ItineraryProposed` (proposal id, one to three ranked itineraries)
 | Planner (planning)
 | Booking Agent, Hotel Negotiator from ch 7, Observer; the demo script in ch 1 and 2
@@ -444,13 +444,13 @@ consumption, and with `partitionkey` (the conversation id) per-key serialization
 and the Front Desk's classifier do the same job in two components, and ch 4 says why: an
 interactive single message against a windowed burst with competing consumers.
 
-*Built in:* ch 4 (support integration itself from ch 3).
+*Built in:* ch 4 (the support edge with it).
 
 === W3: Destination Knowledge, Ingestion and Inspiration
 
 *Flow:* `destination.BrochureUploaded` (UI or script); the PDF is stored via the `BlobStore`;
 `destination.DocumentAvailable` carries only the claim reference; the Destination Research
-Agent (LlamaIndex) indexes it and answers the Planner's questions over A2A from indexed
+Agent (LlamaIndex) indexes it and answers the Planner's questions as a tool from indexed
 knowledge, a synchronous cross-context query permitted because the answer is perishable and
 nobody else acts on it. Separately, `destination.InspirationRequested` (the Front Desk's
 classifier or the Router, on a vague request) wakes the Destination Inspiration crew (CrewAI),
@@ -458,8 +458,8 @@ whose personas turn the indexed brochures into a themed suggestion pack,
 `destination.SuggestionPackReady`, which the Front Desk shows the customer; a customer who then
 decides starts W1.
 
-*Built in:* ch 3 (the Research Agent over A2A), ch 4 (the crew, routed to by meaning), ch 5
-(claim check).
+*Built in:* ch 4 (the crew, routed to by meaning), ch 5 (the Research Agent as an MCP tool
+server, and the claim check).
 
 === W4: B2B Policy and Approval
 
@@ -739,8 +739,8 @@ Conventions:
 | CompensationDrafted | Recovery Agent | Booking Agent (the barrier, then the compensation step) | ch 9
 
 4+e| support: customer support, fulfilled by a vendor
-| SupportRequested | *open host.* Whoever asks: the demo script (ch 3), the Front Desk and the Router (ch 4); keyed by the conversation until a trip exists | Support adapter (edge prompting to the Support Desk AaaS sim) | ch 3
-| SupportTicketResolved | Support adapter | Front Desk, email delivery adapter, Observer | ch 3
+| SupportRequested | *open host.* Whoever asks: the Front Desk and the Router; keyed by the conversation until a trip exists | Support adapter (edge prompting to the Support Desk AaaS sim) | ch 4
+| SupportTicketResolved | Support adapter | Front Desk, email delivery adapter, Observer | ch 4
 
 4+e| destination: destination knowledge (W3)
 | InspirationRequested | *open host.* The Front Desk's classifier or the Router, on a vague request; keyed by the conversation | Destination Inspiration crew | ch 4

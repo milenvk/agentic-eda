@@ -390,8 +390,8 @@ moving the system keeps the guarantee by construction.
 
 === Read Models
 
-* **Trip Read Model:** maintained by the Booking Agent in the `WorkflowStateStore`, an
-  in-memory adapter in ch 3 and PostgreSQL from ch 4. Stores the trip id, the request, the status, the reservations, the
+* **Trip Read Model:** maintained by the Booking Agent in the `WorkflowStateStore`,
+  PostgreSQL from ch 3. Stores the trip id, the request, the status, the reservations, the
   proposals received through `planning.ItineraryProposed` (event-carried state, immutable, so
   a copy cannot drift), and the accepted proposal's id and itinerary rank. Updated by the
   Trip's own events, by planning's answers, and by the edge observations. It never queries
@@ -463,8 +463,8 @@ does not wait.
 
 One kind of synchronous call across contexts is allowed, and the rule is drawn from the
 boundary criteria of 2.2: a query whose answer is perishable and on which no other component
-acts. The Planner asks the Research Agent over A2A and reads the hotel sim's inventory over MCP
-because a search result expires in minutes and nothing else reacts to it; if the Research Agent
+acts. The Planner reads the hotel sim's inventory over MCP and, from ch 5, asks the Research
+Agent's tool, because a search result expires in minutes and nothing else reacts to it; if the Research Agent
 is down the Planner degrades its proposal rather than blocking a workflow. A fact anyone else
 acts on, or must be able to replay, goes on the broker.
 
