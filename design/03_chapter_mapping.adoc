@@ -91,7 +91,7 @@ payment offstage until ch 10.
   and its reply step, the chapter's reasoning step (`ItineraryApproved`, `ItineraryRejected`,
   `TripChanged`, `ClarificationRequested`, the re-request); the trip-booking workflow end to end
   for the first time
-| The business state and the agent: three kinds of state (working memory, the record, the log),
+| The business state and the agent: the Trip as the business's state and not the agent's memory,
   the aggregate (one identity, a consistency boundary, invariants, intent-named operations), the
   single writer and the request exception, identity from the store and dedup by event id, the
   realism test inside one agent, reasoning proposes and the aggregate commits, acting only by
@@ -154,7 +154,8 @@ payment offstage until ch 10.
   the trip id through the context path, `correlationid` scoping the current workflow only); the
   five-round scenario run without and with the store
 | Event sourcing (NDC and ONE Order as the sidebar), Agentic CQRS, materialized semantic views,
-  Tier 1+2 hydration, idempotent projections, staging across topics
+  Tier 1+2 hydration, idempotent projections, staging across topics; the three kinds of state
+  named (working memory, the record, the log; moved from ch 3 on 2026-10-16)
 
 | 7
 | Workflow
