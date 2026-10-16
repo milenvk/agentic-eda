@@ -145,6 +145,30 @@ rule made visible. Business logic type-hints `EventBroker`, because publishing a
 subscribing is all it ever does; only the entry point needs the loop. Lifecycle stays off
 both surfaces, because the factory owns it.
 
+=== The WorkflowStateStore port
+
+Drafted 2026-10-16 for chapter 3. The port persists an aggregate's state for its one writer; the
+Trip is its first and, until chapter 8, its only occupant, and the operations that use it are
+the Trip's (`05_data_consistency_and_state_model.adoc`, The Trip's Operations). It is a
+`typing.Protocol` like every port, with four methods:
+
+* `create(request_event_id, state) -> id`: inserts a row and returns its serial id. The request's
+  event id is unique on the table, so a second call with the same id returns the existing row's
+  id instead of inserting; this is how a redelivered `booking.TripRequested` finds its trip.
+* `load(id) -> (state, version)`: the current state and its version, or nothing.
+* `handled(id, event_id) -> bool`: whether this event has already changed this aggregate.
+* `commit(id, state, expected_version, event_id, facts=())`: writes the state, bumps the
+  version, records the event id as handled, and, from chapter 8, writes one outbox row per
+  fact, all in one transaction. A stale `expected_version` is refused (the fence, Ordering
+  above). Before chapter 8 `facts` is empty and the operation publishes through `eda.publish`.
+
+The state is a JSON document; the port neither reads nor interprets it, which is what lets
+chapter 15 move it to a managed document store without touching an agent. Two adapters from
+chapter 3: PostgreSQL (`trips`: `id` serial, `request_event_id` unique, `version`, `status`,
+`state`; `handled_events`: `trip_id`, `event_id`, unique together) and in-memory, for the tests.
+An operation's shape is therefore load, check, change, commit, with the check between load and
+commit and nothing else allowed to write the row.
+
 === Generation rules
 
 `publish` completes whatever the caller omits, so every event is spec-complete no matter how
