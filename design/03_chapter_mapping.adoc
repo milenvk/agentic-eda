@@ -81,8 +81,8 @@ payment offstage until ch 10.
   framework's own app: deterministic steps on `TripRequested` and `ItineraryProposed`, an
   `LlmAgent` sub-agent on `CustomerReplied` with the Trip's operations as its tools; event-only,
   consuming only `booking.*`, the Trip's writer, assigning the trip's id from the
-  `WorkflowStateStore` and announcing it by `booking.TripCreated`, every later step present and
-  off), PostgreSQL in compose with the `WorkflowStateStore`'s PostgreSQL adapter (the `trips`
+  `StateStore` and announcing it by `booking.TripCreated`, every later step present and
+  off), PostgreSQL in compose with the `StateStore`'s PostgreSQL adapter (the `trips`
   row, the request's event id under a unique index; the in-memory adapter for the tests),
   `InMemoryBroker`, first agent mock test; the demo script moves to the customer's seat and
   writes `booking.TripRequested` and `booking.CustomerReplied` in a customer's words
@@ -195,7 +195,7 @@ payment offstage until ch 10.
   (`PolicyCheckPassed`, `PolicyViolationDetected`), approval console (a policy-context app, the
   writer of the ApprovalRequest), Duty-of-Care Monitor (proactive, stateless, in servicing, with
   the Travel Advisory Feed sim), the hotel sim's slow-counter auto-responder
-| The `WorkflowStateStore`'s macro-state, with the version check as the fence (the Trip's row
+| The `StateStore`'s macro-state, with the version check as the fence (the Trip's row
   exists since ch 4), and the `GuardStateStore`; the Booking Agent's wait for the pass or the manager's
   decision, `ApprovalRequested` through the outbox, the 48-hour timeout, the follow-up nudge
   scheduled from `ProposalReady`; the barrier's straggler timeout; a negotiation durable across

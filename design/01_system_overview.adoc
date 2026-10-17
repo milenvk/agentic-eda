@@ -197,7 +197,7 @@ book's spine runs through it anyway, because every pattern attaches to the trip'
   item of the accepted itinerary: kind, supplier reference, status pending, hold, confirmed, or cancelled, hold
   expiry, price, the negotiated rate where one was won), from ch 8 the customer reference, and
   from ch 10 a Payment entity (provider reference, amount, status, never card data). The
-  `WorkflowStateStore` is the Trip's persistence: a PostgreSQL row from ch 3 (an in-memory
+  `StateStore` is the Trip's persistence: a PostgreSQL row from ch 3 (an in-memory
   adapter for the tests), and from ch 8 the workflow's macro-state with the version check as the
   fence.
 | Booking Agent (the demo script stands in during ch 1 and 2), Hotel Negotiator, Rental Car
@@ -700,7 +700,7 @@ Identity conventions, in the book's order of introduction:
   dead-letter tooling, the replay script, and the audit record read them to answer "which
   logic produced this".
 * **The customer reference:** a `TripConfirmed` payload field from ch 8, assigned by the
-  Booking Agent against the `WorkflowStateStore`: six characters from a 32-character alphabet
+  Booking Agent against the `StateStore`: six characters from a 32-character alphabet
   (letters without I and O, digits 2 to 9), random with a clash check, never a sequence and
   never recycled. A reference identifies and never authorizes (ch 13). Until ch 8 the demos
   show no reference.
@@ -852,7 +852,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   request (dates in the future and in order, at least one origin-destination, the party
   stated, a budget or an explicit "no limit"), in code; a request that fails gets
   `TripRequestRejected`, and one that passes
-  is recorded as the Trip under a store-assigned id (the `WorkflowStateStore`, a PostgreSQL row
+  is recorded as the Trip under a store-assigned id (the `StateStore`, a PostgreSQL row
   from ch 3), announced by `TripCreated`, and sent to planning as
   `planning.ItineraryRequested`. On `planning.ItineraryProposed` it records the proposal
   as received (event-carried state) and publishes `ProposalReady`, at once until ch 7 and after
@@ -873,7 +873,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   negotiated rate where one was won), decides by reasoning on `ReservationFailed` between the
   stay item's backup, a re-plan, and a question to the customer, and records the car
   (`CarReserved`). From ch 8 it owns the trip's workflow: macro-state in
-  the `WorkflowStateStore`, the wait for `policy.PolicyCheckPassed` or the manager's decision,
+  the `StateStore`, the wait for `policy.PolicyCheckPassed` or the manager's decision,
   `ApprovalRequested` through the outbox with the approval brief composed by the sub-agent (the
   semantic checkpoint), the timeouts through the `EventScheduler` (the manager's 48 hours, the
   customer's follow-up scheduled from its own `ProposalReady`) and the choice each forces when
@@ -886,7 +886,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   by its chapter's compose file. It runs inside ADK's own app with the activator attached in
   its lifespan, the first attachment inside a framework's own app; its ADK session, keyed by
   the trip like every activation's, is its private working memory and the trip's reasoning
-  trace, never re-sent to the LLM, and the Trip lives only in the `WorkflowStateStore`. In ch 1 and 2 the demo script
+  trace, never re-sent to the LLM, and the Trip lives only in the `StateStore`. In ch 1 and 2 the demo script
   publishes `ItineraryRequested` directly as booking's stand-in.
 
 | Front Desk
@@ -1180,7 +1180,7 @@ spam) publishing `customer.EmailReceived`: a script, not a service.
 === Ports and infrastructure
 
 Ports (all outline-established, unchanged): `EventBroker`, `EventScheduler`,
-`WorkflowStateStore`, `SemanticViewStore`, `BlobStore`, `InboxStore`, `BarrierStore`,
+`StateStore`, `SemanticViewStore`, `BlobStore`, `InboxStore`, `BarrierStore`,
 `IdempotencyStore`, and the platform's `GuardStateStore`. The low-level design (exact port
 signatures, the event envelope, generation rules, naming, and repo layout conventions) is
 `04_implementation_design.adoc`.

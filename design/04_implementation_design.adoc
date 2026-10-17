@@ -145,21 +145,21 @@ rule made visible. Business logic type-hints `EventBroker`, because publishing a
 subscribing is all it ever does; only the entry point needs the loop. Lifecycle stays off
 both surfaces, because the factory owns it.
 
-=== The WorkflowStateStore port
+=== The StateStore port
 
 Drafted 2026-10-16 and settled with the author the same day. The port persists an aggregate's
-document for its one writer; the Trip is its first and, until chapter 8, its only occupant, and
+state for its one writer; the Trip is its first and, until chapter 8, its only occupant, and
 the code that calls it is the Booking Agent's steps, never the Trip itself
 (`05_data_consistency_and_state_model.adoc`, The Trip's Operations). It is a `typing.Protocol`
 like every port, with four methods and no others:
 
-* `create(request_event_id, document) -> id`: inserts a row and returns its serial id. The
+* `create(request_event_id, state) -> id`: inserts a row and returns its serial id. The
   request's event id is unique on the table, so a second call with the same id returns the
   existing row's id instead of inserting; this is how a redelivered `booking.TripRequested`
   finds its trip.
-* `load(id) -> (document, version)`: the current document and its version, or nothing.
+* `load(id) -> (state, version)`: the current state and its version, or nothing.
 * `handled(id, event_id) -> bool`: whether this event has already changed this aggregate.
-* `commit(id, document, expected_version, event_id, events=())`: writes the document, bumps the
+* `commit(id, state, expected_version, event_id, events=())`: writes the state, bumps the
   version, records the event id as handled, and, from chapter 8, writes one outbox row per
   event, all in one transaction. A stale `expected_version` is refused (the fence, Ordering
   above). Before chapter 8 `events` is empty and the activator publishes the step's returned
@@ -168,13 +168,13 @@ like every port, with four methods and no others:
 There is no update, because `commit` is the only write after creation and it insists on the
 version and the cause; no delete, because nothing in the business deletes a trip (a cancelled
 trip is a trip with a status and a history); and no query, because finding trips by anything
-but their id is a read model's job (chapter 6). The document is opaque to the port, which
+but their id is a read model's job (chapter 6). The state is opaque to the port, which
 neither reads nor interprets it; that is what lets chapter 15 move it to a managed document
-store without touching an agent, and it carries its own `schema_version`. Two adapters from
+store without touching an agent, and it carries its own `schema_version` field. Two adapters from
 chapter 3: PostgreSQL (`trips`: `id` serial, `request_event_id` unique, `version`, `status`,
-`document`; `handled_events`: `trip_id`, `event_id`, unique together) and in-memory, for the
+`state`; `handled_events`: `trip_id`, `event_id`, unique together) and in-memory, for the
 tests. The step's shape is therefore: handled, load, rebuild the Trip, call one operation,
-commit the Trip's document, return the event, with nothing else allowed to write the row.
+commit the Trip's state, return the event, with nothing else allowed to write the row.
 
 === Generation rules
 
@@ -360,7 +360,7 @@ both). The Kafka adapter keeps the promise as follows.
   `earliest` for `"beginning"`); session, heartbeat, and poll intervals at their defaults.
 * **The fence.** A replica mid-activation when the broker reassigns its partition (a rebalance)
   can write after the new owner has moved on. A version check in the store is the fence: the
-  `WorkflowStateStore` rejects a write whose expected aggregate version is stale, and the
+  `StateStore` rejects a write whose expected aggregate version is stale, and the
   rejection returns to the handler as an error. One sentence in ch 8; never hit by the demos.
 * **Head-of-line blocking** is per key only. A slow activation holds up the events behind it
   on its own key and nothing else; the partition count caps a component's replicas, not the
@@ -617,7 +617,7 @@ promised.
    working memory and the activation's trace, never an aggregate's state. The Booking Agent's
    ADK session, keyed by the trip like every activation's, accumulates each activation's events
    as the trip's reasoning trace; its `LlmAgent` sub-agent re-sends none of it (`include_contents`
-   off) and is hydrated from the `WorkflowStateStore` by the custom agent's deterministic
+   off) and is hydrated from the `StateStore` by the custom agent's deterministic
    steps, which is ch 6's stateless rule applied to a framework that would otherwise re-send
    the history. Under the in-memory session service the trace is forgotten at restart, under a
    database session service it is a table of traces, and in neither is it the Trip. The
