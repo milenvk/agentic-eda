@@ -23,7 +23,7 @@ at the first customer message and inherited by everything that follows; every bo
 planning, and policy fact after `booking.TripRequested` carries the trip's id as its partition
 key, and `TripRequested` and every customer fact the conversation's. The chapter in brackets is where a step first runs. Before ch 3 the demo
 script stands in for the Booking Agent; in ch 3 it stands in for the customer, writing booking's
-requests and printing what booking publishes; the Front Desk takes that seat in ch 4.
+requests and printing what booking publishes; the Front Desk is the customer channel from ch 4.
 
 *End-state flow:*
 
@@ -135,7 +135,7 @@ audit consumer; one topic per context and per-key lanes in the adapter), ch 2 (t
 Planner replacing the plain one on the same events; CloudEvents contracts, correlation and
 causation, `partitionkey`), ch 3 (the Booking Agent takes planning's end and the demo script the
 customer's: steps 2, 5, and 7), ch 5 (the Research Agent's tool in step 3), ch 4 (the Front Desk and
-the Router take the customer's seat: steps 1 and 6 for chat and email), ch 7 (steps 4 and 9 and
+the Router become the customer channel: steps 1 and 6 for chat and email), ch 7 (steps 4 and 9 and
 the partial re-plan: the demonstration ends with the trip reserved, both holds in place), ch 8
 (steps 8 and 11, the follow-up nudge), ch 10 (step 10, idempotent).
 

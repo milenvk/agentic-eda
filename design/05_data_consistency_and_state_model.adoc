@@ -451,7 +451,7 @@ Four rules hold for every activation:
   `booking.ItineraryRejected`, or `booking.TripChanged`
 | `requested`
 | the trip has no outstanding planning request
-| `planning.ItineraryRequested` with the requirements as they now stand and, when re-asking,
+| `planning.ItineraryRequested` with the requirements as they now stand and, on a re-plan,
   the customer's reason (and from chapter 7 the items carried over); status `planning`
 
 | `record_proposal(proposal)`, on `planning.ItineraryProposed`
@@ -477,7 +477,7 @@ Four rules hold for every activation:
 | the changed requirements pass the same checks as `create`
 | `booking.TripChanged` with the requirements; status `requested`
 
-| `ask(proposal_id, question, options)`, a reply tool
+| `request_clarification(proposal_id, question, options)`, a reply tool
 | `proposed`, `awaiting clarification`
 | the proposal is one of this trip's; fewer questions asked on it than the Booking Agent's
   clarification cap, a setting whose default is two. The refusal at the cap returns to the LLM
@@ -487,9 +487,8 @@ Four rules hold for every activation:
   `awaiting clarification`; the question kept as pending on the proposal
 |===
 
-The reply activation calls exactly one of `approve`, `reject`, `change`, or `ask`. Validation,
-creation, the planning request, and recording a proposal are deterministic activations with no
-LLM call. The cap is two because each question costs the customer a round trip of hours or days,
+The reply activation calls exactly one of `approve`, `reject`, `change`, or `request_clarification`. Checking the request,
+creation, the planning request, and recording a proposal are activations with no LLM call. The cap is two because each question costs the customer a round trip of hours or days,
 and after two the likelier fault is the proposal, not the words; a re-plan with the customer's
 words as the reason serves them better than a third question.
 
@@ -501,7 +500,7 @@ words as the reason serves them better than a third question.
 * `proposed` or `awaiting clarification`, `approve`: `approved` (terminal in chapter 3).
 * `proposed` or `awaiting clarification`, `reject` or `change`: `requested`; the agent's
   activation on its own event then runs `request_planning`: `planning`.
-* `proposed` or `awaiting clarification`, `ask` (under the cap): `awaiting clarification`.
+* `proposed` or `awaiting clarification`, `request_clarification` (under the cap): `awaiting clarification`.
 
 `requested` always means a planning request is owed, whether the trip is new or the customer
 sent it back. A trip accumulates proposals and the customer may choose from any of them; the

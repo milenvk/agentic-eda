@@ -39,7 +39,7 @@ reconciliation of 2026-09-11:
   (`booking.TripRequested`, `booking.CustomerReplied`, `support.SupportRequested`,
   `destination.InspirationRequested`), follows the customer's trips by trip id, and records
   `customer.CustomerNotified` when it delivers a message, so the audit trail records what the
-  customer was told. Until ch 4 the demo scripts hold the customer's seat and write the same
+  customer was told. Until ch 4 the demo scripts stand in for the customer channel and write the same
   requests; the email replay and the Router hold it for email. A framework's own UI is an entry
   into a single agent, never into the system.
 * **LLM strategy:** reasoning agents default to one cloud API key; Ollama is the documented
@@ -839,8 +839,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | 3
 | The booking context's agent, the Trip's one writer, and the orchestrator of W1, event-only:
   it has no HTTP surface of its own and consumes only `booking.*` types. It is an ADK custom
-  agent that dispatches on the inbound event's class: bookkeeping events run deterministic
-  steps with no LLM call, and events carrying judgement run an `LlmAgent` sub-agent whose tools
+  agent that dispatches on the inbound event's class: bookkeeping events run with no
+  LLM call, and events carrying judgement run an `LlmAgent` sub-agent whose tools
   are the Trip's intent-named operations. The Trip decides (an operation checks its invariants
   in memory and returns the event), the store writes (the step loads the Trip's document before
   and commits it after), and the activator publishes the one event the step returns; a refused
@@ -848,7 +848,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   event out, and the agent reaches its next activation by consuming its own `booking.TripCreated`,
   `booking.ItineraryRejected`, and `booking.TripChanged`. Which events carry judgement follows
   the realism rule, event by event. On
-  `TripRequested` it validates the request as a business
+  `TripRequested` it checks the request as a business
   request (dates in the future and in order, at least one origin-destination, the party
   stated, a budget or an explicit "no limit"), in code; a request that fails gets
   `TripRequestRejected`, and one that passes
@@ -909,7 +909,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   `RebookingProposed`), shows `support.SupportTicketResolved` and
   `destination.SuggestionPackReady` by conversation id, and records `customer.CustomerNotified`
   for each delivery. Its chat UI and live event-stream view are out of the page budget; the
-  classifier and the publishing code are in it. In ch 3 the demo script holds this seat.
+  classifier and the publishing code are in it. In ch 3 the demo script stands in for it.
 
 | Destination Research Agent
 | Tool-Using

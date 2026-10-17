@@ -84,7 +84,7 @@ payment offstage until ch 10.
   `StateStore` and announcing it by `booking.TripCreated`, every later step present and
   off), PostgreSQL in compose with the `StateStore`'s PostgreSQL adapter (the `trips`
   row, the request's event id under a unique index; the in-memory adapter for the tests),
-  `InMemoryBroker`, first agent mock test; the demo script moves to the customer's seat and
+  `InMemoryBroker`, first agent mock test; the demo script stands in for the customer channel and
   writes `booking.TripRequested` and `booking.CustomerReplied` in a customer's words
 | The Booking Agent's validation (`TripRequestRejected`), the trip's creation (`TripCreated`),
   its request to planning, `ProposalReady`,
