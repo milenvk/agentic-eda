@@ -841,9 +841,13 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   it has no HTTP surface of its own and consumes only `booking.*` types. It is an ADK custom
   agent that dispatches on the inbound event's class: bookkeeping events run deterministic
   steps with no LLM call, and events carrying judgement run an `LlmAgent` sub-agent whose tools
-  are the Trip's intent-named operations. An operation enforces the state machine's invariants,
-  commits, and states the fact; a rejected operation returns to the sub-agent as an
-  observation. Which events carry judgement follows the realism rule, event by event. On
+  are the Trip's intent-named operations. The Trip decides (an operation checks its invariants
+  in memory and returns the event), the store writes (the step loads the Trip's document before
+  and commits it after), and the activator publishes the one event the step returns; a refused
+  operation returns to the sub-agent as the tool's result. Every step is one event in, one
+  event out, and the agent reaches its next step by consuming its own `booking.TripCreated`,
+  `booking.ItineraryRejected`, and `booking.TripChanged`. Which events carry judgement follows
+  the realism rule, event by event. On
   `TripRequested` it validates the request as a business
   request (dates in the future and in order, at least one origin-destination, the party
   stated, a budget or an explicit "no limit"), in code; a request that fails gets

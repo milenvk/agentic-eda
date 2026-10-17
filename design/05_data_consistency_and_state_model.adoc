@@ -390,92 +390,108 @@ moving the system keeps the guarantee by construction.
 
 === The Trip's Operations
 
-Drafted 2026-10-16 for chapter 3's plan; the aggregate above says what the Trip holds, this
-says how it changes. The Trip is application code in `travel_agency`, a Pydantic model with
-intent-named operations; the `WorkflowStateStore` is the library's port that persists it
-(`04_implementation_design.adoc`, The WorkflowStateStore port). An operation loads the trip,
-checks the invariants the operation is responsible for, changes the state, and states exactly
-one business fact. It accepts or refuses; a refusal is a typed error that the Booking Agent's
-deterministic steps treat as a bug and its reasoning sub-agent receives as an observation. The
-operations are the sub-agent's tools from chapter 3 on, which is why they are named for what
-the business does, never for what the data looks like: no save, no set status.
+Drafted 2026-10-16 and settled with the author the same day. The aggregate above says what the
+Trip holds; this says how it changes and who does what. Three parties, one verb each: **the Trip
+decides**, **the store writes**, **the activator publishes**.
 
-Four rules hold for every operation:
+The Trip is one class in `travel_agency`, a Pydantic model whose fields are the trip's state and
+whose methods are its operations, one per business action, each guarded by the checks that
+keep the trip consistent (the invariants) and each returning the one event it produces. The
+class depends on the event classes and on nothing else: it never meets the store, the broker,
+the framework, or the LLM, which is what makes it testable as plain Python and what lets its
+operations be handed to an LLM as tools. The word aggregate names this pattern once, for readers
+who know Domain-Driven Design; the book otherwise says the Trip, the Trip's operations, the
+Trip's rules.
 
-* **One fact.** An operation states at most one business fact, through `eda.publish` inside
-  it, so the fact is published by the same path as every other (the activator's, with the
-  envelope generated from the inbound event). Before chapter 8 the facts leave when the
-  activation returns; from chapter 8 the operation's commit writes the outbox row in the same
-  transaction as the state.
-* **One cause, once.** Every operation is invoked for one inbound event and records that
-  event's id with the trip. A redelivered event whose id is already recorded is acknowledged
-  with no effect and no fact restated: deduplication by event id, named in chapter 3 and built
-  in chapter 10. Creation is the same rule on a different index: the request's event id is
-  unique on the `trips` table, so a redelivered `booking.TripRequested` finds its trip.
-* **One version.** From chapter 8 a commit carries the version it loaded, and the store refuses
-  a stale one (the fence, `04_implementation_design.adoc`).
-* **One writer.** Only the Booking Agent calls these operations. The LLM proposes one by calling
-  its tool; the operation decides.
+The Booking Agent's **step** for an inbound event is the code around the class, and it has one
+shape in every chapter: ask the store whether this event was already handled; load the trip's
+document and rebuild the Trip from it; call one operation, which checks its invariants in memory
+and returns the event; commit the Trip's document through the store; return the event as the
+activation's answer. The activator validates that answer against `produces` and publishes it, as
+it does for every agent since chapter 2. For the customer's reply the same shape runs inside the
+tool wrapper: the LLM picks one of four tools, the wrapper loads, calls the operation, commits,
+keeps the returned event, and the step returns it as the activation's one answer; a refusal
+returns to the LLM as the tool's result. No operation publishes, and nothing in chapter 3 calls
+`eda.publish`; `04_implementation_design.adoc` introduces it in chapter 7 for the reservation
+step, which must commit each event before the next.
+
+Four rules hold for every step:
+
+* **One event per activation.** An activation answers with one event of a declared class, or
+  `Nothing`, and the Booking Agent reaches its next step by consuming its own event:
+  `booking.TripCreated` triggers the planning request, `booking.ItineraryRejected` and
+  `booking.TripChanged` trigger it again. The audit record then shows each request caused by
+  the event that made it necessary.
+* **One cause, once.** The step records the inbound event's id with the trip at commit. A
+  redelivered event whose id is already recorded is acknowledged with no effect and no event
+  produced a second time: deduplication by event id, named in chapter 3 and built in chapter
+  10. Creation is the same rule on a different index: the request's event id is unique on the
+  `trips` table, so a redelivered `booking.TripRequested` finds its trip.
+* **One version.** From chapter 8 the commit carries the version the step loaded, and the
+  store refuses a stale one (the fence, `04_implementation_design.adoc`).
+* **One writer.** Only the Booking Agent's steps call the operations. The LLM proposes one by
+  calling its tool; the operation decides.
 
 ==== Operations switched on in chapter 3
 
 [cols="2,2,3,2", options="header"]
 |===
-| Operation | Allowed in status | Checks | States
+| Operation, and the event that triggers its step | Allowed in status | Checks | Returns
 
-| `create(request)`
+| `create(request)`, on `booking.TripRequested`
 | no trip yet
 | the request is a business request: dates in the future and in order, at least one
   origin-destination, the party stated, a budget or an explicit "no limit". A failed check
-  states `booking.TripRequestRejected` with what is missing, under the conversation's key,
+  returns `booking.TripRequestRejected` with what is missing, under the conversation's key,
   and creates nothing
 | `booking.TripCreated`, with the store-assigned id and the accepted request; status
   `requested`
 
-| `request_planning(reason=None, carried_over=())`
-| `requested`, or after `reject` or `change`
+| `request_planning(reason=None, carried_over=())`, on the agent's own `booking.TripCreated`,
+  `booking.ItineraryRejected`, or `booking.TripChanged`
+| `requested`
 | the trip has no outstanding planning request
 | `planning.ItineraryRequested` with the requirements as they now stand and, when re-asking,
   the customer's reason (and from chapter 7 the items carried over); status `planning`
 
-| `record_proposal(proposal)`
+| `record_proposal(proposal)`, on `planning.ItineraryProposed`
 | `planning`
 | the proposal answers this trip's outstanding request; one answering a superseded request is
   ignored (chapter 7)
 | `booking.ProposalReady` with the itineraries as the customer should see them; status
-  `proposed`. From chapter 7 the fact waits for the barrier (`record_rate`, below)
+  `proposed`. From chapter 7 the event waits for the barrier (`record_rate`, below)
 
-| `approve(proposal_id, rank)`
+| `approve(proposal_id, rank)`, a reply tool
 | `proposed`, `awaiting clarification`
 | the proposal is one of this trip's; the rank exists in it; nothing is approved yet
 | `booking.ItineraryApproved` naming the proposal and the rank; status `approved`; the pending
   question, if any, cleared
 
-| `reject(proposal_id, reason)`
+| `reject(proposal_id, reason)`, a reply tool
 | `proposed`, `awaiting clarification`
 | the proposal is one of this trip's
-| `booking.ItineraryRejected` with the reason; status `requested`; the step then calls
-  `request_planning(reason)`
+| `booking.ItineraryRejected` with the reason; status `requested`
 
-| `change(requirements, reason)`
+| `change(requirements, reason)`, a reply tool
 | `proposed`, `awaiting clarification`
 | the changed requirements pass the same checks as `create`
-| `booking.TripChanged` with the requirements; status `requested`; the step then calls
-  `request_planning(reason)`
+| `booking.TripChanged` with the requirements; status `requested`
 
-| `ask(proposal_id, question, options)`
+| `ask(proposal_id, question, options)`, a reply tool
 | `proposed`, `awaiting clarification`
-| the proposal is one of this trip's; fewer than two questions asked on it. The refusal at
-  the cap returns to the sub-agent as an observation, which then chooses among approve,
-  reject, and change on the words it has; it never guesses an approval
+| the proposal is one of this trip's; fewer questions asked on it than the Booking Agent's
+  clarification cap, a setting whose default is two. The refusal at the cap returns to the LLM
+  as the tool's result, and it chooses among approve, reject, and change on the words it has;
+  it never guesses an approval
 | `booking.ClarificationRequested` with the question and the options; status
-  `awaiting clarification`; the question recorded as pending on the proposal
+  `awaiting clarification`; the question kept as pending on the proposal
 |===
 
-The reply step calls exactly one of `approve`, `reject`, `change`, or `ask`; the re-request after
-a rejection or a change is the deterministic step's call, not the LLM's, until chapter 7 makes
-the re-plan brief a reasoning step. Validation, creation, the planning request, and recording a
-proposal are deterministic steps with no LLM call.
+The reply step calls exactly one of `approve`, `reject`, `change`, or `ask`. Validation,
+creation, the planning request, and recording a proposal are deterministic steps with no LLM
+call. The cap is two because each question costs the customer a round trip of hours or days,
+and after two the likelier fault is the proposal, not the words; a re-plan with the customer's
+words as the reason serves them better than a third question.
 
 ==== Transitions in chapter 3
 
@@ -483,19 +499,32 @@ proposal are deterministic steps with no LLM call.
 * `requested`, `request_planning`: `planning`.
 * `planning`, `record_proposal`: `proposed`.
 * `proposed` or `awaiting clarification`, `approve`: `approved` (terminal in chapter 3).
-* `proposed` or `awaiting clarification`, `reject` or `change`: `requested`, then
-  `request_planning`: `planning`.
+* `proposed` or `awaiting clarification`, `reject` or `change`: `requested`; the agent's
+  activation on its own event then runs `request_planning`: `planning`.
 * `proposed` or `awaiting clarification`, `ask` (under the cap): `awaiting clarification`.
 
-A trip accumulates proposals and the customer may choose from any of them; the status tracks
-the latest request. Chapter 8 adds `awaiting policy approval` and the workflow's macro-state;
-chapter 7 adds `negotiating` between `planning` and `proposed`, and `reserving` and `reserved`
-after `approved`.
+`requested` always means a planning request is owed, whether the trip is new or the customer
+sent it back. A trip accumulates proposals and the customer may choose from any of them; the
+status tracks the latest request. Chapter 8 adds `awaiting policy approval` and the workflow's
+macro-state; chapter 7 adds `negotiating` between `planning` and `proposed`, and `reserving`
+and `reserved` after `approved`.
+
+==== The document and its schema
+
+The store keeps the Trip as a document: the class's fields serialised by the step
+(`trip.model_dump()`) on the way out and rebuilt (`Trip.model_validate`) on the way in, with
+`schema_version` as one of the fields from chapter 3. Within the book the document's shape never
+changes, because the Trip carries every later chapter's fields from chapter 3 with defaults
+(reservations empty, macro-state absent, payment absent); later chapters switch behaviour on, not
+fields. For a reader's own system the rule is the one chapter 14 teaches for events: an additive
+change is a new optional field with a default, free at load; a breaking change bumps
+`schema_version` and adds an upcast function the step applies before validating, a read-time
+migration, with rows never rewritten in bulk.
 
 ==== Operations present in code and switched on later
 
-Each is designed in its chapter and listed here only so the aggregate is complete from its
-first appearance: `record_rate` and the barrier (ch 7), `reserve_flight`, `reserve_hotel`,
+Each is designed in its chapter and listed here only so the Trip is complete from its first
+appearance: `record_rate` and the barrier (ch 7), `reserve_flight`, `reserve_hotel`,
 `record_reservation_failure`, `record_car` (ch 7), `record_policy_result`,
 `request_approval`, `record_approval`, `time_out` (ch 8), `confirm` (ch 8), `record_rebooking`,
 `compensate`, `cancel` (ch 9), `request_payment`, `record_payment` (ch 10).
