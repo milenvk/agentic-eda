@@ -403,40 +403,40 @@ operations be handed to an LLM as tools. The word aggregate names this pattern o
 who know Domain-Driven Design; the book otherwise says the Trip, the Trip's operations, the
 Trip's rules.
 
-The Booking Agent's **step** for an inbound event is the code around the class, and it has one
-shape in every chapter: ask the store whether this event was already handled; load the trip's
+Every **activation** of the Booking Agent is the code around the class, and it has one shape in
+every chapter: ask the store whether this event was already handled; load the trip's
 document and rebuild the Trip from it; call one operation, which checks its invariants in memory
 and returns the event; commit the Trip's state through the store; return the event as the
 activation's answer. The activator validates that answer against `produces` and publishes it, as
 it does for every agent since chapter 2. For the customer's reply the same shape runs inside the
 tool wrapper: the LLM picks one of four tools, the wrapper loads, calls the operation, commits,
-keeps the returned event, and the step returns it as the activation's one answer; a refusal
+keeps the returned event, and the activation returns it as its one answer; a refusal
 returns to the LLM as the tool's result. No operation publishes, and nothing in chapter 3 calls
 `eda.publish`; `04_implementation_design.adoc` introduces it in chapter 7 for the reservation
 step, which must commit each event before the next.
 
-Four rules hold for every step:
+Four rules hold for every activation:
 
 * **One event per activation.** An activation answers with one event of a declared class, or
   `Nothing`, and the Booking Agent reaches its next step by consuming its own event:
   `booking.TripCreated` triggers the planning request, `booking.ItineraryRejected` and
   `booking.TripChanged` trigger it again. The audit record then shows each request caused by
   the event that made it necessary.
-* **One cause, once.** The step records the inbound event's id with the trip at commit. A
+* **One cause, once.** The activation records the inbound event's id with the trip at commit. A
   redelivered event whose id is already recorded is acknowledged with no effect and no event
   produced a second time: deduplication by event id, named in chapter 3 and built in chapter
   10. Creation is the same rule on a different index: the request's event id is unique on the
   `trips` table, so a redelivered `booking.TripRequested` finds its trip.
-* **One version.** From chapter 8 the commit carries the version the step loaded, and the
+* **One version.** From chapter 8 the commit carries the version the activation loaded, and the
   store refuses a stale one (the fence, `04_implementation_design.adoc`).
-* **One writer.** Only the Booking Agent's steps call the operations. The LLM proposes one by
+* **One writer.** Only the Booking Agent's activations call the operations. The LLM proposes one by
   calling its tool; the operation decides.
 
 ==== Operations switched on in chapter 3
 
 [cols="2,2,3,2", options="header"]
 |===
-| Operation, and the event that triggers its step | Allowed in status | Checks | Returns
+| Operation, and the event whose activation calls it | Allowed in status | Checks | Returns
 
 | `create(request)`, on `booking.TripRequested`
 | no trip yet
@@ -487,9 +487,9 @@ Four rules hold for every step:
   `awaiting clarification`; the question kept as pending on the proposal
 |===
 
-The reply step calls exactly one of `approve`, `reject`, `change`, or `ask`. Validation,
-creation, the planning request, and recording a proposal are deterministic steps with no LLM
-call. The cap is two because each question costs the customer a round trip of hours or days,
+The reply activation calls exactly one of `approve`, `reject`, `change`, or `ask`. Validation,
+creation, the planning request, and recording a proposal are deterministic activations with no
+LLM call. The cap is two because each question costs the customer a round trip of hours or days,
 and after two the likelier fault is the proposal, not the words; a re-plan with the customer's
 words as the reason serves them better than a third question.
 
@@ -511,14 +511,14 @@ and `reserved` after `approved`.
 
 ==== The state and its schema
 
-The store keeps the Trip's state, saved as one JSON document: the class's fields serialised by the step
+The store keeps the Trip's state, saved as one JSON document: the class's fields serialised by the activation
 (`trip.model_dump()`) on the way out and rebuilt (`Trip.model_validate`) on the way in, with
 `schema_version` as one of the fields from chapter 3. Within the book the state's shape never
 changes, because the Trip carries every later chapter's fields from chapter 3 with defaults
 (reservations empty, macro-state absent, payment absent); later chapters switch behaviour on, not
 fields. For a reader's own system the rule is the one chapter 14 teaches for events: an additive
 change is a new optional field with a default, free at load; a breaking change bumps
-`schema_version` and adds an upcast function the step applies before validating, a read-time
+`schema_version` and adds an upcast function the activation applies before validating, a read-time
 migration, with rows never rewritten in bulk.
 
 ==== Operations present in code and switched on later

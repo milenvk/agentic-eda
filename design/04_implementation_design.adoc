@@ -149,7 +149,7 @@ both surfaces, because the factory owns it.
 
 Drafted 2026-10-16 and settled with the author the same day. The port persists an aggregate's
 state for its one writer; the Trip is its first and, until chapter 8, its only occupant, and
-the code that calls it is the Booking Agent's steps, never the Trip itself
+the code that calls it is the Booking Agent's activations, never the Trip itself
 (`05_data_consistency_and_state_model.adoc`, The Trip's Operations). It is a `typing.Protocol`
 like every port, with four methods and no others:
 
@@ -162,7 +162,7 @@ like every port, with four methods and no others:
 * `commit(id, state, expected_version, event_id, events=())`: writes the state, bumps the
   version, records the event id as handled, and, from chapter 8, writes one outbox row per
   event, all in one transaction. A stale `expected_version` is refused (the fence, Ordering
-  above). Before chapter 8 `events` is empty and the activator publishes the step's returned
+  above). Before chapter 8 `events` is empty and the activator publishes the activation's returned
   event itself.
 
 There is no update, because `commit` is the only write after creation and it insists on the
@@ -173,7 +173,7 @@ neither reads nor interprets it; that is what lets chapter 15 move it to a manag
 store without touching an agent, and it carries its own `schema_version` field. Two adapters from
 chapter 3: PostgreSQL (`trips`: `id` serial, `request_event_id` unique, `version`, `status`,
 `state`; `handled_events`: `trip_id`, `event_id`, unique together) and in-memory, for the
-tests. The step's shape is therefore: handled, load, rebuild the Trip, call one operation,
+tests. Every activation's shape is therefore: handled, load, rebuild the Trip, call one operation,
 commit the Trip's state, return the event, with nothing else allowed to write the row.
 
 === Generation rules
@@ -537,7 +537,7 @@ model an adapter concern. The activator owns five things.
   new_message=request as the user message)`, iterated
 | the event whose `is_final_response()` is true, its content parsed against `produces`; for
   an agent whose answer is the event an operation returned through a tool (the Booking
-  Agent's reply step), the adapter collects that event from the tool wrapper and the final
+  Agent's reply activation), the adapter collects that event from the tool wrapper and the final
   response text is ignored
 
 | CrewAI
@@ -667,7 +667,7 @@ typed answer, the classifier's one request, the Negotiator's one `RateNegotiated
 of its loop, made durable in ch 8), and the Booking Agent's step returns the one event its
 operation produced after committing the Trip's document with the inbound event's id, so a
 rerun after a mid-activation death finds the event already handled and answers nothing (ch 3's
-dedup by event id, applied to every step). To confirm in code
+dedup by event id, applied to every activation). To confirm in code
 before ch 2: that
 `ainvoke` on a compiled graph accepts the request under a field found by type, and that the
 wrapper `produces` returns for several classes is accepted as

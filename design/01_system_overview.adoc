@@ -844,8 +844,8 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   are the Trip's intent-named operations. The Trip decides (an operation checks its invariants
   in memory and returns the event), the store writes (the step loads the Trip's document before
   and commits it after), and the activator publishes the one event the step returns; a refused
-  operation returns to the sub-agent as the tool's result. Every step is one event in, one
-  event out, and the agent reaches its next step by consuming its own `booking.TripCreated`,
+  operation returns to the sub-agent as the tool's result. Every activation is one event in, one
+  event out, and the agent reaches its next activation by consuming its own `booking.TripCreated`,
   `booking.ItineraryRejected`, and `booking.TripChanged`. Which events carry judgement follows
   the realism rule, event by event. On
   `TripRequested` it validates the request as a business
