@@ -149,7 +149,7 @@ both surfaces, because the factory owns it.
 
 Drafted 2026-10-16 and settled with the author the same day. The port persists an aggregate's
 state for its one writer; the Trip is its first and, until chapter 8, its only occupant, and
-the code that calls it is the Booking Agent's activations, never the Trip itself
+the code that calls it is the activator, on behalf of the agent that declared its state, never the Trip itself and never the agent
 (`05_data_consistency_and_state_model.adoc`, The Trip's Operations). It is a `typing.Protocol`
 like every port, with four methods and no others:
 
@@ -173,8 +173,9 @@ neither reads nor interprets it; that is what lets chapter 15 move it to a manag
 store without touching an agent, and it carries its own `schema_version` field. Two adapters from
 chapter 3: PostgreSQL (`trips`: `id` serial, `request_event_id` unique, `version`, `status`,
 `state`; `handled_events`: `trip_id`, `event_id`, unique together) and in-memory, for the
-tests. Every activation's shape is therefore: handled, load, rebuild the Trip, call one operation,
-commit the Trip's state, return the event, with nothing else allowed to write the row.
+tests. The activator's shape around every activation is therefore: handled, load, rebuild the
+Trip, run the activation (one operation call), commit the Trip's state, publish the event,
+acknowledge, with nothing else allowed to write the row.
 
 === Generation rules
 
@@ -398,8 +399,12 @@ model an adapter concern. The activator owns five things.
 * **How an agent is hosted, and how it states a fact.** The activator is a library, never a
   competing host, and the agent never learns that a broker exists. Its developer writes the
   agent as the framework's own documentation would have it, plus two declarations of
-  `@event` classes, `consumes = eda.consumes(...)` and `produces = eda.produces(...)`, and
-  one `attach` line on the app that hosts the agent; the activator does the rest. The two
+  `@event` classes, `consumes = eda.consumes(...)` and `produces = eda.produces(...)`, a third
+  for an agent that owns state, `state = eda.state(Trip, key="trip_id")` (settled 2026-10-20),
+  and one `attach` line on the app that hosts the agent; the activator does the rest. An agent
+  never meets the store any more than it meets the broker: the activator loads the declared
+  aggregate by the event's key before the activation and commits it after (One activation,
+  below). The two
   helpers have the same shape and check their classes the moment the module loads (that each
   carries `@event`, and that what `produces` names survives the strict
   schema subset below), so a mistake fails at import. `produces` is also the schema the
@@ -467,7 +472,13 @@ model an adapter concern. The activator owns five things.
    only the app's `router.lifespan_context`, so the `agentic_eda` library needs no web framework of its own:
    the components bring FastAPI, and Starlette is a test dependency alone.
 ** *One activation.* For each inbound event the activator validates its data into the
-   class bound to the event's type, with its attributes in `attributes_`, hands that
+   class bound to the event's type, with its attributes in `attributes_`; for an agent with a
+   `state` declaration it first asks the `StateStore` whether this event was already handled
+   (acknowledging without an activation if so), loads the aggregate by the event's key and
+   makes it available to the agent through the activation context (plain handlers take it as a
+   parameter, an LLM's tools read it from the context), and after the activation it commits
+   the aggregate with the version it loaded and the event's id, in the same step that from
+   chapter 8 writes the outbox row; it then hands the event
    instance to the framework adapter with the
    key (or the event id, when there is none) as the activation's thread or session id,
    reduces what comes back to one instance of a class in `produces`, or `Nothing` (an
@@ -538,7 +549,8 @@ model an adapter concern. The activator owns five things.
 | the event whose `is_final_response()` is true, its content parsed against `produces`; for
   an agent whose answer is the event an operation returned through a tool (the Booking
   Agent's reply activation), the adapter collects that event from the tool wrapper and the final
-  response text is ignored
+  response text is ignored; the tools read the loaded Trip from the activation context and the
+  activator commits it once, after the activation
 
 | CrewAI
 | `crew.kickoff_async(inputs=request.model_dump())` (the natively async `akickoff` where

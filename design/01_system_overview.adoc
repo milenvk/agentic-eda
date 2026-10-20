@@ -842,9 +842,9 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   agent that dispatches on the inbound event's class: bookkeeping events run with no
   LLM call, and events carrying judgement run an `LlmAgent` sub-agent whose tools
   are the Trip's intent-named operations. The Trip decides (an operation checks its invariants
-  in memory and returns the event), the store writes (the step loads the Trip's document before
-  and commits it after), and the activator publishes the one event the step returns; a refused
-  operation returns to the sub-agent as the tool's result. Every activation is one event in, one
+  in memory and returns the event), the store writes (the activator loads the Trip before the activation and commits
+  it after, so the agent never meets the store), and the activator publishes the one event the activation returns; a refused
+  operation returns to the LLM as the tool's result. Every activation is one event in, one
   event out, and the agent reaches its next activation by consuming its own `booking.TripCreated`,
   `booking.ItineraryRejected`, and `booking.TripChanged`. Which events carry judgement follows
   the realism rule, event by event. On
