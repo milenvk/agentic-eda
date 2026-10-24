@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "supplier-world"
+version = "0.1.0"
+description = "The one seeded world the supplier simulators share: cities, airports, hotels, routes, and the dice that make every answer deterministic. Installed by the simulators and by the tests that build requests for them, never by an agent."
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic==2.13.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["supplier_world"]

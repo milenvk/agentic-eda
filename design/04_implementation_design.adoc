@@ -24,10 +24,13 @@ agentic event-driven application needs and what only a travel agency needs.
 * **`travel_agency`, the application's shared code** (`lib/travel_agency/`, distributed as
   `travel-agency`): the event-type constants, the catalog as code (one module of `@event`
   classes per context), the value objects every context shares, the registry of the
-  components' public keys, and the `sims` package holding the simulators' world seed. It is
-  the domain map's shared kernel as code, with one guest: the world seed belongs to the
-  suppliers' side, is shipped here because the simulators are part of this repository, and
-  is imported by the simulators and by tests, never by an agent.
+  components' public keys. It is the domain map's shared kernel as code and nothing else.
+* **`supplier_world`, the suppliers' shared world** (`lib/supplier_world/`, distributed as
+  `supplier-world`; moved out of `travel_agency` on 2026-10-24): the seeded world every
+  simulator draws from, cities, airports, hotels, routes, and the dice that make answers
+  deterministic. The suppliers stand for systems outside the agency, so this package holds
+  nothing of the agency's and the agency's code holds nothing of it: the simulators and the
+  tests that build requests for them install it, and no agent does.
 
 The test for where a module goes: a team building a different business would use it
 unchanged, or it names something of this business (a trip, a supplier, an event type). The
@@ -37,7 +40,7 @@ split.
 The application's code has a line of its own, between what its components share and what
 one component keeps (settled 2026-10-24). `travel_agency` holds only what two or more
 components must agree on to talk to each other: the event classes and the value objects
-inside them, the event-type constants, the key registry, and the simulators' world seed.
+inside them, the event-type constants, and the key registry.
 Everything a component needs only for itself lives in that component's directory: its
 aggregate and the aggregate's operations (the Booking Agent's Trip, in
 `components/booking_agent/booking_agent/trip.py`), its prompts, its graph or agent tree, its
@@ -810,11 +813,12 @@ file, configuration file, or prose.
 
 == Repository Layout Conventions
 
-* `lib/agentic_eda/` and `lib/travel_agency/`: the library and the application's shared
-  code (Two Packages, above), each a directory with its own pyproject, its package, and its
-  tests. Every component installs both, the library first
-  (`pip install ./lib/agentic_eda ./lib/travel_agency`), and `travel-agency` declares its
-  dependency on `agentic-eda` at the exact version in the tree.
+* `lib/agentic_eda/`, `lib/travel_agency/`, and `lib/supplier_world/`: the library, the
+  application's shared code, and the suppliers' shared world (Two Packages, above), each a
+  directory with its own pyproject, its package, and its tests. Every agency component
+  installs the first two, the library first (`pip install ./lib/agentic_eda
+  ./lib/travel_agency`), and `travel-agency` declares its dependency on `agentic-eda` at the
+  exact version in the tree; a simulator installs `supplier_world` alone.
 * `components/<book_component_name>/`: one self-contained directory per component, named
   after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`,
   `airline_reservation_system_sim`): sources, Dockerfile, pyproject with **pinned exact

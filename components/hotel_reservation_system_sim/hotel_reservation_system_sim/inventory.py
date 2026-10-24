@@ -8,8 +8,8 @@ from datetime import UTC, date, datetime, timedelta
 
 from pydantic import BaseModel
 
-from travel_agency.sims import world
-from travel_agency.sims.world import City
+from supplier_world import world
+from supplier_world.world import City
 
 MOST_GUESTS_PER_ROOM = 4
 MOST_ROOMS_LEFT = 6

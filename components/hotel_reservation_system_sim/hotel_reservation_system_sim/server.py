@@ -7,7 +7,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from travel_agency.sims import world
+from supplier_world import world
 
 from . import inventory
 from .inventory import RoomOffer

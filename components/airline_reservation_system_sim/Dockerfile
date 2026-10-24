@@ -1,9 +1,10 @@
-# Build with the repository root as context, so the two libraries can be copied in.
+# Build with the repository root as context, so the suppliers' shared world can be copied in.
+# A simulator stands for a system outside the agency and installs nothing of the agency's.
 FROM python:3.14-slim
 WORKDIR /app
-COPY lib lib
+COPY lib/supplier_world lib/supplier_world
 COPY components/airline_reservation_system_sim component
-RUN pip install --no-cache-dir ./lib/agentic_eda ./lib/travel_agency "./component[dev]"
+RUN pip install --no-cache-dir ./lib/supplier_world "./component[dev]"
 WORKDIR /app/component
 # Healthy once the port answers, so a dependant can wait for it with `service_healthy`.
 HEALTHCHECK --interval=2s --timeout=2s --retries=15 \

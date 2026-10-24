@@ -1108,7 +1108,7 @@ names, never schemas. Planning queries a simulator for availability and offers; 
 reservations on it. A simulator is a component: every face it has is present from the chapter
 it first appears in, and a later chapter's compose file switches on a face or a script.
 
-Every simulator draws on one world seed in the application's library (`travel_agency.sims`): about
+Every simulator draws on one world seed in the suppliers' shared package (`supplier_world`, outside the agency's code): about
 thirty cities on every inhabited continent, each with its IATA airports, a handful of hotels
 with their neighbourhoods and rate plans, and a route graph of direct and one-stop
 connections, so a request from São Paulo to Nairobi or Tokyo to Sydney resolves as well as

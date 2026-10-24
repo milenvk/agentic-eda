@@ -13,7 +13,7 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query
 
-from travel_agency.sims import world
+from supplier_world import world
 
 from . import flights
 from .flights import Place

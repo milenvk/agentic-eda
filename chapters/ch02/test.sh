@@ -8,6 +8,7 @@ cd "$(dirname "$0")"
 suites=(
     tests-agentic-eda
     tests-travel-agency
+    tests-supplier-world
     tests-itinerary-planner
     tests-airline-reservation-system
     tests-hotel-reservation-system

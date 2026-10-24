@@ -9,7 +9,7 @@ from request_trip import answers, lisbon_trip, request_itineraries
 from agentic_eda.broker import WireEvent
 from travel_agency.event_types import ITINERARY_PROPOSED, ITINERARY_REQUESTED
 from travel_agency.events.planning import ItineraryRequested
-from travel_agency.sims import world
+from supplier_world import world
 
 
 class RecordingBroker:

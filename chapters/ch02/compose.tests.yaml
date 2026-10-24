@@ -13,6 +13,12 @@ services:
       dockerfile: docker/python.Dockerfile
     command: ["pytest", "lib/travel_agency/tests", "-q"]
 
+  tests-supplier-world:
+    build:
+      context: ../..
+      dockerfile: docker/python.Dockerfile
+    command: ["pytest", "lib/supplier_world/tests", "-q"]
+
   tests-itinerary-planner:
     build:
       context: ../..

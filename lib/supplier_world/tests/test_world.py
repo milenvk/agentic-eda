@@ -2,8 +2,8 @@
 
 from itertools import combinations
 
-from travel_agency.sims import world
-from travel_agency.sims.world import CITIES
+from supplier_world import world
+from supplier_world.world import CITIES
 
 
 def test_the_world_reaches_every_inhabited_continent():

@@ -8,8 +8,8 @@ from datetime import UTC, date, datetime, timedelta
 from random import Random
 from typing import NamedTuple
 
-from travel_agency.sims import world
-from travel_agency.sims.world import City
+from supplier_world import world
+from supplier_world.world import City
 
 from .wire import Endpoint, FareRule, FlightOffer, Itinerary, Price, Segment
 

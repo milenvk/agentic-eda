@@ -27,7 +27,10 @@ Everything lives on `main`, organized so the whole book's code is visible at a g
   test suite runs in an image without it. It is the book's reference implementation, taught
   one part per chapter, with no promise of a release cycle.
 - **`lib/travel_agency/`**: the application's shared code, holding the event-type constants,
-  the event catalog as code, and the simulators' world seed.
+  and the event catalog as code.
+- **`lib/supplier_world/`**: the one seeded world the supplier simulators share (cities,
+  airports, hotels, routes), installed by the simulators and the tests that build requests
+  for them, never by an agent: the suppliers stand for systems outside the agency.
 - **`starter/`**: a small application of another business on the library alone, to copy
   and make your own.
 - **`chapters/chNN/`**: one directory per chapter, with a README describing what the chapter
