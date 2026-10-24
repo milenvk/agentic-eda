@@ -168,17 +168,20 @@ the code that calls it is the activator, on behalf of the agent that declared it
 (`05_data_consistency_and_state_model.adoc`, The Trip's Operations). It is a `typing.Protocol`
 like every port, with four methods and no others:
 
-* `create(request_event_id, state) -> id`: inserts a row and returns its serial id. The
-  request's event id is unique on the table, so a second call with the same id returns the
-  existing row's id instead of inserting; this is how a redelivered `booking.TripRequested`
-  finds its trip.
+* `create(request_event_id) -> id`: inserts an empty row under the event that requested it
+  and returns the row's serial id. The request's event id is unique on the table, so a second
+  call with the same id returns the existing row's id instead of inserting; this is how a
+  redelivered `booking.TripRequested` finds its trip. The activator calls it *before* the
+  activation (amended 2026-10-24, when the code was built): the Trip must know its id to say
+  `booking.TripCreated`, and the id comes from the row, so the row comes first and the
+  activation's commit fills it.
 * `load(id) -> (state, version)`: the current state and its version, or nothing.
 * `handled(id, event_id) -> bool`: whether this event has already changed this aggregate.
-* `commit(id, state, expected_version, event_id, events=())`: writes the state, bumps the
-  version, records the event id as handled, and, from chapter 8, writes one outbox row per
-  event, all in one transaction. A stale `expected_version` is refused (the fence, Ordering
-  above). Before chapter 8 `events` is empty and the activator publishes the activation's returned
-  event itself.
+* `commit(id, state, expected_version, event_id)`: writes the state, bumps the version, and
+  records the event id as handled, all in one transaction; from chapter 8 the same
+  transaction writes the outbox rows. A stale `expected_version` is refused (the fence,
+  Ordering above), built from chapter 3 and taught in chapter 8. Before chapter 8 the
+  activator publishes the activation's returned event itself, after the commit.
 
 There is no update, because `commit` is the only write after creation and it insists on the
 version and the cause; no delete, because nothing in the business deletes a trip (a cancelled
@@ -186,11 +189,18 @@ trip is a trip with a status and a history); and no query, because finding trips
 but their id is a read model's job (chapter 6). The state is opaque to the port, which
 neither reads nor interprets it; that is what lets chapter 15 move it to a managed document
 store without touching an agent, and it carries its own `schema_version` field. Two adapters from
-chapter 3: PostgreSQL (`trips`: `id` serial, `request_event_id` unique, `version`, `status`,
-`state`; `handled_events`: `trip_id`, `event_id`, unique together) and in-memory, for the
-tests. The activator's shape around every activation is therefore: handled, load, rebuild the
-Trip, run the activation (one operation call), commit the Trip's state, publish the event,
-acknowledge, with nothing else allowed to write the row.
+chapter 3: PostgreSQL and in-memory, for the tests. The PostgreSQL adapter owns its schema and
+creates it on first use: the state table, named by the component's configuration
+(`STATE_STORE_TABLE=trips` for the Booking Agent, beside `STATE_STORE_URL`; the library is
+generic and names no business), with `id` serial, `request_event_id` unique, `version`, the
+`state` document as JSONB, and `status` as a generated column copied out of the document for
+anyone reading the table; and `handled_events` with `state_id` and `event_id`, unique
+together. The activator's shape around every activation is therefore: find the state by the
+event's key or create it under the event's id, handled, load, rebuild the Trip, run the
+activation (one operation call), commit the Trip's state, publish the event, acknowledge, with
+nothing else allowed to write the row. A new state is built from its id alone (every other
+field of the class has a default; `eda.state` checks it at import), which is how the Trip
+exists, blank, before `create` records the request on it.
 
 === Generation rules
 
@@ -489,9 +499,10 @@ model an adapter concern. The activator owns five things.
 ** *One activation.* For each inbound event the activator validates its data into the
    class bound to the event's type, with its attributes in `attributes_`; for an agent with a
    `state` declaration it first asks the `StateStore` whether this event was already handled
-   (acknowledging without an activation if so), loads the aggregate by the event's key and
-   makes it available to the agent through the activation context (plain handlers take it as a
-   parameter, an LLM's tools read it from the context), and after the activation it commits
+   (acknowledging without an activation if so), loads the aggregate by the event's key, or
+   creates one under the event's id when the event's class has no such key (a request, before
+   its trip exists), and makes it available to the agent as `eda.activation().state`, beside
+   the typed request as `eda.activation().request`; after the activation it commits
    the aggregate with the version it loaded and the event's id, in the same step that from
    chapter 8 writes the outbox row; it then hands the event
    instance to the framework adapter with the
@@ -561,11 +572,17 @@ model an adapter concern. The activator owns five things.
 | ADK
 | `Runner(agent, app_name, session_service).run_async(user_id, session_id=thread_id,
   new_message=request as the user message)`, iterated
-| the event whose `is_final_response()` is true, its content parsed against `produces`; for
-  an agent whose answer is the event an operation returned through a tool (the Booking
-  Agent's reply activation), the adapter collects that event from the tool wrapper and the final
-  response text is ignored; the tools read the loaded Trip from the activation context and the
-  activator commits it once, after the activation
+| what the agent handed to `eda.activation().answer(event)`, the one way code that cannot
+  return hands over its event (the Booking Agent's tools, and its custom agent's code paths,
+  since a custom agent's run method is a generator of ADK events), else the text of the
+  event whose `is_final_response()` is true, parsed against `produces`; the tools read the
+  loaded Trip from `eda.activation().state` and the activator commits it once, after the
+  activation; an activation answers once, a second `answer` is refused. A tool whose
+  operation was accepted sets ADK's `skip_summarization`, which ends the LLM's turn without
+  another call, since nothing it could say after the decision is read; and the adapter runs
+  every activation under a `RunConfig` capping the LLM calls at ten, where ADK's default is
+  five hundred, so an LLM that keeps calling tools fails its activation and the event is
+  redelivered (found 2026-10-24, when `llama3.2` did exactly that)
 
 | CrewAI
 | `crew.kickoff_async(inputs=request.model_dump())` (the natively async `akickoff` where
@@ -698,13 +715,23 @@ dedup by event id, applied to every activation). To confirm in code
 before ch 2: that
 `ainvoke` on a compiled graph accepts the request under a field found by type, and that the
 wrapper `produces` returns for several classes is accepted as
-`response_format` by the readers' four model choices; before ch 3: that a lifespan task in
-ADK's app can obtain a `Runner` on the app's session service (the ADK version pinned for the
-host's constructor, whose signature has moved between releases), that a custom `BaseAgent`
-receives the typed request to dispatch on (the user message as the carrier, so a developer can
-drive the agent from ADK's UI by pasting an event), that an `LlmAgent` with `include_contents`
-off re-sends no session history, and that LiteLLM's mock response passes through ADK's
-`LiteLlm` wrapper for the ch 3 mock test (else a fake model object in its place); before ch 7:
+`response_format` by the readers' four model choices; before ch 3, confirmed 2026-10-24 on
+google-adk 2.13.0 with litellm 1.101.0 and mcp 2.2.0 (ADK's extras cap litellm below 1.106.3,
+and litellm's tool path imports `mcp`, so both are pinned beside it): ADK's host
+(`get_fast_api_app`) accepts the activator's lifespan but exposes no handle to its own session
+service, so the activator runs its own `Runner` on its own session service inside that
+lifespan, and the host's dev UI keeps sessions of its own; a custom `BaseAgent` reads the typed
+request from the user message (JSON text) and dispatches on its class, with no LLM call on the
+bookkeeping path; an `LlmAgent` with `include_contents="none"` sends the current invocation's
+turns only, so a per-trip session accumulates the trace without being re-sent; a tool reads
+the loaded aggregate from the activation's context variable; and LiteLLM's mock cannot script
+a tool call followed by a final answer (its static mock loops to ADK's call limit), so the test
+fixture is a scripted `BaseLlm` subclass, one answer per call. One consequence, found when the
+component was built (2026-10-24): the host's own routes and dev UI run a second instance of
+the agent outside any activation, and an agent that reads its request and its Trip from the
+activation cannot be driven from there, so the Booking Agent exposes no `root_agent` to the
+host's `agents_dir` and the dev UI's look waits for an agent that can be, the ch 7 Negotiator.
+Before ch 7:
 that ADK accepts the flattened function with Pydantic-typed fields (dates, enums, nested
 items).
 * **One key at a time.** The activator handles the events of one key sequentially and

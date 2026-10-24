@@ -4,8 +4,10 @@ Companion code for *Event-Driven Agentic Architecture: Building enterprise-grade
 systems* by Milen Kovachev. Two things are here, kept apart on purpose:
 
 - **`agentic_eda`, a library** for attaching an agent of any framework to an event broker:
-  a swappable `EventBroker` port with Kafka as the first adapter, event contracts as code,
-  and an activator that validates what comes in and what goes out. It names no business.
+  a swappable `EventBroker` port with Kafka as the first adapter, a `StateStore` port with
+  PostgreSQL as the first adapter for an agent's business state, event contracts as code,
+  and an activator that validates what comes in and what goes out and keeps the state
+  between activations. It names no business.
 - **The Travel Agency**, one application built on it chapter by chapter: autonomous agents
   from four frameworks (LangGraph, Google ADK, LlamaIndex, CrewAI), traditional
   deterministic services, and simulated suppliers.
@@ -22,8 +24,8 @@ Everything lives on `main`, organized so the whole book's code is visible at a g
   containing sources, Dockerfile, pinned dependencies, and unit tests. Components are added
   and replaced as the book progresses, never rewritten in place, so each chapter's teaching
   code stays in the tree.
-- **`lib/agentic_eda/`**: the library, holding the `EventBroker` port and its adapters,
-  the `@event` contracts, and the agent activator. It never imports the application, and its
+- **`lib/agentic_eda/`**: the library, holding the `EventBroker` and `StateStore` ports and
+  their adapters, the `@event` contracts, and the agent activator. It never imports the application, and its
   test suite runs in an image without it. It is the book's reference implementation, taught
   one part per chapter, with no promise of a release cycle.
 - **`lib/travel_agency/`**: the application's shared code, holding the event-type constants,
@@ -119,6 +121,6 @@ The default model is `llama3.2` (about 2 GB). A larger machine runs a larger mod
 changing the `LLM_MODEL` string in `.env`; the download happens automatically.
 
 Per-chapter setup instructions are in each chapter directory's README. A minimal web UI (a
-chat front door with a live event view) joins in chapter 3 and gains a manager approval
+chat front door with a live event view) joins in chapter 4 and gains a manager approval
 console in chapter 8. The book's examples run from scripts and never depend on it; it is
 included for convenience.

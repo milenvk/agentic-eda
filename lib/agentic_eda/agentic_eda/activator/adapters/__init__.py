@@ -26,6 +26,7 @@ class Adapter(Protocol):
 
 _BY_MODULE = {
     "langgraph": "agentic_eda.activator.adapters.langgraph",
+    "google.adk": "agentic_eda.activator.adapters.adk",
 }
 
 
@@ -33,11 +34,20 @@ def adapter_for(agent) -> Adapter:
     if inspect.iscoroutinefunction(agent):
         module = "agentic_eda.activator.adapters.function"
     else:
-        origin = type(agent).__module__.split(".")[0]
-        module = _BY_MODULE.get(origin)
+        module = _by_framework(type(agent))
         if module is None:
             raise TypeError(
-                f"no adapter for {type(agent).__name__} from {origin!r}: "
+                f"no adapter for {type(agent).__name__} from {type(agent).__module__!r}: "
                 f"pass one to attach(..., adapter=...)"
             )
     return importlib.import_module(module).adapter
+
+
+def _by_framework(cls: type) -> str | None:
+    # A developer's own subclass of a framework's agent class comes from the developer's
+    # module, so the framework is found among the class's bases.
+    for base in cls.__mro__:
+        for prefix, module in _BY_MODULE.items():
+            if base.__module__ == prefix or base.__module__.startswith(prefix + "."):
+                return module
+    return None

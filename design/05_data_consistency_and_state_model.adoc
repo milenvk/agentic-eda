@@ -410,9 +410,14 @@ and for every activation the activator asks the store whether the event was alre
 loads the Trip by the event's key, hands it to the agent with the event, and, when the agent
 returns its event, commits the Trip with the version it loaded and the event's id, publishes,
 and acknowledges (`04_implementation_design.adoc`, The Agent Activator). An **activation** of the
-Booking Agent is therefore one operation call: `return trip.approve(reply.proposal_id, rank)`.
-On `booking.TripRequested` there is no Trip to load; the activation calls `Trip.create` and the
-activator's commit inserts the row under the request's event id. For the customer's reply the
+Booking Agent is therefore one operation call: `trip.approve(reply.proposal_id, rank)`.
+On `booking.TripRequested` there is no Trip to load: the activator creates the row under the
+request's event id first, so the Trip knows the id it will announce, hands the activation a
+blank Trip with that id and nothing else, and the activation's `trip.create(request)` records
+the request on it (amended 2026-10-24, when the code was built). A request that fails the
+checks leaves the blank row in place, status `new`, with the request's event id recorded
+against it, which is what lets a redelivered rejected request be recognised too; no trip
+exists in the business sense, since nothing is ever planned for a `new` row. For the customer's reply the
 LLM's tools receive the loaded Trip from the activation context, the operation the LLM picks
 changes it in memory and returns the event, a refusal returns to the LLM as the tool's result,
 and the activator commits once, after the activation returns that event. No operation and no
@@ -444,11 +449,12 @@ Four rules hold for every activation:
 | Operation, and the event whose activation calls it | Allowed in status | Checks | Returns
 
 | `create(request)`, on `booking.TripRequested`
-| no trip yet
-| the request is a business request: dates in the future and in order, at least one
-  origin-destination, the party stated, a budget or an explicit "no limit". A failed check
-  returns `booking.TripRequestRejected` with what is missing, under the conversation's key,
-  and creates nothing
+| `new` (a blank Trip under the id the store just assigned)
+| the request is a business request: dates in the future and in order, every stay checking
+  out after it checks in, a budget above nothing or null for no limit (at least one
+  origin-destination and the party stated are the contract's checks, made at the boundary).
+  A failed check returns `booking.TripRequestRejected` with what is wrong, under the
+  conversation's key, and the Trip stays `new`
 | `booking.TripCreated`, with the store-assigned id and the accepted request; status
   `requested`
 
@@ -477,10 +483,13 @@ Four rules hold for every activation:
 | the proposal is one of this trip's
 | `booking.ItineraryRejected` with the reason; status `requested`
 
-| `change(requirements, reason)`, a reply tool
+| `change(reason, departure_dates=None, budget=None)`, a reply tool
 | `proposed`, `awaiting clarification`
-| the changed requirements pass the same checks as `create`
-| `booking.TripChanged` with the requirements; status `requested`
+| the LLM names what the customer changed, new departure dates (one per journey, in travel
+  order) or a new budget, never the whole requirements; the Trip moves the stays with the
+  journeys around them, by the rule the Planner applies when it settles a date, and the
+  changed requirements pass the same checks as `create`
+| `booking.TripChanged` with the requirements as they now stand; status `requested`
 
 | `request_clarification(proposal_id, question, options)`, a reply tool
 | `proposed`, `awaiting clarification`
@@ -499,7 +508,7 @@ words as the reason serves them better than a third question.
 
 ==== Transitions in chapter 3
 
-* no trip, `create` accepted: `requested`; refused: no trip, `booking.TripRequestRejected`.
+* `new`, `create` accepted: `requested`; refused: `new`, `booking.TripRequestRejected`.
 * `requested`, `request_planning`: `planning`.
 * `planning`, `record_proposal`: `proposed`.
 * `proposed` or `awaiting clarification`, `approve`: `approved` (terminal in chapter 3).

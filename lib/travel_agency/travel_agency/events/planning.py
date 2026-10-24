@@ -71,6 +71,10 @@ class ItineraryRequested(EventContract):
     car_class: str | None = Field(
         description="The class of rental car wanted. Null means no car is wanted."
     )
+    reason: str | None = Field(
+        default=None,
+        description="On a request made again, why the customer sent the last proposal back.",
+    )
 
     @model_validator(mode="after")
     def _every_held_infant_has_an_adult(self):

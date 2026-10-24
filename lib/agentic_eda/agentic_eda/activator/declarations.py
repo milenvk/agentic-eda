@@ -1,10 +1,11 @@
-"""What an agent's module declares: the events it reacts to and the events it answers with."""
+"""What an agent's module declares: the events it reacts to, the events it answers with,
+and, for an agent that owns business state, the class holding that state."""
 
 from dataclasses import dataclass
 from types import NoneType
 from typing import Annotated, Union, get_args
 
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field, ValidationError, create_model
 
 from ..contracts import EventContract, Nothing, binding_of
 
@@ -20,6 +21,12 @@ class Consumes:
 
 class PureConsumer:
     """What ``produces()`` with no classes returns: an agent that answers with nothing."""
+
+
+@dataclass(frozen=True)
+class State:
+    cls: type[BaseModel]
+    key: str
 
 
 def consumes(*classes: type[EventContract], interrupting=()) -> Consumes:
@@ -60,6 +67,27 @@ def produces(*classes: type[EventContract]):
     answer = create_model("Answer", fact=fact)
     answer.__produces__ = tuple(classes)
     return answer
+
+
+def state(cls: type[BaseModel], *, key: str) -> State:
+    """The class holding the agent's business state, and the field naming one state's id.
+
+    The activator loads the state whose id a consumed event carries in that field, and
+    creates one for an event whose class has no such field, which is how a request becomes
+    a trip. A new state is built from its id alone, so every other field has a default.
+    """
+    if not (isinstance(cls, type) and issubclass(cls, BaseModel)):
+        raise TypeError(f"{cls!r} is not a Pydantic class")
+    if key not in cls.model_fields:
+        raise TypeError(f"{cls.__name__} has no field {key!r} to hold its id")
+    try:
+        cls.model_validate({key: 0})
+    except ValidationError as error:
+        raise TypeError(
+            f"a new {cls.__name__} is built from its {key} alone, so every other field "
+            f"needs a default:\n{error}"
+        ) from error
+    return State(cls=cls, key=key)
 
 
 def produced_classes(declaration) -> tuple[type[EventContract], ...]:

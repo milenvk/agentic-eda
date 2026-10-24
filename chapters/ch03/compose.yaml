@@ -1,0 +1,120 @@
+# Chapter 3: the trip approval workflow, from the request to the approved itinerary.
+# Kafka, PostgreSQL, the Booking Agent on ADK with its Trip in the state store, the
+# LangGraph Itinerary Planner with its two suppliers, and the audit consumer. The demo
+# scripts stand in for the customer channel. See README.md for the walkthrough.
+
+include:
+  - ../../compose/kafka.yaml
+  - ../../compose/postgres.yaml
+  - path: ../../compose/ollama.yaml
+    env_file: ../../.env
+
+x-demo: &demo
+  profiles: [demo]
+  build:
+    context: ../..
+    dockerfile: docker/python.Dockerfile
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    FORCE_COLOR: "1"
+  volumes:
+    - .:/chapter
+  working_dir: /chapter
+  depends_on:
+    kafka:
+      condition: service_healthy
+
+x-llm: &llm
+  env_file:
+    - path: ../../.env
+      required: false
+  extra_hosts:
+    - "host.docker.internal:host-gateway"  # host-Ollama variant works on Linux too
+
+services:
+  # The booking context's agent: the Trip's one writer, reasoning only over the customer's reply.
+  booking-agent:
+    <<: *llm
+    build:
+      context: ../..
+      dockerfile: components/booking_agent/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      STATE_STORE_URL: postgresql://agency:agency@postgres:5432/agency
+      STATE_STORE_TABLE: trips
+      FORCE_COLOR: "1"  # the event cards keep their colors in `docker compose logs`
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      # Waits for the local model only when an Ollama flavor is enabled in .env.
+      ollama:
+        condition: service_healthy
+        required: false
+      ollama-gpu:
+        condition: service_healthy
+        required: false
+
+  # Chapter 2's Planner, unchanged: it now answers the Booking Agent instead of a script.
+  itinerary-planner:
+    <<: *llm
+    build:
+      context: ../..
+      dockerfile: components/itinerary_planner/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AIRLINE_URL: http://airline-reservation-system:8000
+      HOTEL_INVENTORY_URL: http://hotel-reservation-system:8000/mcp
+      FORCE_COLOR: "1"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      airline-reservation-system:
+        condition: service_healthy
+      hotel-reservation-system:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+        required: false
+      ollama-gpu:
+        condition: service_healthy
+        required: false
+
+  airline-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/airline_reservation_system_sim/Dockerfile
+
+  hotel-reservation-system:
+    build:
+      context: ../..
+      dockerfile: components/hotel_reservation_system_sim/Dockerfile
+
+  audit-consumer:
+    build:
+      context: ../..
+      dockerfile: components/audit_consumer/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUDIT_LOG: /data/audit.log
+      FORCE_COLOR: "1"
+    volumes:
+      - ./data:/data
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  # The customer channel, one service per act, each triggered with:
+  #   docker compose --profile demo up -d --build --force-recreate <service>
+  demo:
+    <<: *demo
+    command: ["python", "customer_channel.py"]
+
+  demo-rejected:
+    <<: *demo
+    command: ["python", "rejected_request.py"]
+
+  demo-redelivered:
+    <<: *demo
+    command: ["python", "redelivered_request.py"]
