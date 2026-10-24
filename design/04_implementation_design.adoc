@@ -34,6 +34,18 @@ unchanged, or it names something of this business (a trip, a supplier, an event 
 first kind is the library's, the second the application's, and a module that is both is
 split.
 
+The application's code has a line of its own, between what its components share and what
+one component keeps (settled 2026-10-24). `travel_agency` holds only what two or more
+components must agree on to talk to each other: the event classes and the value objects
+inside them, the event-type constants, the key registry, and the simulators' world seed.
+Everything a component needs only for itself lives in that component's directory: its
+aggregate and the aggregate's operations (the Booking Agent's Trip, in
+`components/booking_agent/booking_agent/trip.py`), its prompts, its graph or agent tree, its
+tools, its supplier clients, its store schema. The test: would another component have to
+import this module to exchange events with this one? If yes it is shared; if no it is the
+component's, and putting it in `travel_agency` would publish an implementation detail as if
+it were a contract. An event class is the contract; the model behind it is not.
+
 The dependency runs one way. `travel_agency` and every component import `agentic_eda`, and
 `agentic_eda` imports neither. The rule is kept by construction, not by review: the
 library's suite, `tests-agentic-eda`, runs in an image holding the library alone
@@ -806,7 +818,9 @@ file, configuration file, or prose.
 * `components/<book_component_name>/`: one self-contained directory per component, named
   after the book's component (e.g. `itinerary_planner_minimal`, `audit_consumer`,
   `airline_reservation_system_sim`): sources, Dockerfile, pyproject with **pinned exact
-  versions**, unit tests. A component's image carries only its own dependencies; one
+  versions**, unit tests, and the component's own model where it has one (its aggregate,
+  prompts, graph, tools, clients, store schema), which no other component imports (Two
+  Packages, above). A component's image carries only its own dependencies; one
   framework's agent never drags another's.
 * `starter/`: the smallest application on the library, for a reader starting their own
   (Two Packages, above): its own package, Dockerfile, pyproject, compose file, test, and

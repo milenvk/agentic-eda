@@ -394,7 +394,8 @@ Drafted 2026-10-16 and settled with the author the same day. The aggregate above
 Trip holds; this says how it changes and who does what. Three parties, one verb each: **the Trip
 decides**, **the store writes**, **the activator publishes**.
 
-The Trip is one class in `travel_agency`, a Pydantic model whose fields are the trip's state and
+The Trip is one class in the Booking Agent's component (`components/booking_agent/booking_agent/trip.py`,
+never in `travel_agency`, which holds only what components share), a Pydantic model whose fields are the trip's state and
 whose methods are its operations, one per business action, each guarded by the checks that
 keep the trip consistent (the invariants) and each returning the one event it produces. The
 class depends on the event classes and on nothing else: it never meets the store, the broker,
