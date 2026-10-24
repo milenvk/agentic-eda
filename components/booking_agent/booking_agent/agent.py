@@ -23,7 +23,7 @@ from google.adk.tools import ToolContext
 
 from agentic_eda import eda
 from agentic_eda.contracts import EventContract
-from travel_agency.events.booking import CustomerReplied, TripRequested
+from travel_agency.events.booking import CustomerReplied, TripCreated, TripRequested
 from travel_agency.events.planning import Itinerary, ItineraryProposed, Money
 
 from .prompts import render
@@ -145,8 +145,10 @@ class BookingAgent(BaseAgent):
             activation.answer(trip.create(request))
         elif isinstance(request, ItineraryProposed):
             activation.answer(trip.record_proposal(request))
-        else:  # the trip's own TripCreated, ItineraryRejected, or TripChanged
+        elif isinstance(request, TripCreated):
             activation.answer(trip.request_planning())
+        else:  # the trip's own ItineraryRejected or TripChanged: planning hears why
+            activation.answer(trip.request_planning(reason=request.reason))
 
 
 def build_agent(model: BaseLlm) -> BookingAgent:

@@ -63,7 +63,6 @@ class Trip(BaseModel):
     trip_id: int
     status: Status = "new"
     requirements: TripRequirements | None = None
-    reason: str | None = None  # why the customer sent the last proposal back, for planning
     proposals: list[Proposal] = []
     pending_question: Question | None = None
     approved: Choice | None = None
@@ -84,10 +83,14 @@ class Trip(BaseModel):
             trip_id=self.trip_id, conversation_id=request.conversation_id, requirements=requirements
         )
 
-    def request_planning(self) -> ItineraryRequested:
-        """Ask planning for itineraries, with the requirements as they now stand."""
+    def request_planning(self, reason: str | None = None) -> ItineraryRequested:
+        """Ask planning for itineraries, with the requirements as they now stand.
+
+        On a request made again, `reason` is why the customer sent the last proposal back,
+        read off the event that sent the trip back here.
+        """
         self._allowed_in("requested")
-        self.status, reason, self.reason = "planning", self.reason, None
+        self.status = "planning"
         return ItineraryRequested(
             trip_id=self.trip_id, reason=reason, **self.requirements.model_dump()
         )
@@ -122,7 +125,7 @@ class Trip(BaseModel):
         """The customer wants none of the proposal's itineraries; planning will be asked again."""
         self._allowed_in(*REPLYING)
         self._proposal(proposal_id)
-        self.reason, self.pending_question, self.status = reason, None, "requested"
+        self.pending_question, self.status = None, "requested"
         return ItineraryRejected(trip_id=self.trip_id, proposal_id=proposal_id, reason=reason)
 
     def change(
@@ -145,7 +148,7 @@ class Trip(BaseModel):
         problems = _problems(requirements)
         if problems:
             raise Refused(problems)
-        self.requirements, self.reason, self.pending_question, self.status = requirements, reason, None, "requested"  # fmt: skip
+        self.requirements, self.pending_question, self.status = requirements, None, "requested"
         return TripChanged(trip_id=self.trip_id, requirements=requirements, reason=reason)
 
     def request_clarification(

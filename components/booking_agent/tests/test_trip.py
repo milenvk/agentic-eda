@@ -64,11 +64,9 @@ def test_the_planning_request_carries_the_requirements_and_the_reason_once():
     assert request.origin_destinations == requirements().origin_destinations
 
     trip.record_proposal(proposal(42))
-    trip.reject("p-1", "too expensive")
-    assert trip.request_planning().reason == "too expensive"
-    trip.record_proposal(proposal(42, "p-2"))
-    trip.reject("p-2", "still too expensive")
+    rejected = trip.reject("p-1", "too expensive")
     assert trip.status == "requested"
+    assert trip.request_planning(reason=rejected.reason).reason == "too expensive"
 
 
 def test_an_operation_out_of_its_status_is_refused():
@@ -119,7 +117,7 @@ def test_rejecting_sends_the_trip_back_to_planning_with_the_reason():
     trip = proposed_trip()
     rejected = trip.reject("p-1", "all of them are too expensive")
     assert isinstance(rejected, ItineraryRejected)
-    assert (trip.status, trip.reason) == ("requested", "all of them are too expensive")
+    assert (trip.status, rejected.reason) == ("requested", "all of them are too expensive")
 
 
 def test_changing_the_dates_moves_the_stays_with_their_journeys():
