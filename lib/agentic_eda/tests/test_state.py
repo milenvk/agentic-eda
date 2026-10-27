@@ -83,7 +83,7 @@ def activator(agent=booking_agent, **options) -> Activator:
         agent,
         consumes=eda.consumes(TripRequested, TripCreated),
         produces=eda.produces(TripCreated, ItineraryRequested),
-        state=eda.state(Trip, key="trip_id"),
+        state=eda.state(Trip, key="trip_id", created_by=[TripRequested]),
         source="BookingAgent",
         **options,
     )
@@ -112,6 +112,28 @@ def test_a_state_is_built_from_its_key_alone():
         eda.state(Loose, key="trip_id")
     with pytest.raises(TypeError, match="no field 'id'"):
         eda.state(Trip, key="id")
+
+
+def test_a_creating_event_is_an_event_about_no_state_yet():
+    with pytest.raises(TypeError, match="not an @event class"):
+        eda.state(Trip, key="trip_id", created_by=[Trip])
+    with pytest.raises(TypeError, match="carries 'trip_id'"):
+        eda.state(Trip, key="trip_id", created_by=[TripCreated])
+
+
+def test_an_agent_with_state_consumes_only_events_about_it():
+    @eda.event("system.SweepDue")
+    class SweepDue(eda.EventContract):
+        pass
+
+    with pytest.raises(TypeError, match=r"\['SweepDue'\] carry no 'trip_id'"):
+        Activator(
+            booking_agent,
+            consumes=eda.consumes(TripRequested, SweepDue),
+            produces=eda.produces(TripCreated),
+            state=eda.state(Trip, key="trip_id", created_by=[TripRequested]),
+            source="BookingAgent",
+        )
 
 
 # --- one activation with state
@@ -200,6 +222,30 @@ async def test_an_activation_answers_once(system):
 
     ((_, error),) = broker.failed
     assert "already answered with TripCreated" in str(error)
+
+
+async def test_an_agent_whose_state_no_event_creates_reads_it_and_never_commits(system):
+    broker, store = system
+    seen = []
+
+    async def observe(request):
+        seen.append(eda.activation().state.status)
+        return "ignored"
+
+    reader = Activator(
+        observe,
+        consumes=eda.consumes(TripCreated),
+        produces=eda.produces(),
+        state=eda.state(Trip, key="trip_id"),
+        source="Observer",
+    )
+    async with activator().running(), reader.running():
+        await request(broker)
+        await broker.settled()
+
+    assert seen == ["planning"]  # the Trip as the writer last committed it
+    assert (await store.load(1))[1] == 2  # two commits, both the writer's
+    assert len(store.handled_events) == 2  # the reader recorded nothing
 
 
 async def test_the_activation_is_only_readable_from_inside():

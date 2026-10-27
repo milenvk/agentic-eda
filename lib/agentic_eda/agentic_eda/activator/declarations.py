@@ -27,6 +27,12 @@ class PureConsumer:
 class State:
     cls: type[BaseModel]
     key: str
+    created_by: tuple[type[EventContract], ...]
+
+    @property
+    def read_only(self) -> bool:
+        """An agent whose state no event of its own creates reads it and never commits it."""
+        return not self.created_by
 
 
 def consumes(*classes: type[EventContract], interrupting=()) -> Consumes:
@@ -69,12 +75,15 @@ def produces(*classes: type[EventContract]):
     return answer
 
 
-def state(cls: type[BaseModel], *, key: str) -> State:
-    """The class holding the agent's business state, and the field naming one state's id.
+def state(cls: type[BaseModel], *, key: str, created_by=()) -> State:
+    """The class holding the agent's business state, the field naming one state's id, and
+    the event classes that start a new one.
 
     The activator loads the state whose id a consumed event carries in that field, and
-    creates one for an event whose class has no such field, which is how a request becomes
-    a trip. A new state is built from its id alone, so every other field has a default.
+    creates one for an event of a ``created_by`` class, which is how a request becomes a
+    trip; such an event names no state yet, so its class has no such field. A new state is
+    built from its id alone, so every other field has a default. With no ``created_by``
+    the agent reads state another component writes, and the activator never commits it.
     """
     if not (isinstance(cls, type) and issubclass(cls, BaseModel)):
         raise TypeError(f"{cls!r} is not a Pydantic class")
@@ -87,7 +96,15 @@ def state(cls: type[BaseModel], *, key: str) -> State:
             f"a new {cls.__name__} is built from its {key} alone, so every other field "
             f"needs a default:\n{error}"
         ) from error
-    return State(cls=cls, key=key)
+    created_by = tuple(created_by)
+    for event_cls in created_by:
+        _require_event(event_cls)
+        if key in event_cls.model_fields:
+            raise TypeError(
+                f"{event_cls.__name__} carries {key!r}, so it is about a {cls.__name__} "
+                f"that exists and cannot create one"
+            )
+    return State(cls=cls, key=key, created_by=created_by)
 
 
 def produced_classes(declaration) -> tuple[type[EventContract], ...]:

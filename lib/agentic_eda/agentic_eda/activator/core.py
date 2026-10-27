@@ -119,6 +119,8 @@ class Activator:
         self._answer_schema = produces
         self._produced = produced_classes(produces)
         self._state = state
+        if state is not None:
+            _require_every_event_to_name_its_state(consumes, state)
         self._adapter = adapter or adapter_for(agent)
         self._adapter.check(agent, self._produced)
         self._broker: EventBroker | None = None
@@ -188,14 +190,13 @@ class Activator:
     async def _load(self, activation: Activation) -> bool:
         """Find or create the event's state and put it on the activation; False means skip."""
         declared, event = self._state, activation.event
-        key = getattr(activation.request, declared.key, None)
-        if key is None:
+        if isinstance(activation.request, declared.created_by):
             # An event about no state yet, such as a request: it starts one, and a
             # redelivery of it finds the one it started.
             state_id = await self._store.create(event.id)
         else:
-            state_id = int(key)
-        if await self._store.handled(state_id, event.id):
+            state_id = int(getattr(activation.request, declared.key))
+        if not declared.read_only and await self._store.handled(state_id, event.id):
             log.info("%s already handled %s for %s %s", self.source, event.id, declared.key, state_id)
             return False
         loaded = await self._store.load(state_id)
@@ -209,7 +210,7 @@ class Activator:
         return True
 
     async def _commit(self, activation: Activation) -> None:
-        if self._state is None:
+        if self._state is None or self._state.read_only:
             return
         await self._store.commit(
             activation.state_id,
@@ -307,6 +308,20 @@ def attach(
 
     app.router.lifespan_context = lifespan
     return activator
+
+
+def _require_every_event_to_name_its_state(consumes: Consumes, state: State) -> None:
+    """Checked at import: an agent with state consumes only events about that state."""
+    strangers = [
+        cls.__name__
+        for cls in consumes.classes
+        if cls not in state.created_by and state.key not in cls.model_fields
+    ]
+    if strangers:
+        raise TypeError(
+            f"{strangers} carry no {state.key!r} and do not create a {state.cls.__name__}: "
+            f"name them in `created_by`, or give them the field"
+        )
 
 
 def _report_a_dead_loop(delivering: asyncio.Task) -> None:

@@ -200,7 +200,32 @@ event's key or create it under the event's id, handled, load, rebuild the Trip, 
 activation (one operation call), commit the Trip's state, publish the event, acknowledge, with
 nothing else allowed to write the row. A new state is built from its id alone (every other
 field of the class has a default; `eda.state` checks it at import), which is how the Trip
-exists, blank, before `create` records the request on it.
+exists, blank, before `create` records the request on it. Which events create is declared,
+never inferred: `eda.state(Trip, key="trip_id", created_by=[TripRequested])`, and a consumed
+event that neither creates nor carries the key is refused at startup (2026-10-26).
+
+The declaration is narrow on purpose: one aggregate per component, one activation changing one
+aggregate, which is the aggregate rule of `05_data_consistency_and_state_model.adoc` (Why Not
+Atomic Transactions?). Work that needs more is composed from what exists: a change to two
+aggregates is two activations linked by an event, with a compensation where the second fails
+(chapter 9); another aggregate's state reaches an activation on the event, from a read model
+(chapter 6), or through a `created_by=()` declaration; a projection owns its own table through
+ordinary code in a pure consumer. The escape hatch is that the activator owns no connection but
+its own: code inside an activation may open any client, as the Planner opens its REST and MCP
+clients, and then owns its own consistency, because the handled check, the commit before the
+publish, and the version fence are what the declaration buys and nothing else does. Deferred
+until a chapter's component demonstrates one, in the order they are likely to be needed
+(2026-10-26):
+
+. Several `state` declarations on one component, each with its own key and `created_by`, one
+  chosen per activation by the key the event carries; an event carrying two keys is refused at
+  import.
+. A read of another state inside an activation, `eda.load(Cls, id)` returning a copy, read-only
+  by construction so one writer holds.
+. A natural key: a creating event allowed to carry the key, so a state is keyed by an id an
+  upstream component generated instead of the row's serial id.
+. A consumed event about no state at all, running with `state=None` and no commit, as an
+  explicit opt-in.
 
 === Generation rules
 
@@ -425,7 +450,10 @@ model an adapter concern. The activator owns five things.
   competing host, and the agent never learns that a broker exists. Its developer writes the
   agent as the framework's own documentation would have it, plus two declarations of
   `@event` classes, `consumes = eda.consumes(...)` and `produces = eda.produces(...)`, a third
-  for an agent that owns state, `state = eda.state(Trip, key="trip_id")` (settled 2026-10-20),
+  for an agent that owns state, `state = eda.state(Trip, key="trip_id", created_by=[TripRequested])`
+  (settled 2026-10-20; `created_by` added 2026-10-26: the classes that start a new state, any
+  number of them, each an event about no state yet, so none carries the key; with none the
+  agent reads state another component writes and the activator never commits it),
   and one `attach` line on the app that hosts the agent; the activator does the rest. An agent
   never meets the store any more than it meets the broker: the activator loads the declared
   aggregate by the event's key before the activation and commits it after (One activation,
@@ -500,8 +528,10 @@ model an adapter concern. The activator owns five things.
    class bound to the event's type, with its attributes in `attributes_`; for an agent with a
    `state` declaration it first asks the `StateStore` whether this event was already handled
    (acknowledging without an activation if so), loads the aggregate by the event's key, or
-   creates one under the event's id when the event's class has no such key (a request, before
-   its trip exists), and makes it available to the agent as `eda.activation().state`, beside
+   creates one under the event's id for an event of a `created_by` class (a request, before
+   its trip exists); every other consumed class must carry the key, checked when the
+   activator is built, so a stateful agent subscribed to an event about no state fails at
+   startup instead of creating a stray row; it makes the aggregate available to the agent as `eda.activation().state`, beside
    the typed request as `eda.activation().request`; after the activation it commits
    the aggregate with the version it loaded and the event's id, in the same step that from
    chapter 8 writes the outbox row; it then hands the event

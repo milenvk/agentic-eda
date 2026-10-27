@@ -48,5 +48,5 @@ eda.attach(
         TripChanged,
         ClarificationRequested,
     ),
-    state=eda.state(Trip, key="trip_id"),
+    state=eda.state(Trip, key="trip_id", created_by=[TripRequested]),
 )

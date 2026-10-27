@@ -9,7 +9,10 @@
 An agent that owns business state declares it beside its events, and reads it from the
 running activation:
 
-    eda.attach(app, agent, consumes=..., produces=..., state=eda.state(Trip, key="trip_id"))
+    eda.attach(
+        app, agent, consumes=..., produces=...,
+        state=eda.state(Trip, key="trip_id", created_by=[TripRequested]),
+    )
 
     trip = eda.activation().state
 """

@@ -405,7 +405,8 @@ who know Domain-Driven Design; the book otherwise says the Trip, the Trip's oper
 Trip's rules.
 
 The plumbing around the class is the activator's, not the agent's (settled 2026-10-20). The
-Booking Agent declares its state beside its events, `state = eda.state(Trip, key="trip_id")`,
+Booking Agent declares its state beside its events,
+`state = eda.state(Trip, key="trip_id", created_by=[TripRequested])`,
 and for every activation the activator asks the store whether the event was already handled,
 loads the Trip by the event's key, hands it to the agent with the event, and, when the agent
 returns its event, commits the Trip with the version it loaded and the event's id, publishes,

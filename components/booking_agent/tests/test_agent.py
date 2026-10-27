@@ -61,7 +61,7 @@ def booking_agent(llm: FakeLlm) -> Activator:
             TripCreated, TripRequestRejected, ItineraryRequested, ProposalReady,
             ItineraryApproved, ItineraryRejected, TripChanged, ClarificationRequested,
         ),
-        state=eda.state(Trip, key="trip_id"),
+        state=eda.state(Trip, key="trip_id", created_by=[TripRequested]),
         source="BookingAgent",
     )  # fmt: skip
 
