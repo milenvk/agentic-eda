@@ -13,6 +13,7 @@ from the activator.
 import logging
 from collections.abc import AsyncGenerator, Callable
 from datetime import date
+from typing import Annotated
 
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -20,6 +21,7 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events import Event
 from google.adk.models import BaseLlm
 from google.adk.tools import ToolContext
+from pydantic import Field
 
 from agentic_eda import eda
 from agentic_eda.contracts import EventContract
@@ -31,7 +33,10 @@ from .trip import Refused, Trip
 
 log = logging.getLogger("BookingAgent")
 
-# --- the reply's tools, each landing in one of the Trip's operations
+# --- the reply's tools, each landing in one of the Trip's operations. The LLM reads a tool's
+# docstring and parameter descriptions, never the Trip's; the prompt file says when to call which.
+
+ProposalId = Annotated[str, Field(description="the id of the proposal the customer is replying to")]
 
 
 def _decide(tool_context: ToolContext, operation: Callable[[Trip], EventContract]) -> str:
@@ -52,24 +57,40 @@ def _decide(tool_context: ToolContext, operation: Callable[[Trip], EventContract
     return "done"
 
 
-async def approve(proposal_id: str, rank: int, tool_context: ToolContext) -> str:
-    """Approve one itinerary of the proposal, by its rank: 1 is the first one listed."""
+async def approve(
+    proposal_id: ProposalId,
+    rank: Annotated[int, Field(description="the chosen itinerary's rank in the proposal; 1 is the first listed")],  # fmt: skip
+    tool_context: ToolContext,
+) -> str:
+    """Approve one itinerary of the proposal, which settles the trip's planning."""
     return _decide(tool_context, lambda trip: trip.approve(proposal_id, int(rank)))
 
 
-async def reject(proposal_id: str, reason: str, tool_context: ToolContext) -> str:
-    """Reject every itinerary of the proposal, with the customer's reason in their words."""
+async def reject(
+    proposal_id: ProposalId,
+    reason: Annotated[str, Field(description="why the customer wants none of them, in the customer's words")],  # fmt: skip
+    tool_context: ToolContext,
+) -> str:
+    """Reject every itinerary of the proposal, so planning is asked again with the reason."""
     return _decide(tool_context, lambda trip: trip.reject(proposal_id, reason))
 
 
 async def change(
-    reason: str,
+    reason: Annotated[str, Field(description="what the customer changed and why, in the customer's words")],  # fmt: skip
     tool_context: ToolContext,
-    departure_dates: list[str] | None = None,
-    budget: float | None = None,
+    departure_dates: Annotated[
+        list[str] | None,
+        Field(
+            description="the new departure date of every journey, one per journey in travel "
+            "order, as YYYY-MM-DD; null leaves the dates as they are"
+        ),
+    ] = None,
+    budget: Annotated[
+        float | None,
+        Field(description="the new budget, an amount in the trip's currency; null leaves it as it is"),  # fmt: skip
+    ] = None,
 ) -> str:
-    """Change the trip: new departure dates (one per journey, in travel order, as YYYY-MM-DD),
-    a new budget in the trip's currency, or both, with the customer's reason."""
+    """Change the trip's dates, its budget, or both, so planning is asked again for it."""
     return _decide(
         tool_context,
         lambda trip: trip.change(
@@ -85,10 +106,15 @@ async def change(
 
 
 async def request_clarification(
-    proposal_id: str, question: str, tool_context: ToolContext, options: list[str] | None = None
+    proposal_id: ProposalId,
+    question: Annotated[str, Field(description="one short question whose answer settles it")],
+    tool_context: ToolContext,
+    options: Annotated[
+        list[str] | None,
+        Field(description="the few answers that would settle it, when there are a few; null for an open question"),  # fmt: skip
+    ] = None,
 ) -> str:
-    """Ask the customer one question when their words settle neither approval, rejection,
-    nor a change; options, when a few answers would settle it."""
+    """Ask the customer one question about the proposal, within the trip's cap on questions."""
     return _decide(
         tool_context, lambda trip: trip.request_clarification(proposal_id, question, options)
     )
