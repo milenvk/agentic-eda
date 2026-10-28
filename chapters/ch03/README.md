@@ -38,11 +38,10 @@ Where to read the code, in the order the chapter teaches it:
 The same `.env` as chapter 1, in the repository root. If you skipped chapter 1, follow
 [its Setup section](../ch01/README.md#setup) first.
 
-The Booking Agent asks its model to read a reply and call one of four tools. The smallest
-model in `.env.example`, `llama3.2` on Ollama, reads about half of the replies the way a
-larger model does: it asks a question where the words describe an itinerary, and rejects
-where the words ask for a change. Act 1 says what that looks like. A larger local model,
-such as `qwen2.5:7b` or `llama3.1:8b` in `.env`, reads every reply as scripted.
+The Booking Agent asks its model to read a reply and call one of four tools. The default
+model in `.env.example`, `qwen3:4b-instruct` on Ollama, reads all four scripted replies as intended.
+Smaller models, `llama3.2` among them, ask a question where the words describe an itinerary
+or reject where they ask for a change, so keep the default or go larger.
 
 ## The demo, in two terminals
 

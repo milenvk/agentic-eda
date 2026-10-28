@@ -44,10 +44,10 @@ BACK_TO_PLANNING = {event_types.ITINERARY_REJECTED, event_types.TRIP_CHANGED}
 
 # A customer's words, one reply per outcome, in the order the conversation goes.
 REPLIES = [
-    "Sounds good.",  # too little to act on: a question comes back
+    "Thanks, got it.",  # too little to act on: a question comes back
     "Could we leave a day later? The fares on that day are too high.",  # a change, and a re-plan
     "No, all of these are too expensive for what they offer.",  # a rejection, and a re-plan
-    "The one with the morning flight, please.",  # an approval, by description
+    "The cheapest one, please.",  # an approval, by description
 ]
 
 # The demo's own output is the show; keep client libraries to real errors.

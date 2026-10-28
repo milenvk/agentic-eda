@@ -1,0 +1,455 @@
+{
+ "request": {
+  "origin_destinations": [
+   {
+    "origin": "NYC",
+    "destination": "MAD",
+    "departure_date": "2027-04-26"
+   },
+   {
+    "origin": "MAD",
+    "destination": "LIS",
+    "departure_date": "2027-04-29"
+   },
+   {
+    "origin": "LIS",
+    "destination": "NYC",
+    "departure_date": "2027-05-03"
+   }
+  ],
+  "stays": [
+   {
+    "city": "MAD",
+    "check_in": "2027-04-26",
+    "check_out": "2027-04-29",
+    "rooms": 1
+   },
+   {
+    "city": "LIS",
+    "check_in": "2027-04-29",
+    "check_out": "2027-05-03",
+    "rooms": 1
+   }
+  ],
+  "adults": 2,
+  "children": [],
+  "budget": {
+   "amount": 3500.0,
+   "currency": "USD"
+  },
+  "preferences": "Quiet, walkable neighbourhoods. We would take a stop to save real money.",
+  "car_class": null
+ },
+ "proposal": {
+  "trip_id": 21,
+  "proposal_id": "ef426f1a-0fc0-4b22-9e1a-90a853bbb4ca",
+  "itineraries": [
+   {
+    "rank": 1,
+    "label": "cheapest",
+    "rationale": "This itinerary is the most affordable at $2,584.75, saving real money by using budget-friendly flights and hotels. It meets the customer's explicit preference to 'save real money' and stays within the $3,500 budget.",
+    "items": [
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "393",
+        "origin": "JFK",
+        "destination": "LHR",
+        "departs": "2027-04-26T11:15:00Z",
+        "arrives": "2027-04-26T18:43:00Z"
+       },
+       {
+        "carrier": "WW",
+        "number": "123",
+        "origin": "LHR",
+        "destination": "MAD",
+        "departs": "2027-04-26T20:13:00Z",
+        "arrives": "2027-04-26T22:18:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW393+WW123-20270426-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 988.53,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:45.684131Z"
+      }
+     },
+     {
+      "kind": "stay",
+      "city": "MAD",
+      "hotel": "Malasa\u00f1a Verbena",
+      "rooms": 1,
+      "room": "double",
+      "check_in": "2027-04-26",
+      "check_out": "2027-04-29",
+      "rate_plan": "ADVANCE",
+      "cancellation": "no refund once booked",
+      "offer": {
+       "supplier": "Hotel Reservation System",
+       "offer_id": "MAD2-20270426-3N-ADVANCE-1R2G",
+       "price": {
+        "amount": 267.79,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:45.688595Z"
+      },
+      "backup": null
+     },
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "363",
+        "origin": "MAD",
+        "destination": "CDG",
+        "departs": "2027-04-29T11:45:00Z",
+        "arrives": "2027-04-29T13:34:00Z"
+       },
+       {
+        "carrier": "WW",
+        "number": "873",
+        "origin": "CDG",
+        "destination": "LIS",
+        "departs": "2027-04-29T15:04:00Z",
+        "arrives": "2027-04-29T17:23:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW363+WW873-20270429-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 164.62,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:49.021161Z"
+      }
+     },
+     {
+      "kind": "stay",
+      "city": "LIS",
+      "hotel": "Bairro Alto Nights",
+      "rooms": 1,
+      "room": "double",
+      "check_in": "2027-04-29",
+      "check_out": "2027-05-03",
+      "rate_plan": "ADVANCE",
+      "cancellation": "no refund once booked",
+      "offer": {
+       "supplier": "Hotel Reservation System",
+       "offer_id": "LIS2-20270429-4N-ADVANCE-1R2G",
+       "price": {
+        "amount": 406.92,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:51.317446Z"
+      },
+      "backup": null
+     },
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "573",
+        "origin": "LIS",
+        "destination": "LHR",
+        "departs": "2027-05-03T11:45:00Z",
+        "arrives": "2027-05-03T14:14:00Z"
+       },
+       {
+        "carrier": "WW",
+        "number": "203",
+        "origin": "LHR",
+        "destination": "JFK",
+        "departs": "2027-05-03T17:14:00Z",
+        "arrives": "2027-05-04T00:42:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW573+WW203-20270503-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 756.89,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:54.466786Z"
+      }
+     }
+    ],
+    "total": {
+     "amount": 2584.75,
+     "currency": "USD"
+    }
+   },
+   {
+    "rank": 2,
+    "label": "best value",
+    "rationale": "This itinerary offers a balanced mix of cost and quality at $2,940.62, with a more central, walkable hotel in Madrid and flexible cancellation. It provides better value than the fastest option and includes a quieter, more comfortable stay in Lisbon, aligning with the preference for quiet, walkable neighborhoods.",
+    "items": [
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "393",
+        "origin": "JFK",
+        "destination": "LHR",
+        "departs": "2027-04-26T11:15:00Z",
+        "arrives": "2027-04-26T18:43:00Z"
+       },
+       {
+        "carrier": "WW",
+        "number": "123",
+        "origin": "LHR",
+        "destination": "MAD",
+        "departs": "2027-04-26T20:13:00Z",
+        "arrives": "2027-04-26T22:18:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW393+WW123-20270426-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 988.53,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:45.684131Z"
+      }
+     },
+     {
+      "kind": "stay",
+      "city": "MAD",
+      "hotel": "Hostal de las Letras",
+      "rooms": 1,
+      "room": "double",
+      "check_in": "2027-04-26",
+      "check_out": "2027-04-29",
+      "rate_plan": "FLEXIBLE",
+      "cancellation": "free cancellation until 48 hours before arrival",
+      "offer": {
+       "supplier": "Hotel Reservation System",
+       "offer_id": "MAD1-20270426-3N-FLEXIBLE-1R2G",
+       "price": {
+        "amount": 400.33,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:45.688595Z"
+      },
+      "backup": null
+     },
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "291",
+        "origin": "MAD",
+        "destination": "LIS",
+        "departs": "2027-04-29T08:30:00Z",
+        "arrives": "2027-04-29T09:38:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW291-20270429-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 235.17,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:49.021161Z"
+      }
+     },
+     {
+      "kind": "stay",
+      "city": "LIS",
+      "hotel": "P\u00e1tio das Andorinhas",
+      "rooms": 1,
+      "room": "double",
+      "check_in": "2027-04-29",
+      "check_out": "2027-05-03",
+      "rate_plan": "FLEXIBLE",
+      "cancellation": "free cancellation until 48 hours before arrival",
+      "offer": {
+       "supplier": "Hotel Reservation System",
+       "offer_id": "LIS1-20270429-4N-FLEXIBLE-1R2G",
+       "price": {
+        "amount": 559.7,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:51.317446Z"
+      },
+      "backup": null
+     },
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "573",
+        "origin": "LIS",
+        "destination": "LHR",
+        "departs": "2027-05-03T11:45:00Z",
+        "arrives": "2027-05-03T14:14:00Z"
+       },
+       {
+        "carrier": "WW",
+        "number": "203",
+        "origin": "LHR",
+        "destination": "JFK",
+        "departs": "2027-05-03T17:14:00Z",
+        "arrives": "2027-05-04T00:42:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW573+WW203-20270503-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 756.89,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:54.466786Z"
+      }
+     }
+    ],
+    "total": {
+     "amount": 2940.62,
+     "currency": "USD"
+    }
+   },
+   {
+    "rank": 3,
+    "label": "fastest",
+    "rationale": "This itinerary is the quickest with a direct flight from Madrid to Lisbon, but costs $3,403.33\u2014over $900 more than the cheapest option\u2014and includes a long flight from Lisbon to Newark, which is less convenient and more expensive. It prioritizes speed over cost and comfort, which contradicts the customer's goal of saving real money.",
+    "items": [
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "991",
+        "origin": "JFK",
+        "destination": "MAD",
+        "departs": "2027-04-26T08:00:00Z",
+        "arrives": "2027-04-26T15:43:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW991-20270426-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 1412.19,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:45.684131Z"
+      }
+     },
+     {
+      "kind": "stay",
+      "city": "MAD",
+      "hotel": "Malasa\u00f1a Verbena",
+      "rooms": 1,
+      "room": "double",
+      "check_in": "2027-04-26",
+      "check_out": "2027-04-29",
+      "rate_plan": "ADVANCE",
+      "cancellation": "no refund once booked",
+      "offer": {
+       "supplier": "Hotel Reservation System",
+       "offer_id": "MAD2-20270426-3N-ADVANCE-1R2G",
+       "price": {
+        "amount": 267.79,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:45.688595Z"
+      },
+      "backup": null
+     },
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "291",
+        "origin": "MAD",
+        "destination": "LIS",
+        "departs": "2027-04-29T08:30:00Z",
+        "arrives": "2027-04-29T09:38:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW291-20270429-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 235.17,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:49.021161Z"
+      }
+     },
+     {
+      "kind": "stay",
+      "city": "LIS",
+      "hotel": "Bairro Alto Nights",
+      "rooms": 1,
+      "room": "double",
+      "check_in": "2027-04-29",
+      "check_out": "2027-05-03",
+      "rate_plan": "ADVANCE",
+      "cancellation": "no refund once booked",
+      "offer": {
+       "supplier": "Hotel Reservation System",
+       "offer_id": "LIS2-20270429-4N-ADVANCE-1R2G",
+       "price": {
+        "amount": 406.92,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:51.317446Z"
+      },
+      "backup": null
+     },
+     {
+      "kind": "flight",
+      "segments": [
+       {
+        "carrier": "WW",
+        "number": "201",
+        "origin": "LIS",
+        "destination": "EWR",
+        "departs": "2027-05-03T08:30:00Z",
+        "arrives": "2027-05-03T15:47:00Z"
+       }
+      ],
+      "fare_conditions": "exchange for 150, no refund",
+      "offer": {
+       "supplier": "Airline Reservation System",
+       "offer_id": "WW201-20270503-BASIC-2ADT0CHD0INF",
+       "price": {
+        "amount": 1081.26,
+        "currency": "USD"
+       },
+       "valid_until": "2026-10-28T01:04:54.466786Z"
+      }
+     }
+    ],
+    "total": {
+     "amount": 3403.33,
+     "currency": "USD"
+    }
+   }
+  ]
+ }
+}

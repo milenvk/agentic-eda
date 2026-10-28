@@ -154,13 +154,14 @@ def test_a_change_passes_the_same_checks_as_a_request():
     assert changed.requirements.budget == usd(4000)
 
 
-def test_a_question_is_asked_at_most_twice_per_proposal(monkeypatch):
+def test_a_question_is_asked_at_most_three_times_per_proposal(monkeypatch):
     trip = proposed_trip()
     asked = trip.request_clarification("p-1", "Which itinerary?", ["1", "2", "3"])
     assert isinstance(asked, ClarificationRequested)
     assert trip.status == "awaiting clarification" and trip.pending_question.question == "Which itinerary?"  # fmt: skip
     trip.request_clarification("p-1", "The morning one or the evening one?")
-    with pytest.raises(Refused, match="2 questions were already asked"):
+    trip.request_clarification("p-1", "The one with the stop, or the direct one?")
+    with pytest.raises(Refused, match="3 questions were already asked"):
         trip.request_clarification("p-1", "Still unsure?")
 
     approved = trip.approve("p-1", 1)  # the reply in the awaiting state settles it

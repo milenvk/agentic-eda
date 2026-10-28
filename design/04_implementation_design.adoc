@@ -605,11 +605,16 @@ model an adapter concern. The activator owns five things.
 | what the agent handed to `eda.activation().answer(event)`, the one way code that cannot
   return hands over its event (the Booking Agent's tools, and its custom agent's code paths,
   since a custom agent's run method is a generator of ADK events), else the text of the
-  event whose `is_final_response()` is true, parsed against `produces`; the tools read the
-  loaded Trip from `eda.activation().state` and the activator commits it once, after the
-  activation; an activation answers once, a second `answer` is refused. A tool whose
-  operation was accepted sets ADK's `skip_summarization`, which ends the LLM's turn without
-  another call, since nothing it could say after the decision is read; and the adapter runs
+  event whose `is_final_response()` is true, parsed against `produces`; the tools are the
+  Trip's reply operations themselves, with nothing written around them: an ADK toolset binds
+  them to the Trip under activation (`eda.activation().state`) for every LLM call, and
+  Pydantic's `validate_call` makes the LLM's JSON arguments the operation's types (ADK's own
+  argument coercion is an experimental flag, off by default; 2026-10-27). The agent's
+  after-tool callback hands the returned event to `answer` and sets ADK's
+  `skip_summarization`, which ends the LLM's turn without another call, since nothing it
+  could say after the decision is read; its tool-error callback returns a `Refused` or a
+  validation error to the LLM as the tool's result. The activator commits the Trip once,
+  after the activation; an activation answers once, a second `answer` is refused; and the adapter runs
   every activation under a `RunConfig` capping the LLM calls at ten, where ADK's default is
   five hundred, so an LLM that keeps calling tools fails its activation and the event is
   redelivered (found 2026-10-24, when `llama3.2` did exactly that)
@@ -867,6 +872,19 @@ knowledge tool is `RESEARCH_AGENT_URL` (the Research Agent's MCP server, unset b
 meaning off, switched on in ch 5), each read at start, switched on by the
 compose file of the chapter that teaches it, and mentioned by no earlier chapter's compose
 file, configuration file, or prose.
+
+A prompt file puts its fixed text first, the role and the rules, and its variable text
+last, so that every provider's prefix cache matches the longest unchanged run of tokens.
+Inside the variable text, the data the decision is computed from goes last, nearest the
+reply: the reply prompt ends on the trip's requirements, since a reply such as "a day
+later" is counted from the journeys' dates, and the date, the proposal, and the pending
+question come before them. The default LLM reads the same words differently under another
+order, so a reordering is measured by the component's eval like any other new version.
+
+The prompt file is the whole prompt: every sentence the LLM reads is in the file, and the
+code passes values only. A line whose variables all render empty is left out, which is how
+a sentence about something the trip may not have, the pending question, is written in the
+file and still absent from the prompt when there is none.
 
 == Repository Layout Conventions
 

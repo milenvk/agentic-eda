@@ -37,7 +37,7 @@ The same `.env` as chapter 1, in the repository root. If you skipped chapter 1, 
 [its Setup section](../ch01/README.md#setup) first.
 
 The Planner asks its model for a typed answer several times per request. The smallest
-model in `.env.example`, `llama3.2` on Ollama, is enough for it.
+model in `.env.example`, `qwen3:4b-instruct` on Ollama, is enough for it.
 
 ## The demo, in two terminals
 
@@ -116,7 +116,7 @@ Observe in the watch terminal, in order:
    judgement and can differ from one LLM to another.
 
 While the Planner works, `demo-1` prints `Still waiting for 1 proposal(s)...` every 15
-seconds. With `llama3.2` on an Apple GPU the proposal arrives in about half a minute, and a
+seconds. With `qwen3:4b-instruct` on an Apple GPU the proposal arrives in about half a minute, and a
 CPU takes longer.
 
 Chapter 1's script matched its reply by a `request_id` field inside the data. That

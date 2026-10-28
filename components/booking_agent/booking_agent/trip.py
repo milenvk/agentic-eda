@@ -10,9 +10,9 @@ no broker, no framework, no LLM.
 
 import os
 from datetime import date, timedelta
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from travel_agency.events.booking import (
     ClarificationRequested,
@@ -29,10 +29,13 @@ from travel_agency.events.planning import Itinerary, ItineraryProposed, Itinerar
 
 # How many questions the Trip asks the customer about one proposal before it insists on a
 # decision: each one costs a round trip of hours or days.
-CLARIFICATION_CAP = int(os.environ.get("CLARIFICATION_CAP", "2"))
+CLARIFICATION_CAP = int(os.environ.get("CLARIFICATION_CAP", "3"))
 
 Status = Literal["new", "requested", "planning", "proposed", "awaiting clarification", "approved"]
 REPLYING = ("proposed", "awaiting clarification")  # the statuses a customer's reply is read in
+
+# The reply's operations are the LLM's tools, so their parameters say what a name cannot.
+ProposalId = Annotated[str, Field(description="the id of the proposal the customer replied to")]
 
 
 class Refused(Exception):
@@ -111,9 +114,14 @@ class Trip(BaseModel):
         )
 
     # --- the reply's operations, each the tool an LLM may call once it has read the reply
+    # Their docstrings stay on one line each: a small LLM read a wrapped one differently.
 
-    def approve(self, proposal_id: str, rank: int) -> ItineraryApproved:
-        """The customer chose one itinerary of one of this trip's proposals."""
+    def approve(
+        self,
+        proposal_id: ProposalId,
+        rank: Annotated[int, Field(description="the chosen itinerary's number in the proposal's list; 1 is the first listed")],  # fmt: skip
+    ) -> ItineraryApproved:
+        """The customer chose one itinerary of this proposal, named by its number or described by what sets it apart: its flight's time of day, its hotel, or its price."""
         self._allowed_in(*REPLYING)
         proposal = self._proposal(proposal_id)
         if rank not in [itinerary.rank for itinerary in proposal.itineraries]:
@@ -121,8 +129,12 @@ class Trip(BaseModel):
         self.approved, self.pending_question, self.status = Choice(proposal_id=proposal_id, rank=rank), None, "approved"  # fmt: skip
         return ItineraryApproved(trip_id=self.trip_id, proposal_id=proposal_id, rank=rank)
 
-    def reject(self, proposal_id: str, reason: str) -> ItineraryRejected:
-        """The customer wants none of the proposal's itineraries; planning will be asked again."""
+    def reject(
+        self,
+        proposal_id: ProposalId,
+        reason: Annotated[str, Field(description="why the customer wants none of them, in the customer's words")],  # fmt: skip
+    ) -> ItineraryRejected:
+        """The customer wants none of this proposal's itineraries and asks for nothing different about the trip; planning will be asked again from the same requirements."""
         self._allowed_in(*REPLYING)
         self._proposal(proposal_id)
         self.pending_question, self.status = None, "requested"
@@ -130,14 +142,17 @@ class Trip(BaseModel):
 
     def change(
         self,
-        reason: str,
-        departure_dates: list[date] | None = None,
-        budget: Money | None = None,
+        reason: Annotated[str, Field(description="what the customer changed and why, in the customer's words")],  # fmt: skip
+        departure_dates: Annotated[
+            list[date] | None,
+            Field(description="the new departure date of every journey in the requirements, one per journey in travel order, each replacing that journey's current date; a trip leaving later or earlier moves every journey by the same number of days; null leaves the dates as they are"),  # fmt: skip
+        ] = None,
+        budget: Annotated[Money | None, Field(description="the new budget, amount and currency; null leaves it as it is")] = None,  # fmt: skip
     ) -> TripChanged:
-        """The customer changed the dates or the budget; planning will be asked again.
+        """The customer keeps the trip but on other departure dates or with another budget; planning will be asked again from the changed requirements.
 
-        New departure dates come one per journey, in travel order, and the stays move with
-        the journeys around them, as they do when the Planner settles a date.
+        Leaving later or earlier moves the whole trip, every journey by the same number of days, and the
+        stays move with the journeys around them.
         """
         self._allowed_in(*REPLYING)
         requirements = self.requirements
@@ -152,7 +167,13 @@ class Trip(BaseModel):
         return TripChanged(trip_id=self.trip_id, requirements=requirements, reason=reason)
 
     def request_clarification(
-        self, proposal_id: str, question: str, options: list[str] | None = None
+        self,
+        proposal_id: ProposalId,
+        question: Annotated[str, Field(description="one short question whose answer settles it")],
+        options: Annotated[
+            list[str] | None,
+            Field(description="the few answers that would settle it, when there are a few; null for an open question"),  # fmt: skip
+        ] = None,
     ) -> ClarificationRequested:
         """The reply does not settle the decision; ask the customer, within the cap."""
         self._allowed_in(*REPLYING)

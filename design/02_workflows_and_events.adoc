@@ -718,6 +718,7 @@ Conventions:
 | ApprovalRequested | Booking Agent (outbox), carrying the semantic checkpoint | Approval console, audit | ch 8
 | ApprovalTimedOut | EventScheduler, relaying for the Booking Agent | Booking Agent (escalation) | ch 8
 | CustomerFollowUpDue | EventScheduler, relaying for the Booking Agent, scheduled from `ProposalReady` | Booking Agent | ch 8
+| HandoffRequested | Booking Agent, when the clarification cap is reached and the customer's words still do not settle the decision; the trip handed to a human agent (2026-10-27) | a human agent's console (the approval console or a booking-context one, decided when ch 8 is built), Front Desk and email delivery adapter (as a message to the customer), audit | ch 8
 | TripConfirmed | Booking Agent, carrying the customer reference | Front Desk, email delivery adapter, Observer | ch 8
 | RebookingProposed | Booking Agent, after the barrier joins the replacement proposal and the compensation draft | Front Desk, Observer | ch 9
 | TripCancelled | Booking Agent | Front Desk, Observer | ch 9

@@ -164,8 +164,9 @@ async def test_the_llm_reads_the_reply_against_the_proposal_and_approves(system)
     # The LLM saw the proposal and the words, once: an accepted operation ends its turn.
     assert len(llm.requests) == 1
     prompt = llm.requests[0].config.system_instruction
-    assert "p-1" in prompt and "best value, 3,100 USD" in prompt
-    assert "morning flights" in llm.requests[0].contents[-1].parts[0].text
+    assert "best value, 3,100 USD" in prompt
+    reply_as_sent = llm.requests[0].contents[-1].parts[0].text
+    assert "p-1" in reply_as_sent and "morning flights" in reply_as_sent  # the id is in the reply, not the prose
     assert len(llm.requests[0].contents) == 1  # no history re-sent
 
 
@@ -202,6 +203,7 @@ async def test_an_ambiguous_reply_earns_a_question_and_the_next_reply_settles_it
 
     (asked,) = broker.of_type(types.CLARIFICATION_REQUESTED)
     assert asked.data["question"] == "Which of the three itineraries?"
+    assert "You already asked" not in llm.requests[0].config.system_instruction  # the line is left out
     assert "You already asked: Which of the three" in llm.requests[1].config.system_instruction
     assert broker.of_type(types.ITINERARY_APPROVED)[0].data["rank"] == 2
 
@@ -211,7 +213,8 @@ async def test_a_change_and_a_rejection_each_send_the_trip_back_to_planning(syst
     later = [f"{trip_request().origin_destinations[0].departure_date.year}-05-{day}" for day in (11, 13, 17)]  # fmt: skip
     llm = FakeLlm(
         script=[
-            calls("change", reason="leaving a day later, the Tuesday fares are too high", departure_dates=later),  # fmt: skip
+            # The arguments as an LLM sends them: dates as strings, the budget as a JSON object.
+            calls("change", reason="leaving a day later, the Tuesday fares are too high", departure_dates=later, budget={"amount": 3000, "currency": "USD"}),  # fmt: skip
             calls("reject", proposal_id="p-2", reason="all of them are too expensive"),
         ],
         requests=[],
@@ -223,6 +226,7 @@ async def test_a_change_and_a_rejection_each_send_the_trip_back_to_planning(syst
 
     (changed,) = broker.of_type(types.TRIP_CHANGED)
     assert changed.data["requirements"]["origin_destinations"][0]["departure_date"] == later[0]
+    assert changed.data["requirements"]["budget"] == {"amount": 3000, "currency": "USD"}
     (rejected,) = broker.of_type(types.ITINERARY_REJECTED)
     planning = broker.of_type(types.ITINERARY_REQUESTED)
     assert [event.data.get("reason") for event in planning] == [

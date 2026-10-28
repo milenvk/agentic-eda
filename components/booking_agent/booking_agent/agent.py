@@ -3,121 +3,66 @@
 Every activation is one of the Trip's operations. The agent dispatches on the inbound
 event's class: a request, planning's proposal, and the trip's own events are one operation
 call each, with no LLM; the customer's reply, written in the customer's words, runs an LLM
-whose tools are the Trip's four reply operations. The LLM proposes an operation by calling
-its tool, the operation accepts or refuses, and a refusal returns to the LLM as the tool's
-result. Nothing here knows about the broker or the store: what the agent consumes and
+whose tools are the Trip's four reply operations themselves. The LLM proposes an operation
+by calling its tool, the operation accepts or refuses, and a refusal returns to the LLM as
+the tool's result. Nothing here knows about the broker or the store: what the agent consumes and
 produces is declared where it is hosted, in `app.py`, and the Trip under activation comes
 from the activator.
 """
 
 import logging
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator
 from datetime import date
-from typing import Annotated
 
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events import Event
 from google.adk.models import BaseLlm
-from google.adk.tools import ToolContext
-from pydantic import Field
+from google.adk.tools import BaseTool, FunctionTool, ToolContext
+from google.adk.tools.base_toolset import BaseToolset
+from pydantic import ValidationError, validate_call
 
 from agentic_eda import eda
 from agentic_eda.contracts import EventContract
-from travel_agency.events.booking import CustomerReplied, TripCreated, TripRequested
-from travel_agency.events.planning import Itinerary, ItineraryProposed, Money
+from travel_agency.events.booking import CustomerReplied, TripCreated, TripRequested, TripRequirements
+from travel_agency.events.planning import Itinerary, ItineraryProposed
 
 from .prompts import render
 from .trip import Refused, Trip
 
 log = logging.getLogger("BookingAgent")
 
-# --- the reply's tools, each landing in one of the Trip's operations. The LLM reads a tool's
-# docstring and parameter descriptions, never the Trip's; the prompt file says when to call which.
+# --- the reply's tools: the Trip's own operations, bound to the Trip under activation
 
-ProposalId = Annotated[str, Field(description="the id of the proposal the customer is replying to")]
+REPLY_OPERATIONS = ("approve", "reject", "change", "request_clarification")
 
 
-def _decide(tool_context: ToolContext, operation: Callable[[Trip], EventContract]) -> str:
-    """Run one reply operation on the Trip under activation.
+class TripOperations(BaseToolset):
+    """The reply operations of the Trip under activation, fetched afresh for every LLM call."""
 
-    An accepted operation is the activation's answer and ends the LLM's turn: there is nothing
-    to say after it. A refusal returns to the LLM as the tool's result, and it chooses again.
-    """
-    activation = eda.activation()
-    try:
-        event = operation(activation.state)
-    except (Refused, ValueError, TypeError) as refusal:
-        log.info("the LLM's tool call was refused: %s", refusal)
-        return f"refused: {refusal}"
-    activation.answer(event)
+    async def get_tools(self, readonly_context: ReadonlyContext | None = None) -> list[BaseTool]:
+        trip = eda.activation().state
+        # ADK hands over the LLM's arguments as JSON types; Pydantic makes them the operation's.
+        return [FunctionTool(validate_call(getattr(trip, name))) for name in REPLY_OPERATIONS]
+
+
+def decided(tool: BaseTool, args: dict, tool_context: ToolContext, response) -> dict | None:
+    """An accepted operation returned its event: the activation's answer, which ends the turn."""
+    if not isinstance(response, EventContract):
+        return None  # ADK's own answer to a malformed call stays as it is
+    eda.activation().answer(response)
     tool_context.actions.skip_summarization = True  # the decision is made; no more LLM calls
-    log.info("the LLM decided: %s", type(event).__name__)
-    return "done"
+    log.info("the LLM decided: %s", type(response).__name__)
+    return {"result": "done"}
 
 
-async def approve(
-    proposal_id: ProposalId,
-    rank: Annotated[int, Field(description="the chosen itinerary's rank in the proposal; 1 is the first listed")],  # fmt: skip
-    tool_context: ToolContext,
-) -> str:
-    """Approve one itinerary of the proposal, which settles the trip's planning."""
-    return _decide(tool_context, lambda trip: trip.approve(proposal_id, int(rank)))
-
-
-async def reject(
-    proposal_id: ProposalId,
-    reason: Annotated[str, Field(description="why the customer wants none of them, in the customer's words")],  # fmt: skip
-    tool_context: ToolContext,
-) -> str:
-    """Reject every itinerary of the proposal, so planning is asked again with the reason."""
-    return _decide(tool_context, lambda trip: trip.reject(proposal_id, reason))
-
-
-async def change(
-    reason: Annotated[str, Field(description="what the customer changed and why, in the customer's words")],  # fmt: skip
-    tool_context: ToolContext,
-    departure_dates: Annotated[
-        list[str] | None,
-        Field(
-            description="the new departure date of every journey, one per journey in travel "
-            "order, as YYYY-MM-DD; null leaves the dates as they are"
-        ),
-    ] = None,
-    budget: Annotated[
-        float | None,
-        Field(description="the new budget, an amount in the trip's currency; null leaves it as it is"),  # fmt: skip
-    ] = None,
-) -> str:
-    """Change the trip's dates, its budget, or both, so planning is asked again for it."""
-    return _decide(
-        tool_context,
-        lambda trip: trip.change(
-            reason,
-            departure_dates=[date.fromisoformat(day) for day in departure_dates]
-            if departure_dates
-            else None,
-            budget=Money(amount=budget, currency=trip.requirements.budget.currency)
-            if budget is not None and trip.requirements.budget
-            else None,
-        ),
-    )
-
-
-async def request_clarification(
-    proposal_id: ProposalId,
-    question: Annotated[str, Field(description="one short question whose answer settles it")],
-    tool_context: ToolContext,
-    options: Annotated[
-        list[str] | None,
-        Field(description="the few answers that would settle it, when there are a few; null for an open question"),  # fmt: skip
-    ] = None,
-) -> str:
-    """Ask the customer one question about the proposal, within the trip's cap on questions."""
-    return _decide(
-        tool_context, lambda trip: trip.request_clarification(proposal_id, question, options)
-    )
+def refused(tool: BaseTool, args: dict, tool_context: ToolContext, error: Exception) -> dict | None:
+    """A refused operation, or a malformed call, returns to the LLM as the tool's result."""
+    if not isinstance(error, (Refused, ValidationError)):
+        return None  # anything else is a defect, and ADK raises it
+    log.info("the LLM's tool call was refused: %s", error)
+    return {"error": str(error)}
 
 
 async def reply_instruction(context: ReadonlyContext) -> str:
@@ -129,11 +74,25 @@ async def reply_instruction(context: ReadonlyContext) -> str:
     pending = trip.pending_question
     return render(
         "reply",
-        requirements=trip.requirements.model_dump_json(),
+        requirements=_requirements(trip.requirements),
         proposal_id=reply.proposal_id,
         itineraries="\n".join(_line(i) for i in proposal.itineraries) if proposal else "none",
-        pending=f"You already asked: {pending.question} Read the reply as its answer." if pending else "",  # fmt: skip
+        pending_question=pending.question if pending else "",  # no question: the line is left out
         today=date.today().isoformat(),
+    )
+
+
+def _requirements(requirements: TripRequirements) -> str:
+    """The requirements as the LLM reads them: the journeys numbered in travel order, each with its date."""
+    journeys = "\n".join(
+        f"{n}. {j.origin} to {j.destination}, leaving {j.departure_date}"
+        for n, j in enumerate(requirements.origin_destinations, 1)
+    )
+    stays = "; ".join(f"{s.city} {s.check_in} to {s.check_out}" for s in requirements.stays) or "none"
+    budget = f"{requirements.budget.amount:,.0f} {requirements.budget.currency}" if requirements.budget else "none"
+    return (
+        f"{requirements.adults} adults, {len(requirements.children)} children, budget {budget}, "
+        f"preferences: {requirements.preferences or 'none'}\nJourneys, in travel order:\n{journeys}\nStays: {stays}"
     )
 
 
@@ -183,6 +142,8 @@ def build_agent(model: BaseLlm) -> BookingAgent:
         model=model,
         include_contents="none",  # the session is the trace, never re-sent: the Trip is the state
         instruction=reply_instruction,
-        tools=[approve, reject, change, request_clarification],
+        tools=[TripOperations()],
+        after_tool_callback=decided,
+        on_tool_error_callback=refused,
     )
     return BookingAgent(name="booking_agent", reply=reply, sub_agents=[reply])

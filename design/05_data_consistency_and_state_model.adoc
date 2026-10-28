@@ -419,8 +419,9 @@ the request on it (amended 2026-10-24, when the code was built). A request that 
 checks leaves the blank row in place, status `new`, with the request's event id recorded
 against it, which is what lets a redelivered rejected request be recognised too; no trip
 exists in the business sense, since nothing is ever planned for a `new` row. For the customer's reply the
-LLM's tools receive the loaded Trip from the activation context, the operation the LLM picks
-changes it in memory and returns the event, a refusal returns to the LLM as the tool's result,
+LLM's tools are the Trip's reply operations themselves, bound to the loaded Trip for each LLM
+call (2026-10-27); the operation the LLM picks changes it in memory and returns the event, a
+refusal returns to the LLM as the tool's result,
 and the activator commits once, after the activation returns that event. No operation and no
 agent code publishes or touches the store; nothing in chapter 3 calls `eda.publish`, which
 `04_implementation_design.adoc` introduces in chapter 7 for the reservation step.
@@ -495,7 +496,7 @@ Four rules hold for every activation:
 | `request_clarification(proposal_id, question, options)`, a reply tool
 | `proposed`, `awaiting clarification`
 | the proposal is one of this trip's; fewer questions asked on it than the Booking Agent's
-  clarification cap, a setting whose default is two. The refusal at the cap returns to the LLM
+  clarification cap, a setting whose default is three. The refusal at the cap returns to the LLM
   as the tool's result, and it chooses among approve, reject, and change on the words it has;
   it never guesses an approval
 | `booking.ClarificationRequested` with the question and the options; status
@@ -503,9 +504,11 @@ Four rules hold for every activation:
 |===
 
 The reply activation calls exactly one of `approve`, `reject`, `change`, or `request_clarification`. Checking the request,
-creation, the planning request, and recording a proposal are activations with no LLM call. The cap is two because each question costs the customer a round trip of hours or days,
-and after two the likelier fault is the proposal, not the words; a re-plan with the customer's
-words as the reason serves them better than a third question.
+creation, the planning request, and recording a proposal are activations with no LLM call. The cap is three: each question costs the customer a round trip of hours or days,
+and after three the likelier fault is the proposal, not the words; a re-plan with the customer's
+words as the reason serves them better than a fourth question. From chapter 8 the exit at the
+cap is `booking.HandoffRequested`, the trip handed to a human agent beside the manager's
+approval; until then the refusal forces the decision on the words (2026-10-27).
 
 ==== Transitions in chapter 3
 

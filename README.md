@@ -91,7 +91,7 @@ server from the menu bar.)
 ```sh
 brew install ollama
 brew services start ollama
-ollama pull llama3.2
+ollama pull qwen3:4b-instruct
 ```
 
 Then use the host block in `.env` (`OLLAMA_API_BASE=http://host.docker.internal:11434`) and
@@ -117,7 +117,7 @@ set `OLLAMA_GPU=1` in place of `OLLAMA_ENABLED=1` in `.env` once the runtime is 
   docker run --rm --gpus all ubuntu nvidia-smi
   ```
 
-The default model is `llama3.2` (about 2 GB). A larger machine runs a larger model by
+The default model is `qwen3:4b-instruct` (about 2.5 GB). A larger machine runs a larger model by
 changing the `LLM_MODEL` string in `.env`; the download happens automatically.
 
 Per-chapter setup instructions are in each chapter directory's README. A minimal web UI (a
