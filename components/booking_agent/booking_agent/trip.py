@@ -4,8 +4,8 @@ One class whose fields are the state and whose methods are the operations, one p
 action. Each operation checks the rules, changes the Trip in memory, and returns the one event
 that says what happened; a check that fails raises `Refused`, which says why. The Trip decides,
 the store writes (the activator loads the Trip before an activation and commits it after), and
-the activator publishes. The class depends on the event classes and on nothing else: no store,
-no broker, no framework, no LLM.
+the activator publishes. The class depends on the event classes and the library's `Refused`, and on nothing
+else: no store, no broker, no framework, no LLM.
 """
 
 import os
@@ -14,6 +14,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+from agentic_eda.state import Refused
 from travel_agency.events.booking import (
     ClarificationRequested,
     ItineraryApproved,
@@ -36,10 +37,6 @@ REPLYING = ("proposed", "awaiting clarification")  # the statuses a customer's r
 
 # The reply's operations are the LLM's tools, so their parameters say what a name cannot.
 ProposalId = Annotated[str, Field(description="the id of the proposal the customer replied to")]
-
-
-class Refused(Exception):
-    """An operation's checks failed. The message says which, for whoever asked."""
 
 
 class Proposal(BaseModel):

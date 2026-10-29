@@ -3,5 +3,5 @@
 FROM python:3.14-slim
 WORKDIR /app
 COPY lib/agentic_eda lib/agentic_eda
-RUN pip install --no-cache-dir "./lib/agentic_eda[dev]"
+RUN pip install --no-cache-dir "./lib/agentic_eda[dev,adk]"
 CMD ["pytest", "lib/agentic_eda/tests", "-q"]

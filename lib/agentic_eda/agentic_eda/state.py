@@ -18,6 +18,10 @@ class StaleVersion(RuntimeError):
     """A commit named a version that is no longer the current one: somebody else wrote first."""
 
 
+class Refused(Exception):
+    """A state's operation refused: its checks failed, and the message says which, for whoever asked."""
+
+
 class StateStore(Protocol):
     async def create(self, request_event_id: str) -> int:
         """Insert an empty state under the event that requested it, and return its id.

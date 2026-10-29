@@ -17,7 +17,8 @@ agentic event-driven application needs and what only a travel agency needs.
   `EventBroker` port and its adapters, the per-key lanes, `connect`, `envelope` (the
   `ContextAttributes` the port and the contracts both import, so neither imports the other),
   the `@event` machinery (`EventContract`, `Nothing`, `data_of`, `key_of`), `publish_fact`, the agent activator with its framework
-  adapters, the `eda` face imported by a developer, every other port with its adapters
+  adapters, the ADK face (`agentic_eda.adk`: a state's operations as an ADK agent's tools, and
+  `Refused`, the exception a state's operation refuses with), the `eda` face imported by a developer, every other port with its adapters
   (hydration, the view store, the artifact store), producer identity's signing and
   verification, the supplier client's circuit breaker, the replay module, and the `console`
   event renderer.
@@ -606,14 +607,16 @@ model an adapter concern. The activator owns five things.
   return hands over its event (the Booking Agent's tools, and its custom agent's code paths,
   since a custom agent's run method is a generator of ADK events), else the text of the
   event whose `is_final_response()` is true, parsed against `produces`; the tools are the
-  Trip's reply operations themselves, with nothing written around them: an ADK toolset binds
-  them to the Trip under activation (`eda.activation().state`) for every LLM call, and
-  Pydantic's `validate_call` makes the LLM's JSON arguments the operation's types (ADK's own
-  argument coercion is an experimental flag, off by default; 2026-10-27). The agent's
-  after-tool callback hands the returned event to `answer` and sets ADK's
-  `skip_summarization`, which ends the LLM's turn without another call, since nothing it
-  could say after the decision is read; its tool-error callback returns a `Refused` or a
-  validation error to the LLM as the tool's result. The activator commits the Trip once,
+  Trip's reply operations themselves, with nothing written around them in the component:
+  the library's `StateOperations` (`agentic_eda.adk`, the ADK face of the library, installed
+  by the `adk` extra and imported only by components on ADK) binds the operations the
+  agent names to the state under activation (`eda.activation().state`) for every LLM call,
+  and Pydantic's `validate_call` makes the LLM's JSON arguments the operation's types (ADK's
+  own argument coercion is an experimental flag, off by default; 2026-10-27). Each tool
+  hands the event an operation returns to `answer` and sets ADK's `skip_summarization`,
+  which ends the LLM's turn without another call, since nothing it could say after the
+  decision is read, and returns the library's `Refused` or a validation error to the LLM as
+  the tool's result. The activator commits the Trip once,
   after the activation; an activation answers once, a second `answer` is refused; and the adapter runs
   every activation under a `RunConfig` capping the LLM calls at ten, where ADK's default is
   five hundred, so an LLM that keeps calling tools fails its activation and the event is

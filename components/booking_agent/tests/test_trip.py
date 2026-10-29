@@ -5,8 +5,9 @@ from datetime import date, timedelta
 import pytest
 from conftest import NEXT_YEAR, proposal, requirements, trip_request, usd
 
+from agentic_eda.state import Refused
 from booking_agent import trip as trip_module
-from booking_agent.trip import Refused, Trip
+from booking_agent.trip import Trip
 from travel_agency.events.booking import (
     ClarificationRequested,
     ItineraryApproved,

@@ -19,10 +19,12 @@ running activation:
 
 from .activator import activation, attach, consumes, produces, publish, state
 from .contracts import EventContract, Nothing, event
+from .state import Refused
 
 __all__ = [
     "EventContract",
     "Nothing",
+    "Refused",
     "activation",
     "attach",
     "consumes",

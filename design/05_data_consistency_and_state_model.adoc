@@ -420,8 +420,9 @@ checks leaves the blank row in place, status `new`, with the request's event id 
 against it, which is what lets a redelivered rejected request be recognised too; no trip
 exists in the business sense, since nothing is ever planned for a `new` row. For the customer's reply the
 LLM's tools are the Trip's reply operations themselves, bound to the loaded Trip for each LLM
-call (2026-10-27); the operation the LLM picks changes it in memory and returns the event, a
-refusal returns to the LLM as the tool's result,
+call by the library's `StateOperations` (2026-10-27); the operation the LLM picks changes it in
+memory and returns the event, a refusal (the library's `Refused`) returns to the LLM as the
+tool's result,
 and the activator commits once, after the activation returns that event. No operation and no
 agent code publishes or touches the store; nothing in chapter 3 calls `eda.publish`, which
 `04_implementation_design.adoc` introduces in chapter 7 for the reservation step.

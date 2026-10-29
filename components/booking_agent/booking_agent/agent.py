@@ -3,11 +3,11 @@
 Every activation is one of the Trip's operations. The agent dispatches on the inbound
 event's class: a request, planning's proposal, and the trip's own events are one operation
 call each, with no LLM; the customer's reply, written in the customer's words, runs an LLM
-whose tools are the Trip's four reply operations themselves. The LLM proposes an operation
-by calling its tool, the operation accepts or refuses, and a refusal returns to the LLM as
-the tool's result. Nothing here knows about the broker or the store: what the agent consumes and
-produces is declared where it is hosted, in `app.py`, and the Trip under activation comes
-from the activator.
+whose tools are the Trip's four reply operations themselves, bound by the library's
+`StateOperations`. The LLM proposes an operation by calling its tool, the operation accepts
+or refuses, and a refusal returns to the LLM as the tool's result. Nothing here knows about
+the broker or the store: what the agent consumes and produces is declared where it is
+hosted, in `app.py`, and the Trip under activation comes from the activator.
 """
 
 import logging
@@ -19,50 +19,16 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.events import Event
 from google.adk.models import BaseLlm
-from google.adk.tools import BaseTool, FunctionTool, ToolContext
-from google.adk.tools.base_toolset import BaseToolset
-from pydantic import ValidationError, validate_call
 
 from agentic_eda import eda
-from agentic_eda.contracts import EventContract
+from agentic_eda.adk import StateOperations
 from travel_agency.events.booking import CustomerReplied, TripCreated, TripRequested, TripRequirements
 from travel_agency.events.planning import Itinerary, ItineraryProposed
 
 from .prompts import render
-from .trip import Refused, Trip
+from .trip import Trip
 
 log = logging.getLogger("BookingAgent")
-
-# --- the reply's tools: the Trip's own operations, bound to the Trip under activation
-
-REPLY_OPERATIONS = ("approve", "reject", "change", "request_clarification")
-
-
-class TripOperations(BaseToolset):
-    """The reply operations of the Trip under activation, fetched afresh for every LLM call."""
-
-    async def get_tools(self, readonly_context: ReadonlyContext | None = None) -> list[BaseTool]:
-        trip = eda.activation().state
-        # ADK hands over the LLM's arguments as JSON types; Pydantic makes them the operation's.
-        return [FunctionTool(validate_call(getattr(trip, name))) for name in REPLY_OPERATIONS]
-
-
-def decided(tool: BaseTool, args: dict, tool_context: ToolContext, response) -> dict | None:
-    """An accepted operation returned its event: the activation's answer, which ends the turn."""
-    if not isinstance(response, EventContract):
-        return None  # ADK's own answer to a malformed call stays as it is
-    eda.activation().answer(response)
-    tool_context.actions.skip_summarization = True  # the decision is made; no more LLM calls
-    log.info("the LLM decided: %s", type(response).__name__)
-    return {"result": "done"}
-
-
-def refused(tool: BaseTool, args: dict, tool_context: ToolContext, error: Exception) -> dict | None:
-    """A refused operation, or a malformed call, returns to the LLM as the tool's result."""
-    if not isinstance(error, (Refused, ValidationError)):
-        return None  # anything else is a defect, and ADK raises it
-    log.info("the LLM's tool call was refused: %s", error)
-    return {"error": str(error)}
 
 
 async def reply_instruction(context: ReadonlyContext) -> str:
@@ -142,8 +108,6 @@ def build_agent(model: BaseLlm) -> BookingAgent:
         model=model,
         include_contents="none",  # the session is the trace, never re-sent: the Trip is the state
         instruction=reply_instruction,
-        tools=[TripOperations()],
-        after_tool_callback=decided,
-        on_tool_error_callback=refused,
+        tools=[StateOperations(Trip.approve, Trip.reject, Trip.change, Trip.request_clarification)],
     )
     return BookingAgent(name="booking_agent", reply=reply, sub_agents=[reply])

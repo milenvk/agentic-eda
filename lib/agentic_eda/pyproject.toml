@@ -17,6 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+adk = ["google-adk==2.13.0"]  # agentic_eda.adk only; a component on ADK pins its own
 dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",
