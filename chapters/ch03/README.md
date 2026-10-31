@@ -28,7 +28,8 @@ Where to read the code, in the order the chapter teaches it:
 - [agent.py](../../components/booking_agent/booking_agent/agent.py): the custom agent's
   dispatch on the event's class, the four tools landing in the Trip's operations, and the
   `LlmAgent` that reads the reply; [prompts/reply.v1.md](../../components/booking_agent/booking_agent/prompts/reply.v1.md),
-  what it is told.
+  what it is told, and [prompts/\_\_init\_\_.py](../../components/booking_agent/booking_agent/prompts/__init__.py),
+  how the Trip is written for it.
 - [events/booking.py](../../lib/travel_agency/travel_agency/events/booking.py): booking's
   nine contracts.
 - [customer_channel.py](customer_channel.py): the conversation, from the customer's side.

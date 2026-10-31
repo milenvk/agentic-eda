@@ -850,7 +850,9 @@ A component is never edited after its first chapter (01_system_overview.adoc, gr
 and a prompt is the part of an agent most likely to change, so prompts are configuration, not
 code. Every prompt is a versioned file inside the component's package
 (`<package>/prompts/<name>.v<N>.md`), beside the module loading it (`prompts/__init__.py`)
-through `importlib.resources`, never through a path built from `__file__`. The files are
+through `importlib.resources`, never through a path built from `__file__`. The code that
+writes the agent's state as the LLM reads it is in that module too, beside the prompt file,
+so the agent module passes its state and the request and formats nothing. The files are
 therefore installed with the package and found the same way from the source tree and from
 the installed copy, and an image holds every version. The component's suite renders each
 prompt file with the agent's own variables from the installed package, so a file left out of
