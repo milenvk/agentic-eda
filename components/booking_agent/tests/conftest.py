@@ -74,9 +74,11 @@ def itinerary(rank: int, label: str, departs_at: int, total: float) -> Itinerary
     )
 
 
-def proposal(trip_id: int, proposal_id: str = "p-1") -> ItineraryProposed:
+def proposal(trip_id: int, proposal_id: str = "p-1", request_id: str | None = None) -> ItineraryProposed:  # fmt: skip
+    """Planning's answer, to the trip's first request unless told otherwise."""
     return ItineraryProposed(
         trip_id=trip_id,
+        request_id=request_id or f"{trip_id}-1",
         proposal_id=proposal_id,
         itineraries=[
             itinerary(1, "best value", departs_at=9, total=3100),  # the morning flight

@@ -5,7 +5,9 @@ event's class: a request, planning's proposal, and the trip's own events are one
 call each, with no LLM; the customer's reply, written in the customer's words, runs an LLM
 whose tools are the Trip's four reply operations themselves, bound by the library's
 `StateOperations`. The LLM proposes an operation by calling its tool, the operation accepts
-or refuses, and a refusal returns to the LLM as the tool's result. Nothing here knows about
+or refuses, and a refusal returns to the LLM as the tool's result. A refusal on a code path
+is the activation's answer, `Nothing` with the reason: a proposal answering a request the
+Trip no longer has outstanding is acknowledged and changes nothing. Nothing here knows about
 the broker or the store: what the agent consumes and produces is declared where it is
 hosted, in `app.py`, and the Trip under activation comes from the activator.
 """
@@ -44,14 +46,20 @@ class BookingAgent(BaseAgent):
         if isinstance(request, CustomerReplied):
             async for event in self.reply.run_async(ctx):
                 yield event
-        elif isinstance(request, TripRequested):
-            activation.answer(trip.create(request))
-        elif isinstance(request, ItineraryProposed):
-            activation.answer(trip.record_proposal(request))
-        elif isinstance(request, TripCreated):
-            activation.answer(trip.request_planning())
-        else:  # the trip's own ItineraryRejected or TripChanged: planning hears why
-            activation.answer(trip.request_planning(reason=request.reason))
+            return
+        try:
+            if isinstance(request, TripRequested):
+                activation.answer(trip.create(request))
+            elif isinstance(request, ItineraryProposed):
+                activation.answer(trip.record_proposal(request))
+            elif isinstance(request, TripCreated):
+                activation.answer(trip.request_planning())
+            else:  # the trip's own ItineraryRejected or TripChanged: planning hears why
+                activation.answer(trip.request_planning(reason=request.reason))
+        except eda.Refused as refusal:
+            # Only this agent changes the Trip, one event at a time, so what it refuses now
+            # it would refuse again: saying so is the answer, and the event is done.
+            activation.answer(eda.Nothing(reason=str(refusal)))
 
 
 def build_agent(model: BaseLlm) -> BookingAgent:

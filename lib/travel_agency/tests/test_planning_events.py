@@ -9,6 +9,7 @@ from travel_agency.events.planning import ItineraryProposed, ItineraryRequested
 
 REQUEST = {
     "trip_id": 1,
+    "request_id": "1-1",
     "origin_destinations": [
         {"origin": "NYC", "destination": "LIS", "departure_date": "2026-10-01"},
         {"origin": "LIS", "destination": "NYC", "departure_date": "2026-10-04"},
@@ -93,15 +94,15 @@ def test_a_stay_may_have_a_backup_and_the_backup_one_of_its_own():
     proposed = {**itinerary(1), "items": [{**STAY, "backup": first}]}
 
     proposal = ItineraryProposed.model_validate(
-        {"trip_id": 1, "proposal_id": "p-1", "itineraries": [proposed]}
+        {"trip_id": 1, "request_id": "1-1", "proposal_id": "p-1", "itineraries": [proposed]}
     )
 
     assert proposal.itineraries[0].items[0].backup.backup.hotel == "Grand Avenida"
 
 
 def test_the_proposal_contract_holds_one_to_three_itineraries():
-    ItineraryProposed.model_validate({"trip_id": 1, "proposal_id": "p-1", "itineraries": [itinerary(1)]})
+    ItineraryProposed.model_validate({"trip_id": 1, "request_id": "1-1", "proposal_id": "p-1", "itineraries": [itinerary(1)]})  # fmt: skip
     with pytest.raises(ValidationError):
         ItineraryProposed.model_validate(
-            {"trip_id": 1, "proposal_id": "p-1", "itineraries": [itinerary(n) for n in range(1, 5)]}
+            {"trip_id": 1, "request_id": "1-1", "proposal_id": "p-1", "itineraries": [itinerary(n) for n in range(1, 5)]}  # fmt: skip
         )

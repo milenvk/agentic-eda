@@ -60,6 +60,8 @@ class FakeConsumer:
         self.listener = None
         self.calls: list[str] = []
         self.commits: list[dict] = []
+        self.seeks: list[tuple[TopicPartition, int]] = []
+        self.served: dict[TopicPartition, list] = {}
         self._paused: set[TopicPartition] = set()
         FakeConsumer.last = self
 
@@ -93,7 +95,17 @@ class FakeConsumer:
         await asyncio.sleep(0)  # a real fetch yields; the lanes get to run
         if self._paused or not FakeConsumer.prepared:
             return {}
-        return FakeConsumer.prepared.pop(0)
+        batch = FakeConsumer.prepared.pop(0)
+        for partition, records in batch.items():
+            self.served.setdefault(partition, []).extend(records)
+        return batch
+
+    def seek(self, partition: TopicPartition, offset: int) -> None:
+        """Serve the partition's records from that offset on again, as a real consumer refetches them."""
+        self.calls.append("seek")
+        self.seeks.append((partition, offset))
+        again = [r for r in self.served.get(partition, []) if r.offset >= offset]
+        FakeConsumer.prepared.insert(0, {partition: again})
 
     async def commit(self, offsets=None) -> None:
         self.calls.append("commit")
@@ -384,20 +396,76 @@ async def test_both_sides_of_the_conversation_are_logged(fake_kafka, caplog):
     assert "RECEIVED" in caplog.text
 
 
-async def test_no_commit_when_the_handler_fails(fake_kafka):
-    broker = KafkaEventBroker("kafka:9092", client_name="test")
+async def test_a_failed_activation_is_delivered_again_after_a_pause(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0)
+    attempts: list[str] = []
 
-    async def failing_handler(event: WireEvent) -> None:
-        raise RuntimeError("killed mid-inference")
+    async def flaky_handler(event: WireEvent) -> None:
+        attempts.append(event.id)
+        if len(attempts) == 1:
+            raise RuntimeError("killed mid-inference")
 
-    await broker.subscribe("booking.TripRequested", failing_handler)
+    await broker.subscribe("booking.TripRequested", flaky_handler)
     fake_kafka.prepared.append({BOOKING: [record(0, make_event())]})
+    await run_until(broker, lambda: fake_kafka.last and fake_kafka.last.commits)
 
-    with pytest.raises(RuntimeError, match="mid-inference"):
-        await run_until(broker, lambda: False)
+    assert attempts == ["event-1", "event-1"]
+    assert fake_kafka.last.seeks == [(BOOKING, 0)]  # back to the record that failed
+    assert fake_kafka.last.calls.index("seek") < fake_kafka.last.calls.index("commit")
+    assert fake_kafka.last.commits == [{BOOKING: 1}]  # nothing committed until it succeeded
 
-    assert "commit" not in fake_kafka.last.calls
-    assert "stop" in fake_kafka.last.calls  # the consumer still shuts down cleanly
+
+async def test_a_shutdown_lets_the_work_in_flight_finish_and_commits_it(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", stop_timeout=1)
+    gated = Gated()
+    await broker.subscribe("booking.TripRequested", gated)
+    fake_kafka.prepared.append({BOOKING: [record(0, make_event())]})
+    async with running(broker):
+        await until(lambda: gated.started)
+        asyncio.get_running_loop().call_later(0.02, gated.release, "event-1")
+    # Leaving `running()` cancelled the loop while the activation was still running.
+    calls = fake_kafka.last.calls
+    assert fake_kafka.last.commits == [{BOOKING: 1}]
+    assert calls.index("commit") < calls.index("stop")
+
+
+async def test_a_shutdown_waits_no_longer_than_its_timeout(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", stop_timeout=0.01)
+    gated = Gated()  # never released
+    await broker.subscribe("booking.TripRequested", gated)
+    fake_kafka.prepared.append({BOOKING: [record(0, make_event())]})
+    async with running(broker):
+        await until(lambda: gated.started)
+
+    assert fake_kafka.last.commits == []  # cancelled unfinished: the event comes back on restart
+    assert "stop" in fake_kafka.last.calls
+
+
+async def test_a_failure_waits_for_the_other_lanes_and_cancels_none_of_them(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0)
+    handled: list[str] = []
+    gate = asyncio.Event()
+
+    async def handler(event: WireEvent) -> None:
+        if event.id == "event-1" and "event-1" not in handled:
+            handled.append(event.id)
+            raise RuntimeError("killed mid-inference")
+        if event.id == "event-2" and "event-2" not in handled:
+            await gate.wait()  # a long activation on another key, in flight when event-1 fails
+        handled.append(event.id)
+
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append(batch((0, "event-1", b"trip-1"), (1, "event-2", b"trip-2")))
+    async with running(broker):
+        await until(lambda: "event-1" in handled)
+        await asyncio.sleep(0.01)
+        assert fake_kafka.last.seeks == []  # the seek waits for trip-2's activation
+        gate.set()
+        await until(lambda: fake_kafka.last.commits)
+
+    assert handled == ["event-1", "event-2", "event-1", "event-2"]  # finished work behind the failure comes back too
+    assert fake_kafka.last.seeks == [(BOOKING, 0)]
+    assert fake_kafka.last.commits == [{BOOKING: 2}]
 
 
 class Gated:

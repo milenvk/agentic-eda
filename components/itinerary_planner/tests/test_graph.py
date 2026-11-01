@@ -118,6 +118,7 @@ async def test_it_proposes_ranked_itineraries_carrying_the_suppliers_offers(mode
     proposal = await planned(graph(model, airline, hotels), request())
 
     assert proposal.trip_id == 1
+    assert proposal.request_id == "1-1"  # the request it answers
     assert proposal.proposal_id  # the Planner names what it publishes
     assert [i.rank for i in proposal.itineraries] == list(range(1, len(proposal.itineraries) + 1))
     assert all(i.rationale.endswith("suits this trip") for i in proposal.itineraries)  # the model's

@@ -346,6 +346,19 @@ name one. The mapping is the same from ch 1 to the end of the book, and the port
   consumer killed mid-handler never commits, so the event is redelivered on restart: the ch 1
   durability demonstration, and the at-least-once floor the book names in
   `ch01_paradigm_shift` and examines in `ch10_crash_and_retry`.
+* A handler that raises is not a crash. The adapter starts nothing new, lets the other lanes
+  finish, commits the watermark, seeks every partition back to its first unfinished record,
+  and after a pause (`retry_delay`, five seconds by default) fetches from there again, so the
+  failed event, and whatever was fetched behind it, is delivered again in order. The component
+  stays in its group and keeps serving; an event that fails every time retries at that pace
+  until ch 10 dead-letters it.
+* A shutdown drains before it leaves. Cancelled, the loop fetches nothing more, gives the
+  activations in flight `stop_timeout` (30 seconds by default) to finish, commits the
+  watermark, and only then leaves the group, so finished work is not replayed on restart; the
+  compose files give the component `stop_grace_period: 45s` so Docker's own 10-second kill
+  does not cut the drain short. Independently of the drain, the activator runs an
+  activation's commit and publish to their end once the commit has started, holding the
+  cancellation until the publish is out (The Agent Activator, below).
 * `event_broker(client_name, start=...)` chooses where a component reads from the first
   time it subscribes, and `start` has exactly two values.
 +
@@ -569,7 +582,14 @@ model an adapter concern. The activator owns five things.
    `produces` must answer, and where none was published the activator raises: the event is
    never acknowledged, the broker redelivers it, and the activation runs again, which is the
    right treatment for a model that declined once in ten; repeated failure dead-letters in
-   ch 10. An agent that may legitimately have nothing to say declares `eda.Nothing` among
+   ch 10. The check runs before the commit: an activation that answered nothing, or with a
+   class it did not declare, commits no state and records no event id, so its redelivery
+   runs the agent again instead of being skipped as handled. And once the commit has started,
+   the publish follows whatever cancels the activation: the step runs to its end and the
+   cancellation is let through after it, so a shutdown never leaves the state advanced and
+   the fact unsaid. A crash or a broker that refuses the publish still can, until ch 8's
+   outbox writes the facts in the commit's transaction. An agent that may legitimately
+   have nothing to say declares `eda.Nothing` among
    its `produces` and answers with it, reason included, as the Duty-of-Care Monitor's sweep
    does when no advisory affects a reserved destination: a positive answer, never silence,
    which is what keeps "decided nothing" apart from "drifted". Where code rather than a
@@ -605,7 +625,10 @@ model an adapter concern. The activator owns five things.
   new_message=request as the user message)`, iterated
 | what the agent handed to `eda.activation().answer(event)`, the one way code that cannot
   return hands over its event (the Booking Agent's tools, and its custom agent's code paths,
-  since a custom agent's run method is a generator of ADK events), else the text of the
+  since a custom agent's run method is a generator of ADK events; a refusal on one of those
+  code paths is answered with `Nothing` and the refusal's reason, since the Trip changes only
+  through this agent's own activations and the same event would be refused again), else the
+  text of the
   event whose `is_final_response()` is true, parsed against `produces`; the tools are the
   Trip's reply operations themselves, with nothing written around them in the component:
   the library's `StateOperations` (`agentic_eda.adk`, the ADK face of the library, installed

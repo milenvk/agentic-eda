@@ -4,6 +4,7 @@ Everything Kafka-specific lives here: topic naming, the CloudEvents wire codec,
 consumer groups, and offset commits. No component imports aiokafka.
 """
 
+import asyncio
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
@@ -110,6 +111,10 @@ class KafkaEventBroker:
 
     ``max_in_flight`` caps the events one process handles at once, across every
     partition key. Events sharing a partition key are still handled one at a time and in order.
+
+    ``retry_delay`` is how long the loop waits before it delivers a failed activation's
+    event again. ``stop_timeout`` is how long a shutdown waits for the activations in
+    flight to finish before it cancels them.
     """
 
     def __init__(
@@ -118,6 +123,8 @@ class KafkaEventBroker:
         client_name: str,
         start: str = "now",
         max_in_flight: int = 64,
+        retry_delay: float = 5.0,
+        stop_timeout: float = 30.0,
     ) -> None:
         if start not in _START_POSITIONS:
             raise ValueError(
@@ -127,6 +134,8 @@ class KafkaEventBroker:
         self._client_name = client_name
         self._start = start
         self._max_in_flight = max_in_flight
+        self._retry_delay = retry_delay
+        self._stop_timeout = stop_timeout
         self._producer: AIOKafkaProducer | None = None
         self._handlers: dict[str, list[EventHandler]] = {}
 
@@ -188,6 +197,16 @@ class KafkaEventBroker:
         return, and only up to the watermark, so a consumer that dies
         mid-handler never confirms the event: the broker delivers it again on
         restart.
+
+        A handler that raises stops its lane. The loop then starts nothing new,
+        lets the other lanes finish, commits what finished, and seeks every
+        partition back to its first unfinished record, so the failed event, and
+        whatever was fetched behind it, is delivered again after a pause.
+
+        Cancelled, the loop fetches nothing more, gives the activations in flight
+        ``stop_timeout`` to finish, commits what finished, and only then leaves
+        the group, so a shutdown cuts no activation short and replays no finished
+        work on restart.
         """
         consumer = AIOKafkaConsumer(
             bootstrap_servers=self._bootstrap_servers,
@@ -206,7 +225,7 @@ class KafkaEventBroker:
         await consumer.start()
         try:
             while True:
-                room = self._max_in_flight - lanes.in_flight
+                room = 0 if lanes.failure is not None else self._max_in_flight - lanes.in_flight
                 if room > 0:
                     consumer.resume(*consumer.paused())
                 else:
@@ -218,13 +237,20 @@ class KafkaEventBroker:
                 for partition, records in batches.items():
                     for record in records:
                         watermark.fetched(partition, record.offset)
-                        # No key means no order: the record gets a lane of its own.
-                        lanes.submit(
-                            record.key or (partition, record.offset),
-                            partial(self._handle, watermark, partition, record),
-                        )
+                        if lanes.failure is None:  # after a failure, nothing new starts
+                            # No key means no order: the record gets a lane of its own.
+                            lanes.submit(
+                                record.key or (partition, record.offset),
+                                partial(self._handle, watermark, partition, record),
+                            )
                 await commit()
-                lanes.check()
+                if lanes.failure is not None and lanes.in_flight == 0:
+                    await self._take_again(consumer, watermark, lanes.failure)
+                    lanes = Lanes(self._max_in_flight)
+        except asyncio.CancelledError:
+            await lanes.finish(self._stop_timeout)
+            await commit()
+            raise
         finally:
             await lanes.close()
             await consumer.stop()
@@ -239,6 +265,27 @@ class KafkaEventBroker:
             for handler in handlers:
                 await handler(event)
         watermark.finished(partition, record.offset)
+
+    async def _take_again(
+        self, consumer: AIOKafkaConsumer, watermark: Watermark, failure: Exception
+    ) -> None:
+        """Seek every partition back to its first unfinished record, after a pause.
+
+        Everything that finished is committed by now. The failed record, and whatever
+        was fetched behind it, is fetched and handled again, in order: at-least-once,
+        kept by the adapter without leaving the group.
+        """
+        log.warning(
+            "an activation failed: %r; its event is delivered again in %.0fs",
+            failure,
+            self._retry_delay,
+        )
+        await asyncio.sleep(self._retry_delay)
+        positions = watermark.positions()
+        for partition in consumer.assignment():
+            if partition in positions:
+                consumer.seek(partition, positions[partition])
+        watermark.forget(positions)
 
     async def _commit_finished(self, consumer: AIOKafkaConsumer, watermark: Watermark) -> None:
         offsets = watermark.advanced()

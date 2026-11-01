@@ -86,8 +86,18 @@ def test_a_proposal_is_recorded_and_passed_on():
         Trip(trip_id=42, status="planning").record_proposal(proposal(7))
 
 
+def test_a_proposal_answers_the_outstanding_request_or_is_refused():
+    trip = proposed_trip()
+    trip.reject("p-1", "too expensive")
+    assert trip.request_planning(reason="too expensive").request_id == "42-2"
+    with pytest.raises(Refused, match="answers request 42-1, not the outstanding 42-2"):
+        trip.record_proposal(proposal(42, "p-late"))  # a late answer to the first request
+    trip.record_proposal(proposal(42, "p-2", request_id="42-2"))
+    assert [p.proposal_id for p in trip.proposals] == ["p-1", "p-2"]
+
+
 def test_a_proposal_ready_event_carries_the_itineraries_as_proposed():
-    trip = Trip(trip_id=42, status="planning")
+    trip = Trip(trip_id=42, status="planning", planning_requests=1)
     ready = trip.record_proposal(proposal(42))
     assert isinstance(ready, ProposalReady)
     assert [i.rank for i in ready.itineraries] == [1, 2, 3]

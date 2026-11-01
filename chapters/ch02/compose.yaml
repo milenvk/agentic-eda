@@ -25,6 +25,7 @@ x-demo: &demo
 services:
   # The same events as chapter 1's Planner, and a new inside: the book's one replacement.
   itinerary-planner:
+    stop_grace_period: 45s  # a shutdown gives the activations in flight 30s to finish first
     build:
       context: ../..
       dockerfile: components/itinerary_planner/Dockerfile
@@ -68,6 +69,7 @@ services:
       dockerfile: components/hotel_reservation_system_sim/Dockerfile
 
   audit-consumer:
+    stop_grace_period: 45s  # a shutdown gives the activations in flight 30s to finish first
     build:
       context: ../..
       dockerfile: components/audit_consumer/Dockerfile

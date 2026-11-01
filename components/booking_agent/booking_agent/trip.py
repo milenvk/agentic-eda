@@ -63,9 +63,16 @@ class Trip(BaseModel):
     trip_id: int
     status: Status = "new"
     requirements: TripRequirements | None = None
+    # How many times planning was asked; the latest request is the outstanding one.
+    planning_requests: int = 0
     proposals: list[Proposal] = []
     pending_question: Question | None = None
     approved: Choice | None = None
+
+    @property
+    def outstanding_request(self) -> str:
+        """The id of the latest planning request, the one a proposal must answer."""
+        return f"{self.trip_id}-{self.planning_requests}"
 
     # --- operations with no judgement in them, called by the agent's code
 
@@ -90,16 +97,24 @@ class Trip(BaseModel):
         read off the event that sent the trip back here.
         """
         self._allowed_in("requested")
-        self.status = "planning"
+        self.status, self.planning_requests = "planning", self.planning_requests + 1
         return ItineraryRequested(
-            trip_id=self.trip_id, reason=reason, **self.requirements.model_dump()
+            trip_id=self.trip_id,
+            request_id=self.outstanding_request,
+            reason=reason,
+            **self.requirements.model_dump(),
         )
 
     def record_proposal(self, proposal: ItineraryProposed) -> ProposalReady:
-        """Keep planning's answer and pass the itineraries on to the customer."""
+        """Keep planning's answer to the outstanding request and pass the itineraries on to the customer."""
         self._allowed_in("planning")
         if proposal.trip_id != self.trip_id:
             raise Refused(f"proposal {proposal.proposal_id} is for trip {proposal.trip_id}")
+        if proposal.request_id != self.outstanding_request:
+            raise Refused(
+                f"proposal {proposal.proposal_id} answers request {proposal.request_id}, "
+                f"not the outstanding {self.outstanding_request}"
+            )
         self.proposals.append(
             Proposal(proposal_id=proposal.proposal_id, itineraries=proposal.itineraries)
         )

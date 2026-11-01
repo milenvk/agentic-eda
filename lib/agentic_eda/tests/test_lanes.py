@@ -75,7 +75,7 @@ async def test_the_cap_counts_work_across_every_key():
     second.release.set()
 
 
-async def test_a_failure_stops_its_lane_and_surfaces_on_check():
+async def test_a_failure_stops_its_lane_and_is_reported():
     lanes, log = Lanes(), []
 
     async def failing() -> None:
@@ -91,8 +91,7 @@ async def test_a_failure_stops_its_lane_and_surfaces_on_check():
     # The failed lane drops what was queued behind it; the other lane is untouched.
     assert log == ["start other"]
     assert lanes.in_flight == 1
-    with pytest.raises(RuntimeError, match="mid-inference"):
-        lanes.check()
+    assert isinstance(lanes.failure, RuntimeError) and "mid-inference" in str(lanes.failure)
     other.release.set()
 
 

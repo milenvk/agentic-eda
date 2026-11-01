@@ -52,9 +52,9 @@ def test_every_event_about_a_trip_is_keyed_by_the_trip(cls, fields):
 def test_the_requirements_state_what_planning_is_asked():
     """The planning request takes a trip's requirements as they are, plus the trip's id."""
     requirements = TripRequirements.model_validate(REQUIREMENTS)
-    request = ItineraryRequested(trip_id=42, **requirements.model_dump())
-    assert data_of(request) == {"trip_id": 42, **REQUIREMENTS}  # no reason until a re-plan
-    again = ItineraryRequested(trip_id=42, reason="a day later", **requirements.model_dump())
+    request = ItineraryRequested(trip_id=42, request_id="42-1", **requirements.model_dump())
+    assert data_of(request) == {"trip_id": 42, "request_id": "42-1", **REQUIREMENTS}  # no reason until a re-plan
+    again = ItineraryRequested(trip_id=42, request_id="42-2", reason="a day later", **requirements.model_dump())  # fmt: skip
     assert data_of(again)["reason"] == "a day later"
 
 

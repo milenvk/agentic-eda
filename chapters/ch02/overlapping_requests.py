@@ -15,8 +15,10 @@ from travel_agency.events.planning import Child, ItineraryRequested, Money, Stay
 
 
 def nairobi_trip() -> ItineraryRequested:
+    trip_id = new_trip_id()
     return ItineraryRequested(
-        trip_id=new_trip_id(),
+        trip_id=trip_id,
+        request_id=f"{trip_id}-1",
         origin_destinations=[
             journey("SAO", "NBO", date(2027, 7, 2), window=2),  # the price matters, the day less
             journey("NBO", "SAO", date(2027, 7, 9), window=2),
@@ -31,8 +33,10 @@ def nairobi_trip() -> ItineraryRequested:
 
 
 def sydney_trip() -> ItineraryRequested:
+    trip_id = new_trip_id()
     return ItineraryRequested(
-        trip_id=new_trip_id(),
+        trip_id=trip_id,
+        request_id=f"{trip_id}-1",
         origin_destinations=[
             journey("TYO", "SYD", date(2027, 7, 3)),
             journey("SYD", "AKL", date(2027, 7, 7)),

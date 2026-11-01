@@ -37,10 +37,11 @@ QUESTION = "Which itinerary did you choose?"
 
 def trip_from(capture: dict, asked: bool) -> Trip:
     """A trip in status proposed, as the demo's was: the captured request and proposal, ids kept."""
-    proposal = ItineraryProposed(**capture["proposal"])
-    trip = Trip(trip_id=proposal.trip_id)
+    trip = Trip(trip_id=capture["proposal"]["trip_id"])
     trip.create(TripRequested(conversation_id="eval", **capture["request"]))
     trip.request_planning()
+    # The captures predate the request id on proposals; each answered the request just made.
+    proposal = ItineraryProposed(**{**capture["proposal"], "request_id": trip.outstanding_request})
     trip.record_proposal(proposal)
     if asked:
         trip.request_clarification(proposal.proposal_id, QUESTION)

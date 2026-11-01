@@ -11,7 +11,7 @@ import pytest
 from conftest import FakeLlm, calls, proposal, says, trip_request
 
 from agentic_eda import connect, eda
-from agentic_eda.activator import Activator
+from agentic_eda.activator import Activator, NoAnswer
 from agentic_eda.memory_broker import InMemoryBroker
 from agentic_eda.memory_state_store import InMemoryStateStore
 from agentic_eda.publishing import publish_fact
@@ -59,7 +59,7 @@ def booking_agent(llm: FakeLlm) -> Activator:
         ),
         produces=eda.produces(
             TripCreated, TripRequestRejected, ItineraryRequested, ProposalReady,
-            ItineraryApproved, ItineraryRejected, TripChanged, ClarificationRequested,
+            ItineraryApproved, ItineraryRejected, TripChanged, ClarificationRequested, eda.Nothing,
         ),
         state=eda.state(Trip, key="trip_id", created_by=[TripRequested]),
         source="BookingAgent",
@@ -70,7 +70,7 @@ def planner() -> Activator:
     proposals = iter(range(1, 100))
 
     async def plan(request: ItineraryRequested) -> ItineraryProposed:
-        return proposal(request.trip_id, f"p-{next(proposals)}")
+        return proposal(request.trip_id, f"p-{next(proposals)}", request_id=request.request_id)
 
     return Activator(
         plan,
@@ -95,6 +95,12 @@ async def reply(broker: InMemoryBroker, words: str, proposal_id: str = "p-1", tr
         CustomerReplied(trip_id=trip_id, proposal_id=proposal_id, words=words),
         attributes={"correlationid": "wf-1"},
     )
+    await broker.settled()
+
+
+async def redeliver(broker: InMemoryBroker, event) -> None:
+    """The same event once more, as a broker delivers one that was never acknowledged."""
+    await broker.publish(event.type, event.source, event.data, id=event.id, attributes={"correlationid": "wf-1", "partitionkey": event.partitionkey})  # fmt: skip
     await broker.settled()
 
 
@@ -146,6 +152,24 @@ async def test_a_redelivered_request_creates_nothing_twice(system, llm):
         await broker.settled()
 
     assert len(broker.of_type(types.TRIP_CREATED)) == 1
+
+
+async def test_a_proposal_the_trip_refuses_is_acknowledged_with_nothing(system, llm):
+    broker, store = system
+    async with booking_agent(llm).running(), planner().running():
+        await request(broker)
+        # The Planner's activation ran twice (published, then died before acknowledging):
+        # a second proposal for the same request, under ids of its own.
+        again = proposal(1, "p-1-again", request_id="1-1")
+        await publish_fact(broker, "ItineraryPlannerAgent", again, attributes={"correlationid": "wf-1"})  # fmt: skip
+        await broker.settled()
+        second = broker.of_type(types.ITINERARY_PROPOSED)[-1]
+
+    assert broker.failed == []  # answered, with Nothing: the event is done
+    document, version = await store.load(1)
+    assert [p["proposal_id"] for p in document["proposals"]] == ["p-1"]
+    assert (1, second.id) in store.handled_events and version == 4
+    assert len(broker.of_type(types.PROPOSAL_READY)) == 1
 
 
 # --- the reply, read by the LLM into one operation
@@ -237,6 +261,22 @@ async def test_a_change_and_a_rejection_each_send_the_trip_back_to_planning(syst
     assert planning[1].causationid == changed.id and planning[2].causationid == rejected.id
     assert [event.data["proposal_id"] for event in broker.of_type(types.PROPOSAL_READY)] == ["p-1", "p-2", "p-3"]  # fmt: skip
     assert (await store.load(1))[0]["status"] == "proposed"
+
+
+async def test_an_llm_that_answers_nothing_fails_before_the_commit_so_the_reply_is_read_again(system):  # fmt: skip
+    broker, store = system
+    llm = FakeLlm(script=[says(""), calls("approve", proposal_id="p-1", rank=2)], requests=[])
+    async with booking_agent(llm).running(), planner().running():
+        await request(broker)
+        await reply(broker, "The second one.")
+        ((failed, error),) = broker.failed
+        assert isinstance(error, NoAnswer)
+        assert (await store.load(1))[0]["status"] == "proposed"  # as loaded: nothing was committed
+        assert (1, failed.id) not in store.handled_events
+        await redeliver(broker, failed)
+
+    assert len(llm.requests) == 2  # the redelivery reached the LLM
+    assert broker.of_type(types.ITINERARY_APPROVED)[0].data["rank"] == 2
 
 
 async def test_an_llm_that_answers_in_prose_instead_of_a_tool_call_fails_the_activation(system):

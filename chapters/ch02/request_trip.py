@@ -33,8 +33,10 @@ console.quiet_client_logs()
 
 def lisbon_trip() -> ItineraryRequested:
     """The running example: New York to Lisbon for two, with three days in Madrid on the way."""
+    trip_id = new_trip_id()
     return ItineraryRequested(
-        trip_id=new_trip_id(),
+        trip_id=trip_id,
+        request_id=f"{trip_id}-1",  # the trip's first request; from chapter 3 the Trip numbers them
         origin_destinations=[
             journey("NYC", "MAD", date(2027, 5, 10)),
             journey("MAD", "LIS", date(2027, 5, 13)),

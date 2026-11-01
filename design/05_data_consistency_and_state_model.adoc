@@ -367,7 +367,8 @@ moving the system keeps the guarantee by construction.
   (ch 8), `booking.RebookingProposed` (ch 9), `booking.PaymentRequested` with the recording of
   `booking.PaymentAuthorized` (ch 10), and finalized by `booking.TripConfirmed`, or by
   `booking.TripCancelled` after `booking.FlightReservationCancelled` and a refund. State
-  includes the trip request, the proposals received as event-carried state, the accepted
+  includes the trip request, the count of planning requests made (the latest is outstanding,
+  and a proposal names it by `request_id`), the proposals received as event-carried state, the accepted
   proposal's id and itinerary rank, the status
   (requested, planning, proposed, approved, awaiting policy approval, reserving, reserved,
   confirmed, cancelled), the Traveler entities, the Reservation entities (status pending,
@@ -423,7 +424,10 @@ LLM's tools are the Trip's reply operations themselves, bound to the loaded Trip
 call by the library's `StateOperations` (2026-10-27); the operation the LLM picks changes it in
 memory and returns the event, a refusal (the library's `Refused`) returns to the LLM as the
 tool's result,
-and the activator commits once, after the activation returns that event. No operation and no
+and the activator commits once, after the activation returns that event. An operation the
+agent's code calls that the Trip refuses is answered with `Nothing` and the refusal's reason:
+the Trip changes only through this agent's own activations, one event at a time, so the same
+event would be refused again, and the acknowledgement ends it. No operation and no
 agent code publishes or touches the store; nothing in chapter 3 calls `eda.publish`, which
 `04_implementation_design.adoc` introduces in chapter 7 for the reservation step.
 
@@ -465,13 +469,15 @@ Four rules hold for every activation:
   `booking.ItineraryRejected`, or `booking.TripChanged`
 | `requested`
 | the trip has no outstanding planning request
-| `planning.ItineraryRequested` with the requirements as they now stand and, on a re-plan,
-  the customer's reason (and from chapter 7 the items carried over); status `planning`
+| `planning.ItineraryRequested` with the request's id (the trip's id and the count of its
+  planning requests, `7-2` for trip 7's second), the requirements as they now stand and, on a
+  re-plan, the customer's reason (and from chapter 7 the items carried over); status `planning`
 
 | `record_proposal(proposal)`, on `planning.ItineraryProposed`
 | `planning`
-| the proposal answers this trip's outstanding request; one answering a superseded request is
-  ignored (chapter 7)
+| the proposal is this trip's and names its outstanding request (`request_id`); one answering
+  an earlier request, or arriving when the trip is already `proposed`, is refused, and the
+  agent answers `Nothing` with the reason, which acknowledges it
 | `booking.ProposalReady` with the itineraries as the customer should see them; status
   `proposed`. From chapter 7 the event waits for the barrier (`record_rate`, below)
 

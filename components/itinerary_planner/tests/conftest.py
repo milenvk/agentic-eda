@@ -28,6 +28,7 @@ def journey(origin: str, destination: str, on: str, days_before=None, days_after
 def request(event_id: str = "req-1", budget: float | None = 2900, **changes) -> ItineraryRequested:
     fields = {
         "trip_id": 1,
+        "request_id": "1-1",
         "origin_destinations": [
             journey("NYC", "LIS", "2026-10-01"),
             journey("LIS", "NYC", "2026-10-04"),

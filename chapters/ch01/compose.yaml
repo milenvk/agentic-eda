@@ -9,6 +9,7 @@ include:
 
 services:
   itinerary-planner:
+    stop_grace_period: 45s  # a shutdown gives the activations in flight 30s to finish first
     build:
       context: ../..
       dockerfile: components/itinerary_planner_minimal/Dockerfile
@@ -33,6 +34,7 @@ services:
 
   # Act 3: started live, mid-demo, without the publishers changing a line.
   audit-consumer:
+    stop_grace_period: 45s  # a shutdown gives the activations in flight 30s to finish first
     profiles: [audit]
     build:
       context: ../..

@@ -416,6 +416,7 @@ def _proposal(request, candidates: list[Itinerary], ranking: Ranking) -> Itinera
     ordered = sorted(candidates, key=lambda c: judged[c.label].rank if c.label in judged else 99)
     return ItineraryProposed(
         trip_id=request.trip_id,
+        request_id=request.request_id,
         proposal_id=str(uuid4()),
         itineraries=[
             candidate.model_copy(

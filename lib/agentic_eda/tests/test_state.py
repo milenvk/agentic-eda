@@ -3,13 +3,14 @@
 The broker and the store are the in-memory adapters, so no Kafka and no PostgreSQL.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 import pytest
 from pydantic import BaseModel, Field
 
 from agentic_eda import connect, eda
-from agentic_eda.activator import Activator
+from agentic_eda.activator import Activator, NoAnswer
 from agentic_eda.memory_broker import InMemoryBroker
 from agentic_eda.memory_state_store import InMemoryStateStore
 
@@ -191,6 +192,54 @@ async def test_the_state_is_not_committed_when_the_answer_is_rejected(system):
     document, version = await store.load(1)
     assert (document, version) == ({}, 0)  # the row stays as created
     assert len(broker.failed) == 1
+
+
+async def test_an_activation_that_answers_nothing_commits_nothing_so_its_redelivery_runs_again(system):  # fmt: skip
+    broker, store = system
+    seen: list[str] = []
+
+    async def silent_once(request):
+        seen.append(request.attributes_.id)
+        if isinstance(request, TripRequested):
+            return eda.activation().state.create(request)
+        if seen.count(request.attributes_.id) == 1:
+            return None  # the first time, the agent answers nothing at all
+        return eda.activation().state.request_planning()
+
+    async with activator(silent_once).running():
+        await request(broker)
+        await broker.settled()
+        ((failed, error),) = broker.failed
+        assert isinstance(error, NoAnswer)
+        document, version = await store.load(1)
+        assert (document["status"], version) == ("requested", 1)  # as loaded: not committed
+        assert (1, failed.id) not in store.handled_events
+        await broker.publish(failed.type, failed.source, failed.data, id=failed.id, attributes={"partitionkey": "1", "correlationid": "conv-1"})  # fmt: skip
+        await broker.settled()
+
+    assert len(broker.of_type(ITINERARY_REQUESTED)) == 1  # the redelivery ran the agent again
+    assert (await store.load(1))[0]["status"] == "planning"
+
+
+async def test_a_shutdown_does_not_part_a_commit_from_its_publish(system, monkeypatch):
+    broker, store = system
+    parked, released = asyncio.Event(), asyncio.Event()
+    real_publish = broker.publish
+
+    async def slow_publish(event_type, *args, **kwargs):
+        if event_type == TRIP_CREATED:
+            parked.set()
+            await released.wait()  # the broker is slow, and the component is stopped meanwhile
+        return await real_publish(event_type, *args, **kwargs)
+
+    monkeypatch.setattr(broker, "publish", slow_publish)
+    async with activator().running():
+        await request(broker)
+        await asyncio.wait_for(parked.wait(), 2)
+        asyncio.get_running_loop().call_later(0.05, released.set)
+    # Leaving `running()` cancelled the delivery loop with the activation parked at its publish.
+    assert len(broker.of_type(TRIP_CREATED)) == 1  # published all the same
+    assert (await store.load(1))[0]["status"] == "requested"
 
 
 async def test_code_that_cannot_return_hands_its_answer_to_the_activation(system):

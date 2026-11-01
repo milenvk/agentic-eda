@@ -47,6 +47,7 @@ eda.attach(
         ItineraryRejected,
         TripChanged,
         ClarificationRequested,
+        eda.Nothing,  # a proposal the Trip refuses is acknowledged, with the reason
     ),
     state=eda.state(Trip, key="trip_id", created_by=[TripRequested]),
 )

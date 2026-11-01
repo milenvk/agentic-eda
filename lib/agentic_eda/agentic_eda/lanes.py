@@ -27,7 +27,9 @@ class Lanes:
     ``submit`` never waits: the work joins its key's queue, and one task per key
     drains that queue in submission order. ``max_in_flight`` caps the work
     submitted and not yet finished across all keys; the caller checks ``full``
-    before fetching more.
+    before fetching more. ``failure`` is the first exception a lane met: that
+    lane is gone, with what was queued behind it, and the caller decides what
+    happens to the records it never finished.
 
     No locks: every method runs on the event loop's thread and none of them
     awaits, so no two calls interleave. A caller on another thread must go
@@ -75,10 +77,15 @@ class Lanes:
             del self._tasks[key]
             del self._queues[key]
 
-    def check(self) -> None:
-        """Raise the first failure a lane has met, if any."""
-        if self._failure is not None:
-            raise self._failure
+    @property
+    def failure(self) -> Exception | None:
+        """The first failure a lane has met, if any."""
+        return self._failure
+
+    async def finish(self, timeout: float) -> None:
+        """Wait up to ``timeout`` seconds for the work in flight to end, on its own."""
+        if self._tasks:
+            await asyncio.wait(list(self._tasks.values()), timeout=timeout)
 
     async def close(self) -> None:
         """Cancel every lane. Unfinished work was never acknowledged, so it comes back."""
@@ -119,6 +126,10 @@ class Watermark:
                 break
             del pending[first]
             self._position[partition] = first + 1
+
+    def positions(self) -> dict[Hashable, int]:
+        """Per partition, the first offset still unfinished: where to read from again."""
+        return dict(self._position)
 
     def advanced(self) -> dict[Hashable, int]:
         """The positions moved since the last call: what to commit now."""

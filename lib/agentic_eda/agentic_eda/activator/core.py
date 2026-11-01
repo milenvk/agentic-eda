@@ -10,7 +10,10 @@ For an agent that declared its state, the activator also keeps that state: befor
 activation it asks the store whether the event was already handled, loads the state the
 event's key names (or creates one for an event that starts a new state), and hands it to
 the agent through the activation; after the activation it commits the state with the
-version it loaded and the event's id, then publishes, then acknowledges.
+version it loaded and the event's id, then publishes, then acknowledges. An activation that
+answered nothing, or with a class the agent did not declare, fails before the commit, so
+its redelivery runs the agent again; and once the commit is made, the publish follows even
+if the activation is cancelled meanwhile, so the state and the facts it records never part.
 """
 
 import asyncio
@@ -92,7 +95,8 @@ async def publish(fact: EventContract) -> WireEvent:
     running = _ACTIVATION.get()
     if running is None:
         raise RuntimeError("publish is only available inside an activation")
-    return await running.activator._publish(fact, running)
+    activator = running.activator
+    return await activator._publish(activator._outbound(fact), running)
 
 
 class Activator:
@@ -155,28 +159,40 @@ class Activator:
         token = _ACTIVATION.set(activation)
         try:
             result = await self._adapter.invoke(self._agent, request, self._thread_id(activation))
-            if not self._produced:
-                await self._commit(activation)
-                return  # a pure consumer: whatever it returned is its own business
-            answer = activation.answered
-            if answer is None:
-                answer = self._adapter.extract_answer(result, self._produced)
-            facts = self._reduce(answer)
-            await self._commit(activation)
-            said_nothing = False
-            for fact in facts:
-                if isinstance(fact, Nothing):
-                    said_nothing = True
-                    log.info("%s answered nothing to %s: %s", self.source, event.id, fact.reason)
-                else:
-                    await self._publish(fact, activation)
-            if not activation.published and not said_nothing:
-                raise NoAnswer(
-                    f"{self.source} published nothing for {event.type} {event.id}; "
-                    f"an agent that may have nothing to say declares Nothing and says so"
-                )
+            # A pure consumer answers nothing by design; everything else is checked first, so
+            # an activation that cannot be completed commits no state and records no event id.
+            facts = self._facts(result, activation) if self._produced else []
+            # A shutdown between the commit and the publish would leave the state advanced
+            # and the fact unsaid, with the redelivery skipped as handled: so once the commit
+            # starts, the step runs to its end, and the cancellation waits.
+            await _to_the_end(self._commit_and_publish(facts, activation))
         finally:
             _ACTIVATION.reset(token)
+
+    async def _commit_and_publish(self, facts: list[EventContract], activation: Activation) -> None:
+        await self._commit(activation)
+        for fact in facts:
+            if isinstance(fact, Nothing):
+                log.info("%s answered nothing to %s: %s", self.source, activation.event.id, fact.reason)  # fmt: skip
+            else:
+                await self._publish(fact, activation)
+
+    def _facts(self, result, activation: Activation) -> list[EventContract]:
+        """What the activation answered, as it may leave: checked before anything is committed."""
+        answer = activation.answered
+        if answer is None:
+            answer = self._adapter.extract_answer(result, self._produced)
+        facts = [
+            fact if isinstance(fact, Nothing) else self._outbound(fact)
+            for fact in self._reduce(answer)
+        ]
+        if not facts and not activation.published:
+            event = activation.event
+            raise NoAnswer(
+                f"{self.source} answered nothing to {event.type} {event.id}; "
+                f"an agent that may have nothing to say declares Nothing and says so"
+            )
+        return facts
 
     def _validated(self, event: WireEvent) -> EventContract | None:
         cls = self._consumed[event.type]
@@ -262,14 +278,20 @@ class Activator:
                 errors.append(f"{cls.__name__}: {error}")
         raise RejectedAnswer("the answer fits none of the declared classes:\n" + "\n".join(errors))
 
-    async def _publish(self, fact: EventContract, activation: Activation) -> WireEvent:
+    def _outbound(self, fact) -> EventContract:
+        """A fact as it may leave: one of the declared classes, validated again on the way out.
+
+        A provider enforces a schema's shape and not its constraints, and an instance may
+        have been built without validation.
+        """
         if not isinstance(fact, self._produced) or isinstance(fact, Nothing):
             raise RejectedAnswer(
                 f"{type(fact).__name__} is not among what {self.source} declared it produces"
             )
-        # Validated again on the way out: a provider enforces a schema's shape and not its
-        # constraints, and an instance may have been built without validation.
-        fact = type(fact).model_validate(fact.model_dump(exclude={"attributes_"}))
+        return type(fact).model_validate(fact.model_dump(exclude={"attributes_"}))
+
+    async def _publish(self, fact: EventContract, activation: Activation) -> WireEvent:
+        """Publish one outbound fact with its envelope: the one path out of a component."""
         inbound = activation.event
         attributes = {
             "correlationid": str(getattr(inbound, "correlationid", inbound.id)),
@@ -308,6 +330,17 @@ def attach(
 
     app.router.lifespan_context = lifespan
     return activator
+
+
+async def _to_the_end(step) -> None:
+    """Run ``step`` to its end even if this task is cancelled meanwhile, then let the cancellation through."""
+    running = asyncio.ensure_future(step)
+    try:
+        await asyncio.shield(running)
+    except asyncio.CancelledError:
+        if not running.done():
+            await asyncio.shield(running)  # a second cancellation is let through at once
+        raise
 
 
 def _require_every_event_to_name_its_state(consumes: Consumes, state: State) -> None:

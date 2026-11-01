@@ -192,7 +192,7 @@ async def test_an_agent_that_answers_nothing_is_a_failure(broker):
     async def plan(request):
         return None
 
-    with pytest.raises(NoAnswer, match="published nothing"):
+    with pytest.raises(NoAnswer, match="answered nothing"):
         await activate(plan, broker)
 
 
