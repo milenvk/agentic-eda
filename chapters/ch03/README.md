@@ -148,7 +148,7 @@ Observe in the watch terminal:
 1. `demo-rejected-1` prints a PUBLISHED card. The event is valid against its contract, so
    the activator lets it through to the agent.
 2. `booking-agent-1` publishes `booking.TripRequestRejected` under the conversation's key,
-   its `reason` naming the broken rule. The Trip's `create` operation checked the rules in
+   its `reason` naming the broken rule. The Trip's `open` operation checked the rules in
    code; no LLM was involved, no trip was created, and planning was never asked.
 
 Chapter 2's malformed request stopped at the boundary, where the contract is checked. This

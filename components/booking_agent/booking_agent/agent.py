@@ -49,7 +49,7 @@ class BookingAgent(BaseAgent):
             return
         try:
             if isinstance(request, TripRequested):
-                activation.answer(trip.create(request))
+                activation.answer(trip.open(request))
             elif isinstance(request, ItineraryProposed):
                 activation.answer(trip.record_proposal(request))
             elif isinstance(request, TripCreated):

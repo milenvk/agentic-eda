@@ -23,7 +23,7 @@ from travel_agency.events.planning import ItineraryRequested
 def proposed_trip() -> Trip:
     """A trip with one proposal on the table, the state every reply is read in."""
     trip = Trip(trip_id=42)
-    trip.create(trip_request())
+    trip.open(trip_request())
     trip.request_planning()
     trip.record_proposal(proposal(42))
     return trip
@@ -34,7 +34,7 @@ def proposed_trip() -> Trip:
 
 def test_a_request_that_passes_the_checks_becomes_the_trip():
     trip = Trip(trip_id=42)
-    created = trip.create(trip_request())
+    created = trip.open(trip_request())
     assert isinstance(created, TripCreated)
     assert (created.trip_id, created.conversation_id) == (42, "conv-1")
     assert trip.status == "requested" and trip.requirements == requirements()
@@ -51,14 +51,14 @@ def test_a_request_that_passes_the_checks_becomes_the_trip():
 )
 def test_a_request_that_fails_a_check_is_rejected_and_creates_nothing(changes, problem):
     trip = Trip(trip_id=42)
-    rejected = trip.create(trip_request(**changes))
+    rejected = trip.open(trip_request(**changes))
     assert isinstance(rejected, TripRequestRejected) and problem in rejected.reason
     assert trip.status == "new" and trip.requirements is None
 
 
 def test_the_planning_request_carries_the_requirements_and_the_reason_once():
     trip = Trip(trip_id=42)
-    trip.create(trip_request())
+    trip.open(trip_request())
     request = trip.request_planning()
     assert isinstance(request, ItineraryRequested)
     assert (request.trip_id, request.reason, trip.status) == (42, None, "planning")

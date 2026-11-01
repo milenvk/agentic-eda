@@ -76,8 +76,8 @@ class Trip(BaseModel):
 
     # --- operations with no judgement in them, called by the agent's code
 
-    def create(self, request: TripRequested) -> TripCreated | TripRequestRejected:
-        """Record the request as this trip, or say what is wrong with it. No trip is created then."""
+    def open(self, request: TripRequested) -> TripCreated | TripRequestRejected:
+        """Open the trip on the customer's request, or say what is wrong with it; a refused request opens no trip."""
         self._allowed_in("new")
         requirements = TripRequirements.model_validate(
             request.model_dump(include=set(TripRequirements.model_fields))

@@ -46,7 +46,7 @@ class Trip(BaseModel):
     origin: str | None = None
     planned: int = 0
 
-    def create(self, request: TripRequested) -> TripCreated:
+    def open(self, request: TripRequested) -> TripCreated:
         self.status, self.origin = "requested", request.origin
         return TripCreated(trip_id=self.trip_id, origin=self.origin)
 
@@ -58,7 +58,7 @@ class Trip(BaseModel):
 async def booking_agent(request):
     trip = eda.activation().state
     if isinstance(request, TripRequested):
-        return trip.create(request)
+        return trip.open(request)
     return trip.request_planning()
 
 
@@ -201,7 +201,7 @@ async def test_an_activation_that_answers_nothing_commits_nothing_so_its_redeliv
     async def silent_once(request):
         seen.append(request.attributes_.id)
         if isinstance(request, TripRequested):
-            return eda.activation().state.create(request)
+            return eda.activation().state.open(request)
         if seen.count(request.attributes_.id) == 1:
             return None  # the first time, the agent answers nothing at all
         return eda.activation().state.request_planning()
@@ -262,7 +262,7 @@ async def test_an_activation_answers_once(system):
 
     async def twice(request):
         trip = eda.activation().state
-        eda.activation().answer(trip.create(request))
+        eda.activation().answer(trip.open(request))
         eda.activation().answer(trip.request_planning())
 
     async with activator(twice).running():

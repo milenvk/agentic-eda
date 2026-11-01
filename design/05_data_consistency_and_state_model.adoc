@@ -415,7 +415,7 @@ and acknowledges (`04_implementation_design.adoc`, The Agent Activator). An **ac
 Booking Agent is therefore one operation call: `trip.approve(reply.proposal_id, rank)`.
 On `booking.TripRequested` there is no Trip to load: the activator creates the row under the
 request's event id first, so the Trip knows the id it will announce, hands the activation a
-blank Trip with that id and nothing else, and the activation's `trip.create(request)` records
+blank Trip with that id and nothing else, and the activation's `trip.open(request)` records
 the request on it (amended 2026-10-24, when the code was built). A request that fails the
 checks leaves the blank row in place, status `new`, with the request's event id recorded
 against it, which is what lets a redelivered rejected request be recognised too; no trip
@@ -455,7 +455,7 @@ Four rules hold for every activation:
 |===
 | Operation, and the event whose activation calls it | Allowed in status | Checks | Returns
 
-| `create(request)`, on `booking.TripRequested`
+| `open(request)`, on `booking.TripRequested`
 | `new` (a blank Trip under the id the store just assigned)
 | the request is a business request: dates in the future and in order, every stay checking
   out after it checks in, a budget above nothing or null for no limit (at least one
@@ -497,7 +497,7 @@ Four rules hold for every activation:
 | the LLM names what the customer changed, new departure dates (one per journey, in travel
   order) or a new budget, never the whole requirements; the Trip moves the stays with the
   journeys around them, by the rule the Planner applies when it settles a date, and the
-  changed requirements pass the same checks as `create`
+  changed requirements pass the same checks as `open`
 | `booking.TripChanged` with the requirements as they now stand; status `requested`
 
 | `request_clarification(proposal_id, question, options)`, a reply tool
@@ -519,7 +519,7 @@ approval; until then the refusal forces the decision on the words (2026-10-27).
 
 ==== Transitions in chapter 3
 
-* `new`, `create` accepted: `requested`; refused: `new`, `booking.TripRequestRejected`.
+* `new`, `open` accepted: `requested`; refused: `new`, `booking.TripRequestRejected`.
 * `requested`, `request_planning`: `planning`.
 * `planning`, `record_proposal`: `proposed`.
 * `proposed` or `awaiting clarification`, `approve`: `approved` (terminal in chapter 3).

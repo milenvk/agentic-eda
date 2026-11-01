@@ -201,7 +201,7 @@ event's key or create it under the event's id, handled, load, rebuild the Trip, 
 activation (one operation call), commit the Trip's state, publish the event, acknowledge, with
 nothing else allowed to write the row. A new state is built from its id alone (every other
 field of the class has a default; `eda.state` checks it at import), which is how the Trip
-exists, blank, before `create` records the request on it. Which events create is declared,
+exists, blank, before `open` records the request on it. Which events create is declared,
 never inferred: `eda.state(Trip, key="trip_id", created_by=[TripRequested])`, and a consumed
 event that neither creates nor carries the key is refused at startup (2026-10-26).
 
