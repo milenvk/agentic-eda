@@ -10,6 +10,14 @@ Run inside the component's image against the LLM named in `.env`, from the repos
     docker compose -f chapters/ch03/compose.tests.yaml build tests-booking-agent
     docker run --rm --env-file .env --add-host host.docker.internal:host-gateway \\
         ch03-tests-booking-agent python evals/reply_eval.py 20
+
+A count is comparable only with another count from the same day: the local LLM reads the
+"a day later" case differently from one day to the next on the same build, model, and flags,
+and the prompt's date is one of the reasons. To judge a change, run the baseline commit and
+the change back to back at 20 readings. The image imports the package from site-packages,
+so a baseline is mounted there (`git archive <commit> components/booking_agent/booking_agent`
+over `/usr/local/lib/python3.14/site-packages/booking_agent`, the evals over
+`/app/component/evals`), never over the source tree, which a script run does not import.
 """
 
 import asyncio

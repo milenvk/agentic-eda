@@ -907,7 +907,10 @@ Inside the variable text, the data the decision is computed from goes last, near
 reply: the reply prompt ends on the trip's requirements, since a reply such as "a day
 later" is counted from the journeys' dates, and the date, the proposal, and the question
 being answered come before them. The default LLM reads the same words differently under another
-order, so a reordering is measured by the component's eval like any other new version.
+order, so a reordering is measured by the component's eval like any other new version. A
+measurement is a same-day A/B at the eval's twenty readings, the baseline commit against the
+change: the local LLM's reading of a borderline case drifts from day to day on an unchanged
+build, model, and flags, so a count quoted from another day proves nothing.
 
 The prompt file is the whole prompt: every sentence the LLM reads is in the file, and the
 code passes values only. A line whose variables all render empty is left out, which is how
