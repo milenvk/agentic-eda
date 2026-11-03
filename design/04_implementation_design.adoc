@@ -351,7 +351,9 @@ name one. The mapping is the same from ch 1 to the end of the book, and the port
   and after a pause (`retry_delay`, five seconds by default) fetches from there again, so the
   failed event, and whatever was fetched behind it, is delivered again in order. The component
   stays in its group and keeps serving; an event that fails every time retries at that pace
-  until ch 10 dead-letters it.
+  until ch 10 dead-letters it, throttling the replica meanwhile (the register of what the
+  protocol leaves open, with each gap's closing, is in
+  `05_data_consistency_and_state_model.adoc`, The Activation Protocol).
 * A shutdown drains before it leaves. Cancelled, the loop fetches nothing more, gives the
   activations in flight `stop_timeout` (30 seconds by default) to finish, commits the
   watermark, and only then leaves the group, so finished work is not replayed on restart; the
@@ -588,7 +590,9 @@ model an adapter concern. The activator owns five things.
    the publish follows whatever cancels the activation: the step runs to its end and the
    cancellation is let through after it, so a shutdown never leaves the state advanced and
    the fact unsaid. A crash or a broker that refuses the publish still can, until ch 8's
-   outbox writes the facts in the commit's transaction. An agent that may legitimately
+   outbox writes the facts in the commit's transaction; this and the other gaps left open
+   before chapters 8 and 10 are registered in `05_data_consistency_and_state_model.adoc`
+   (The Activation Protocol). An agent that may legitimately
    have nothing to say declares `eda.Nothing` among
    its `produces` and answers with it, reason included, as the Duty-of-Care Monitor's sweep
    does when no advisory affects a reserved destination: a positive answer, never silence,

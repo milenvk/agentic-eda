@@ -249,6 +249,73 @@ Clients must accept these trade-offs:
   the read model, publishes the second (if needed), and waits again. If the second fails, the
   first is already committed; a compensating event may be needed to revert it.
 
+== The Activation Protocol: What It Does Not Yet Close
+
+The activator's protocol for a stateful agent (`04_implementation_design.adoc`, The Agent
+Activator) is: validate, create or load, invoke, check the answer, commit the state and the
+handled event id in one transaction, publish, acknowledge. Reviewed against the chapter 3 code
+on 2026-11-02, it guarantees four things on every supported broker: no state is committed
+unless the activation produced a valid answer; no committed state is lost; no event changes
+one aggregate twice; and one replica at a time writes a given aggregate, with the version
+fence as the backstop. What it does not guarantee is listed here, each gap with the mechanism
+and the chapter that closes it, so each chapter's demo is read against the guarantee in
+force at that point and not against the finished system. Items marked as proposed are
+decisions still open on 2026-11-03.
+
+* **A fact lost between the commit and the publish** (closed by the Agentic Outbox, ch 8).
+  The commit and each publish are separate calls, and the shield around them holds against
+  cancellation only. A kill after the grace period, an out-of-memory kill, or a broker
+  refusing the publish leaves the state advanced and the fact unpublished, and the redelivered
+  inbound event is acknowledged as handled. Nothing records the lost fact, so a trip at
+  `planning` with no `planning.ItineraryRequested` on the broker stalls silently. The outbox
+  writes the facts, with their ids, in the commit's transaction, and a relay publishes them in
+  commit order per key. What remains after it is the relay's own at-least-once, under the same
+  id, which is deduplication by id (next item).
+* **A stateless agent's facts duplicated under new ids** (closed in ch 10, deterministic
+  idempotency; proposed). An agent without a `state` declaration (the Itinerary Planner) has
+  no handled check, so any redelivery runs it again and its answer leaves under a fresh id:
+  after a crash before the offset commit, after a rebalance, and on every seek-back after
+  another key's failure, which re-fetches the finished records behind the failed one on the
+  same partition. The Booking Agent is covered by `request_id`; a projection, or any other
+  consumer, sees two events. The closing is the inbound event as the upstream idempotency
+  key: the activator derives the id of each fact answered at the end of an activation from
+  the inbound event's id and the fact's ordinal (a UUID v5), so a rerun states the fact under
+  the same id and every consumer deduplicating by id drops the second, the stateful ones
+  through `handled`. The first stated fact wins, which is the right rule for an LLM whose
+  second answer may differ. A fact stated mid-activation through `eda.publish` is outside
+  this closing and belongs to ch 8's durable checkpoint (`04_implementation_design.adoc`,
+  Publish tools).
+* **A rebalance runs one activation twice** (accepted; the fence, ch 8). On revocation the
+  adapter commits the watermark and forgets the partition while the lane in flight runs on,
+  and the new owner fetches the same record. Both invoke the agent, and the LLM, on the same
+  version. The fence lets one commit and refuses the other with `StaleVersion`; the loser's
+  redelivery is found handled and skipped. The state is consistent, and the cost is a second
+  LLM call per in-flight activation per moved partition, with an arbitrary winner. The
+  alternative, canceling a revoked partition's lanes before their commit starts, cuts the
+  second call but, under Kafka's eager rebalance protocol, cancels every running activation
+  on every membership change. The design keeps the fence alone and names the alternative in
+  ch 8.
+* **One failing event throttles the replica and burns tokens** (closed in ch 10, poison
+  pills; proposed). After a failed lane the loop fetches nothing until the lanes in flight
+  drain, pauses `retry_delay`, seeks back, and fetches again, with no cap. Between retries
+  every other partition advances by one batch, so the replica is throttled rather than
+  stopped; the failed record's own partition does not advance past it, and the finished
+  records behind it on that partition are fetched and handled again on every cycle: a stateful
+  agent skips them by `handled`, and a stateless agent runs them again, one LLM call per
+  record per cycle, without end. The closing is an attempt count per record in the adapter and
+  `max_attempts` on its constructor: once the cap is reached, the record goes to
+  `dlq.<context>` with its key, is marked finished, and the watermark moves past it.
+* **Two silent acknowledgments** (closed in ch 10, poison pills). A malformed event, and an
+  event about a state missing from the store, are logged at warning level and acknowledged;
+  a store restored from an older backup meets the second for every trip opened since. From
+  ch 10 both go to `dlq.<context>` instead. The malformed case is designed (The validating
+  boundary, in 04); the unknown-state case joins it (proposed).
+
+Two narrower gaps stay with the Kafka adapter and are recorded under Subscription Mechanics
+in `04_implementation_design.adoc`: a consumer group killed before its first offset commit
+resets by `start` and skips its in-flight event, and the shield lets a second cancellation
+through at once, so a forced shutdown during a commit-and-publish is the first gap above.
+
 == Ordering Guarantees: The Contract
 
 Within-aggregate order **is part of the `EventBroker` contract** (`ch04_consumer_concurrency`),
@@ -659,4 +726,5 @@ tracking (explicit dependency chains). Each aggregate has a single writer, in-or
 every supported broker, and an independent lifecycle. Idempotent projections handle
 redeliveries. Out-of-order arrival is tolerated only across topics, where causation and staging
 reconcile dependencies. The trade-off is that cross-aggregate queries and updates may lag and
-must be compensated, but the system is resilient, scalable, and fast.
+must be compensated, but the system is resilient, scalable, and fast. What the activation
+protocol leaves open before chapters 8 and 10 is registered above (The Activation Protocol).
