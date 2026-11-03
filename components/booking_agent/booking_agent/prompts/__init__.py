@@ -38,7 +38,7 @@ def reply_prompt(trip: Trip, reply: CustomerReplied) -> str:
         requirements=_requirements(trip.requirements),
         proposal_id=reply.proposal_id,
         itineraries="\n".join(_line(i) for i in proposal.itineraries) if proposal else "none",
-        question=reply.question or "",  # no question: the line is left out
+        question=reply.answering or "",  # no question: the line is left out
         today=date.today().isoformat(),
     )
 

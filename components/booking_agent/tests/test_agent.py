@@ -93,7 +93,7 @@ async def reply(broker: InMemoryBroker, words: str, proposal_id: str = "p-1", tr
     await publish_fact(
         broker,
         CHANNEL,
-        CustomerReplied(trip_id=trip_id, proposal_id=proposal_id, words=words, question=question),
+        CustomerReplied(trip_id=trip_id, proposal_id=proposal_id, words=words, answering=question),
         attributes={"correlationid": "wf-1"},
     )
     await broker.settled()

@@ -71,7 +71,7 @@ def cases_for(capture: dict) -> list[tuple[str, bool, str]]:
 async def read(runner: InMemoryRunner, trip: Trip, words: str, question: str | None) -> str:
     """One reading: the agent's reply step on this trip and these words, and what it decided."""
     proposal_id = trip.proposals[-1].proposal_id
-    reply = CustomerReplied(trip_id=trip.trip_id, proposal_id=proposal_id, words=words, question=question)  # fmt: skip
+    reply = CustomerReplied(trip_id=trip.trip_id, proposal_id=proposal_id, words=words, answering=question)  # fmt: skip
     activation = Activation(event=None, request=reply, activator=None, state=trip)
     token = _ACTIVATION.set(activation)
     try:
