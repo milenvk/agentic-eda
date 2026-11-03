@@ -92,6 +92,11 @@ class CustomerReplied(EventContract):
     trip_id: int = TRIP_ID
     proposal_id: str = Field(description="The proposal the customer is replying to.")
     words: str = Field(description="The reply as the customer wrote it.")
+    question: str | None = Field(
+        default=None,
+        description="The question answered by these words, as the channel showed it. "
+        "Null when the reply is to the proposal itself.",
+    )
 
 
 @event(ITINERARY_APPROVED, order_per="trip_id")

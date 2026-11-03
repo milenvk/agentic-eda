@@ -49,7 +49,7 @@ def trip_from(capture: dict, asked: bool) -> Trip:
 
 
 def cases_for(capture: dict) -> list[tuple[str, bool, str]]:
-    """The script's replies against one captured proposal: words, pending question, expected."""
+    """The script's replies against one captured proposal: words, whether a question was asked, expected."""
     journeys = capture["request"]["origin_destinations"]
     a_day_later = [
         str(date.fromisoformat(j["departure_date"]) + timedelta(days=1)) for j in journeys
@@ -68,10 +68,10 @@ def cases_for(capture: dict) -> list[tuple[str, bool, str]]:
     ]
 
 
-async def read(runner: InMemoryRunner, trip: Trip, words: str) -> str:
+async def read(runner: InMemoryRunner, trip: Trip, words: str, question: str | None) -> str:
     """One reading: the agent's reply step on this trip and these words, and what it decided."""
     proposal_id = trip.proposals[-1].proposal_id
-    reply = CustomerReplied(trip_id=trip.trip_id, proposal_id=proposal_id, words=words)
+    reply = CustomerReplied(trip_id=trip.trip_id, proposal_id=proposal_id, words=words, question=question)  # fmt: skip
     activation = Activation(event=None, request=reply, activator=None, state=trip)
     token = _ACTIVATION.set(activation)
     try:
@@ -115,7 +115,7 @@ async def main(n: int) -> None:
         for words, asked, expected in cases_for(capture):
             counts: collections.Counter[str] = collections.Counter()
             for _ in range(n):
-                counts[await read(runner, trip_from(capture, asked), words)] += 1
+                counts[await read(runner, trip_from(capture, asked), words, QUESTION if asked else None)] += 1  # fmt: skip
             right = sum(count for outcome, count in counts.items() if outcome.startswith(expected))
             right_total, total = right_total + right, total + n
             pending = ", a question pending" if asked else ""

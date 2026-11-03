@@ -16,7 +16,7 @@ Today is {today}.
 The itineraries of the proposal the customer is replying to, best first:
 {itineraries}
 
-You already asked: {pending_question} Read the reply as its answer.
+You already asked: {question} Read the reply as its answer.
 
 The trip's requirements as they now stand:
 {requirements}

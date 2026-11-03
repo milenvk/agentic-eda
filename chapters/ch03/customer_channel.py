@@ -147,11 +147,13 @@ async def main() -> None:
 
         ready = await conversation.hear()
         show_itineraries(ready)
+        question = None  # the question the next reply answers, when booking asked one
         for words in REPLIES:
             print(f'\nThe customer replies: "{words}"\n', flush=True)
-            reply = CustomerReplied(trip_id=trip_id, proposal_id=ready.data["proposal_id"], words=words)  # fmt: skip
+            reply = CustomerReplied(trip_id=trip_id, proposal_id=ready.data["proposal_id"], words=words, question=question)  # fmt: skip
             await conversation.say(reply, causation=ready)
             outcome = await conversation.hear()
+            question = outcome.data["question"] if outcome.type == event_types.CLARIFICATION_REQUESTED else None  # fmt: skip
             if outcome.type in BACK_TO_PLANNING:
                 print("\nBack to planning; waiting for the next proposal...\n", flush=True)
                 ready = await conversation.hear()

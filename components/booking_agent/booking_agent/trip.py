@@ -47,12 +47,6 @@ class Proposal(BaseModel):
     questions_asked: int = 0
 
 
-class Question(BaseModel):
-    proposal_id: str
-    question: str
-    options: list[str] | None
-
-
 class Choice(BaseModel):
     proposal_id: str
     rank: int
@@ -66,7 +60,6 @@ class Trip(BaseModel):
     # How many times planning was asked; the latest request is the outstanding one.
     planning_requests: int = 0
     proposals: list[Proposal] = []
-    pending_question: Question | None = None
     approved: Choice | None = None
 
     @property
@@ -138,7 +131,7 @@ class Trip(BaseModel):
         proposal = self._proposal(proposal_id)
         if rank not in [itinerary.rank for itinerary in proposal.itineraries]:
             raise Refused(f"proposal {proposal_id} has no itinerary ranked {rank}")
-        self.approved, self.pending_question, self.status = Choice(proposal_id=proposal_id, rank=rank), None, "approved"  # fmt: skip
+        self.approved, self.status = Choice(proposal_id=proposal_id, rank=rank), "approved"
         return ItineraryApproved(trip_id=self.trip_id, proposal_id=proposal_id, rank=rank)
 
     def reject(
@@ -149,7 +142,7 @@ class Trip(BaseModel):
         """The customer wants none of this proposal's itineraries and asks for nothing different about the trip; planning will be asked again from the same requirements."""
         self._allowed_in(*REPLYING)
         self._proposal(proposal_id)
-        self.pending_question, self.status = None, "requested"
+        self.status = "requested"
         return ItineraryRejected(trip_id=self.trip_id, proposal_id=proposal_id, reason=reason)
 
     def change(
@@ -175,7 +168,7 @@ class Trip(BaseModel):
         problems = _problems(requirements)
         if problems:
             raise Refused(problems)
-        self.requirements, self.pending_question, self.status = requirements, None, "requested"
+        self.requirements, self.status = requirements, "requested"
         return TripChanged(trip_id=self.trip_id, requirements=requirements, reason=reason)
 
     def request_clarification(
@@ -196,7 +189,6 @@ class Trip(BaseModel):
                 f"decide on the words you have, by approving, rejecting, or changing the trip"
             )
         proposal.questions_asked += 1
-        self.pending_question = Question(proposal_id=proposal_id, question=question, options=options)  # fmt: skip
         self.status = "awaiting clarification"
         return ClarificationRequested(
             trip_id=self.trip_id, proposal_id=proposal_id, question=question, options=options

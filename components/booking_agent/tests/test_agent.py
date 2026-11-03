@@ -88,11 +88,12 @@ async def request(broker: InMemoryBroker, **changes):
     return event
 
 
-async def reply(broker: InMemoryBroker, words: str, proposal_id: str = "p-1", trip_id: int = 1):
+async def reply(broker: InMemoryBroker, words: str, proposal_id: str = "p-1", trip_id: int = 1, question: str | None = None):  # fmt: skip
+    """What the customer said and, when booking asked one, the question being answered."""
     await publish_fact(
         broker,
         CHANNEL,
-        CustomerReplied(trip_id=trip_id, proposal_id=proposal_id, words=words),
+        CustomerReplied(trip_id=trip_id, proposal_id=proposal_id, words=words, question=question),
         attributes={"correlationid": "wf-1"},
     )
     await broker.settled()
@@ -223,7 +224,7 @@ async def test_an_ambiguous_reply_earns_a_question_and_the_next_reply_settles_it
         await request(broker)
         await reply(broker, "Sounds good.")
         assert (await store.load(1))[0]["status"] == "awaiting clarification"
-        await reply(broker, "The second one.")
+        await reply(broker, "The second one.", question="Which of the three itineraries?")
 
     (asked,) = broker.of_type(types.CLARIFICATION_REQUESTED)
     assert asked.data["question"] == "Which of the three itineraries?"

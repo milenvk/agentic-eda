@@ -905,14 +905,14 @@ A prompt file puts its fixed text first, the role and the rules, and its variabl
 last, so that every provider's prefix cache matches the longest unchanged run of tokens.
 Inside the variable text, the data the decision is computed from goes last, nearest the
 reply: the reply prompt ends on the trip's requirements, since a reply such as "a day
-later" is counted from the journeys' dates, and the date, the proposal, and the pending
-question come before them. The default LLM reads the same words differently under another
+later" is counted from the journeys' dates, and the date, the proposal, and the question
+being answered come before them. The default LLM reads the same words differently under another
 order, so a reordering is measured by the component's eval like any other new version.
 
 The prompt file is the whole prompt: every sentence the LLM reads is in the file, and the
 code passes values only. A line whose variables all render empty is left out, which is how
-a sentence about something the trip may not have, the pending question, is written in the
-file and still absent from the prompt when there is none.
+a sentence about something the reply may not carry, the question being answered, is written in
+the file and still absent from the prompt when there is none.
 
 == Repository Layout Conventions
 

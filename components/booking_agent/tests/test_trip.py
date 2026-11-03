@@ -169,14 +169,14 @@ def test_a_question_is_asked_at_most_three_times_per_proposal(monkeypatch):
     trip = proposed_trip()
     asked = trip.request_clarification("p-1", "Which itinerary?", ["1", "2", "3"])
     assert isinstance(asked, ClarificationRequested)
-    assert trip.status == "awaiting clarification" and trip.pending_question.question == "Which itinerary?"  # fmt: skip
+    assert trip.status == "awaiting clarification" and asked.question == "Which itinerary?"
     trip.request_clarification("p-1", "The morning one or the evening one?")
     trip.request_clarification("p-1", "The one with the stop, or the direct one?")
     with pytest.raises(Refused, match="3 questions were already asked"):
         trip.request_clarification("p-1", "Still unsure?")
 
     approved = trip.approve("p-1", 1)  # the reply in the awaiting state settles it
-    assert approved.rank == 1 and trip.pending_question is None
+    assert approved.rank == 1 and trip.status == "approved"
 
 
 def test_the_cap_is_a_setting(monkeypatch):

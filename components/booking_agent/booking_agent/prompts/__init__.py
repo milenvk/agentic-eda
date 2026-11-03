@@ -1,8 +1,8 @@
 """Prompts are configuration: versioned files, the version chosen by `PROMPT_VERSION`.
 
 The files are in this package, beside this module, so they are installed with it. A line
-whose variables all render empty is left out, so a sentence about something the trip may
-not have, such as a pending question, is written in the file and not in code. How the Trip
+whose variables all render empty is left out, so a sentence about something the reply may
+not carry, such as the question being answered, is written in the file and not in code. How the Trip
 is written for the LLM is here too, beside the prompt file: the journeys numbered in travel
 order, and each itinerary by what a customer would describe it by.
 """
@@ -33,13 +33,12 @@ def render(name: str, **variables: object) -> str:
 def reply_prompt(trip: Trip, reply: CustomerReplied) -> str:
     """The prompt for reading one reply: the trip and the proposal it is about."""
     proposal = next((p for p in trip.proposals if p.proposal_id == reply.proposal_id), None)
-    pending = trip.pending_question
     return render(
         "reply",
         requirements=_requirements(trip.requirements),
         proposal_id=reply.proposal_id,
         itineraries="\n".join(_line(i) for i in proposal.itineraries) if proposal else "none",
-        pending_question=pending.question if pending else "",  # no question: the line is left out
+        question=reply.question or "",  # no question: the line is left out
         today=date.today().isoformat(),
     )
 

@@ -484,8 +484,7 @@ Four rules hold for every activation:
 | `approve(proposal_id, rank)`, a reply tool
 | `proposed`, `awaiting clarification`
 | the proposal is one of this trip's; the rank exists in it; nothing is approved yet
-| `booking.ItineraryApproved` naming the proposal and the rank; status `approved`; the pending
-  question, if any, cleared
+| `booking.ItineraryApproved` naming the proposal and the rank; status `approved`
 
 | `reject(proposal_id, reason)`, a reply tool
 | `proposed`, `awaiting clarification`
@@ -507,7 +506,9 @@ Four rules hold for every activation:
   as the tool's result, and it chooses among approve, reject, and change on the words it has;
   it never guesses an approval
 | `booking.ClarificationRequested` with the question and the options; status
-  `awaiting clarification`; the question kept as pending on the proposal
+  `awaiting clarification`; the question counted against the proposal's cap and not kept on
+  the Trip: the customer's next `booking.CustomerReplied` carries the question being answered, set
+  by the channel that showed it, and the reply prompt places it beside the words
 |===
 
 The reply activation calls exactly one of `approve`, `reject`, `change`, or `request_clarification`. Checking the request,
