@@ -98,8 +98,9 @@ payment offstage until ch 10.
   publishing (orchestration named in one sentence, compared in ch 7), the reply's four outcomes
   and clarification, the customer's words as the zero-trust seed, a second framework through
   the same activator, a framework's session as working memory, the agent traits in one table;
-  the open-host request (booking's requests, with ch 1 and 2's `planning.ItineraryRequested`
-  named as the first instance)
+   the open-host request (booking's requests, with ch 1 and 2's `planning.ItineraryRequested`
+  named as the first instance); present in the library and not taught until ch 10: outbound
+  ids derived from the inbound event, and `max_attempts` unbounded (decided 2026-11-03)
 
 | 4
 | Workflow
@@ -228,9 +229,9 @@ payment offstage until ch 10.
   API), payment provider adapter (booking's edge: `booking.PaymentRequested` answered by
   `booking.PaymentAuthorized`, `booking.RefundRequested` by `booking.PaymentRefunded`), the
   Payment entity on the trip, the DLQ replay tool, a faulty prompt version for the Planner;
-  proposed 2026-11-03: `max_attempts` and dead-lettering in the Kafka adapter, dead-lettering
-  of the activator's two silent acknowledgments, outbound ids derived from the inbound
-  event's id
+  `max_attempts` set on the Kafka adapter, which dead-letters at the cap, and the activator's
+  two silent acknowledgments (a malformed event, a state missing from the store) dead-lettered
+  (decided 2026-11-03)
 | The payment step; `promptversion` and `modelversion` stamped by the activator; dead-letter
   routing on contract failure
 | At-least-once reality and the three delivery guarantees, deterministic idempotency, internal checkpointing, DLQ, time travel,

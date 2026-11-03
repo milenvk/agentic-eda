@@ -235,7 +235,9 @@ little is passed:
 
 * `id`: a UUID. Ids are globally unique across the entire solution by architectural
   decision (see Identifiers in `01_system_overview.adoc`), deliberately stricter than the
-  CloudEvents per-`source` minimum.
+  CloudEvents per-`source` minimum. A publisher with no inbound event gets a random one
+  (v4); the activator passes a derived one for every fact an activation answers with (The
+  Agent Activator, below).
 * `time`: now, UTC, unless supplied in `attributes`; RFC 3339 on the wire.
 * `datacontenttype`: `application/json` unless supplied in `attributes`.
 * `specversion`: declared on `ContextAttributes` as `Literal["1.0"]` with that default, so no
@@ -350,10 +352,15 @@ name one. The mapping is the same from ch 1 to the end of the book, and the port
   finish, commits the watermark, seeks every partition back to its first unfinished record,
   and after a pause (`retry_delay`, five seconds by default) fetches from there again, so the
   failed event, and whatever was fetched behind it, is delivered again in order. The component
-  stays in its group and keeps serving; an event that fails every time retries at that pace
-  until ch 10 dead-letters it, throttling the replica meanwhile (the register of what the
+  stays in its group and keeps serving; an event that fails every time retries at that pace,
+  throttling the replica meanwhile, until `max_attempts` (on the constructor, unbounded by
+  default, set in ch 10) is reached: the record is then published to `dlq.<context>` with
+  its key, marked finished, and the watermark moves past it. Attempts are counted per record
+  in memory, and only the activation's own failures count; a failure the activator raises
+  under its port-failure class (the store or the broker unreachable, a `StaleVersion`) retries
+  without a cap, because the event is sound. Decided 2026-11-03; the register of what the
   protocol leaves open, with each gap's closing, is in
-  `05_data_consistency_and_state_model.adoc`, The Activation Protocol).
+  `05_data_consistency_and_state_model.adoc`, The Activation Protocol.
 * A shutdown drains before it leaves. Cancelled, the loop fetches nothing more, gives the
   activations in flight `stop_timeout` (30 seconds by default) to finish, commits the
   watermark, and only then leaves the group, so finished work is not replayed on restart; the
@@ -460,7 +467,9 @@ model an adapter concern. The activator owns five things.
   attributes, the data against the `@event` class bound to its type (below), which the agent
   receives as that class, with the event's attributes beside its data in `attributes_`, and
   never as an `WireEvent`, and from ch 13 the producer's identity; a rejected event
-  is logged and, from ch 10, dead-lettered, and never reaches the handler. Outbound: the same
+  is logged and, from ch 10, dead-lettered, and never reaches the handler, and so is an
+  event about a state missing from the store (decided 2026-11-03), which before ch 10 is an
+  acknowledged warning like the malformed one. Outbound: the same
   contract on every publish, and the `partitionkey` of a class declaring `order_per`.
 * **How an agent is hosted, and how it states a fact.** The activator is a library, never a
   competing host, and the agent never learns that a broker exists. Its developer writes the
@@ -556,7 +565,12 @@ model an adapter concern. The activator owns five things.
    reduces what comes back to one instance of a class in `produces`, or `Nothing` (an
    instance, a dict that validates as one, or JSON text parsed against `produces`, the
    wrapper unwrapped), rejects anything else at the boundary, and publishes it with its
-   envelope: type and key from the binding, `id` and `time` generated, `correlationid` and
+   envelope: type and key from the binding, `time` generated, `id` derived as a name-based
+   UUID (v5) from the component's name, the inbound event's id, the fact's type, and its
+   ordinal among that type, so that a rerun of the activation states the same fact under the
+   same id and a consumer deduplicating by id drops the second (decided 2026-11-03; taught in
+   ch 10 as the upstream idempotency key, on from ch 3 since nothing earlier observes it),
+   `correlationid` and
    `causationid` from the inbound event, `promptversion` and `modelversion` from
    configuration (ch 10). Returning from the activation acknowledges. Every outbound event
    passes through this one path, so the outbound boundary is one function. The activator

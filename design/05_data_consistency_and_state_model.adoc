@@ -259,8 +259,8 @@ unless the activation produced a valid answer; no committed state is lost; no ev
 one aggregate twice; and one replica at a time writes a given aggregate, with the version
 fence as the backstop. What it does not guarantee is listed here, each gap with the mechanism
 and the chapter that closes it, so each chapter's demo is read against the guarantee in
-force at that point and not against the finished system. Items marked as proposed are
-decisions still open on 2026-11-03.
+force at that point and not against the finished system. The closings were decided on
+2026-11-03.
 
 * **A fact lost between the commit and the publish** (closed by the Agentic Outbox, ch 8).
   The commit and each publish are separate calls, and the shield around them holds against
@@ -271,18 +271,24 @@ decisions still open on 2026-11-03.
   writes the facts, with their ids, in the commit's transaction, and a relay publishes them in
   commit order per key. What remains after it is the relay's own at-least-once, under the same
   id, which is deduplication by id (next item).
-* **A stateless agent's facts duplicated under new ids** (closed in ch 10, deterministic
-  idempotency; proposed). An agent without a `state` declaration (the Itinerary Planner) has
+* **A stateless agent's facts duplicated under new ids** (closed by derived ids, built from
+  ch 3 and taught in ch 10). An agent without a `state` declaration (the Itinerary Planner) has
   no handled check, so any redelivery runs it again and its answer leaves under a fresh id:
   after a crash before the offset commit, after a rebalance, and on every seek-back after
   another key's failure, which re-fetches the finished records behind the failed one on the
   same partition. The Booking Agent is covered by `request_id`; a projection, or any other
   consumer, sees two events. The closing is the inbound event as the upstream idempotency
   key: the activator derives the id of each fact answered at the end of an activation from
-  the inbound event's id and the fact's ordinal (a UUID v5), so a rerun states the fact under
-  the same id and every consumer deduplicating by id drops the second, the stateful ones
-  through `handled`. The first stated fact wins, which is the right rule for an LLM whose
-  second answer may differ. A fact stated mid-activation through `eda.publish` is outside
+  the component's name, the inbound event's id, the fact's type, and its ordinal among that
+  type, as a name-based UUID (v5), so a rerun states the fact under the same id and every
+  consumer deduplicating by id drops the second, the stateful ones through `handled`. The
+  component's name keeps two components answering one event apart, and the type keeps a
+  rerun answering in another order on the same ids. A name-based UUID is a hash of fixed
+  length, so a chain of any depth carries no history in its ids, and its collision odds are a
+  random UUID's. The first stated fact wins, which is the right rule for an LLM whose second
+  answer may differ. It is always on, since nothing before ch 10 observes how an id is
+  derived; a publisher outside an activation (a demo script, a channel) has no inbound event
+  and keeps a random id. A fact stated mid-activation through `eda.publish` is outside
   this closing and belongs to ch 8's durable checkpoint (`04_implementation_design.adoc`,
   Publish tools).
 * **A rebalance runs one activation twice** (accepted; the fence, ch 8). On revocation the
@@ -295,21 +301,28 @@ decisions still open on 2026-11-03.
   second call but, under Kafka's eager rebalance protocol, cancels every running activation
   on every membership change. The design keeps the fence alone and names the alternative in
   ch 8.
-* **One failing event throttles the replica and burns tokens** (closed in ch 10, poison
-  pills; proposed). After a failed lane the loop fetches nothing until the lanes in flight
+* **One failing event throttles the replica and burns tokens** (closed by `max_attempts`,
+  built from ch 3 and set in ch 10). After a failed lane the loop fetches nothing until the lanes in flight
   drain, pauses `retry_delay`, seeks back, and fetches again, with no cap. Between retries
   every other partition advances by one batch, so the replica is throttled rather than
   stopped; the failed record's own partition does not advance past it, and the finished
   records behind it on that partition are fetched and handled again on every cycle: a stateful
   agent skips them by `handled`, and a stateless agent runs them again, one LLM call per
   record per cycle, without end. The closing is an attempt count per record in the adapter and
-  `max_attempts` on its constructor: once the cap is reached, the record goes to
-  `dlq.<context>` with its key, is marked finished, and the watermark moves past it.
+  `max_attempts` on its constructor, unbounded by default so that chapters 3 to 9 retry as
+  they do today: once the cap is reached, the record goes to `dlq.<context>` with its key,
+  is marked finished, and the watermark moves past it. Only the activation's own failures
+  count (`NoAnswer`, `RejectedAnswer`, an exception from the agent's code): a port's failure,
+  the store or the broker unreachable or a `StaleVersion`, retries without a cap, because
+  the event is sound and dead-lettering it for an outage would be wrong. The activator tells
+  the two apart by raising its port calls' failures under one class of its own, and the
+  adapter counts every other failure.
 * **Two silent acknowledgments** (closed in ch 10, poison pills). A malformed event, and an
   event about a state missing from the store, are logged at warning level and acknowledged;
   a store restored from an older backup meets the second for every trip opened since. From
-  ch 10 both go to `dlq.<context>` instead. The malformed case is designed (The validating
-  boundary, in 04); the unknown-state case joins it (proposed).
+  ch 10 both go to `dlq.<context>` instead, with the record's key, so that a store restored
+  from a backup leaves a replayable trace rather than dropping every newer trip's events.
+  Before the cap and the DLQ topic are configured, both stay acknowledged warnings.
 
 Two narrower gaps stay with the Kafka adapter and are recorded under Subscription Mechanics
 in `04_implementation_design.adoc`: a consumer group killed before its first offset commit
