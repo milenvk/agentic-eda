@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from agentic_eda.lanes import Lanes, Watermark
+from agentic_eda.lanes import Attempts, Lanes, Watermark
 
 
 class Gate:
@@ -148,3 +148,13 @@ def test_a_forgotten_partition_ignores_late_finishes():
     watermark.forget(["p0"])
     watermark.finished("p0", 0)
     assert watermark.advanced() == {}
+
+
+def test_attempts_are_counted_per_record_and_forgotten_when_done_or_revoked():
+    attempts = Attempts()
+
+    assert [attempts.failed("p0", 7), attempts.failed("p0", 7), attempts.failed("p0", 8)] == [1, 2, 1]
+    attempts.done("p0", 7)
+    assert attempts.failed("p0", 7) == 1  # a record that finished starts over if it ever fails again
+    attempts.forget(["p0"])
+    assert attempts.failed("p0", 8) == 1  # the partition's records went with it

@@ -32,9 +32,17 @@ async def event_broker(
     which is the one promise every broker can keep. ``"beginning"`` asks for the
     history the broker still holds, and an adapter backed by a broker without a
     durable log must refuse it rather than quietly starting from now.
+
+    ``MAX_ATTEMPTS``, when set, caps the deliveries of one event to a component before
+    the adapter parks it on the context's dead-letter topic. Unset, a failing event is
+    delivered again without end.
     """
+    max_attempts = os.environ.get("MAX_ATTEMPTS")
     async with KafkaEventBroker(
-        os.environ["KAFKA_BOOTSTRAP_SERVERS"], client_name=client_name, start=start
+        os.environ["KAFKA_BOOTSTRAP_SERVERS"],
+        client_name=client_name,
+        start=start,
+        max_attempts=int(max_attempts) if max_attempts else None,
     ) as broker:
         yield broker
 

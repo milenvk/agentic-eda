@@ -7,7 +7,7 @@ consumer groups, and offset commits. No component imports aiokafka.
 import asyncio
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timezone
 from functools import partial
 
@@ -17,9 +17,9 @@ from aiokafka.structs import ConsumerRecord, TopicPartition
 from cloudevents.core.bindings import kafka
 from cloudevents.core.v1.event import CloudEvent
 
-from .broker import WireEvent, EventHandler
+from .broker import EventHandler, PoisonPill, PortFailure, WireEvent
 from .console import format_event
-from .lanes import Lanes, Watermark
+from .lanes import Attempts, Lanes, Watermark
 
 # Every event a component publishes or receives passes through this adapter,
 # so this one logger shows each component's side of the conversation.
@@ -75,16 +75,16 @@ class _PartitionListener(ConsumerRebalanceListener):
     def __init__(
         self,
         client_name: str,
-        watermark: Watermark,
         commit: Callable[[], Awaitable[None]],
+        forget: Callable[[Iterable[TopicPartition]], None],
     ) -> None:
         self._client_name = client_name
-        self._watermark = watermark
         self._commit = commit
+        self._forget = forget
 
     async def on_partitions_revoked(self, revoked) -> None:
         await self._commit()
-        self._watermark.forget(revoked)
+        self._forget(revoked)
 
     async def on_partitions_assigned(self, assigned) -> None:
         # A subscriber receives only what follows it, so the moment it is listening
@@ -115,6 +115,12 @@ class KafkaEventBroker:
     ``retry_delay`` is how long the loop waits before it delivers a failed activation's
     event again. ``stop_timeout`` is how long a shutdown waits for the activations in
     flight to finish before it cancels them.
+
+    ``max_attempts`` caps the deliveries of one record to this process: at the cap the
+    record is parked on its context's dead-letter topic, ``dlq.<context>``, with its key,
+    and the loop moves past it. Unset, a failing record is delivered again without end.
+    A ``PortFailure`` counts toward no cap, since the event is sound, and a ``PoisonPill``
+    is parked at once, or acknowledged where there is no cap.
     """
 
     def __init__(
@@ -125,6 +131,7 @@ class KafkaEventBroker:
         max_in_flight: int = 64,
         retry_delay: float = 5.0,
         stop_timeout: float = 30.0,
+        max_attempts: int | None = None,
     ) -> None:
         if start not in _START_POSITIONS:
             raise ValueError(
@@ -136,6 +143,7 @@ class KafkaEventBroker:
         self._max_in_flight = max_in_flight
         self._retry_delay = retry_delay
         self._stop_timeout = stop_timeout
+        self._max_attempts = max_attempts
         self._producer: AIOKafkaProducer | None = None
         self._handlers: dict[str, list[EventHandler]] = {}
 
@@ -201,7 +209,9 @@ class KafkaEventBroker:
         A handler that raises stops its lane. The loop then starts nothing new,
         lets the other lanes finish, commits what finished, and seeks every
         partition back to its first unfinished record, so the failed event, and
-        whatever was fetched behind it, is delivered again after a pause.
+        whatever was fetched behind it, is delivered again after a pause. With
+        ``max_attempts`` set, the record is parked on the dead-letter topic at
+        the cap instead, and finished.
 
         Cancelled, the loop fetches nothing more, gives the activations in flight
         ``stop_timeout`` to finish, commits what finished, and only then leaves
@@ -216,11 +226,16 @@ class KafkaEventBroker:
             metadata_max_age_ms=5_000,  # discover topics created after startup quickly
         )
         lanes = Lanes(self._max_in_flight)
-        watermark = Watermark()
+        watermark, attempts = Watermark(), Attempts()
         commit = partial(self._commit_finished, consumer, watermark)
+
+        def forget(partitions: Iterable[TopicPartition]) -> None:
+            watermark.forget(partitions)
+            attempts.forget(partitions)
+
         consumer.subscribe(
             topics=sorted({topic_for(event_type) for event_type in self._handlers}),
-            listener=_PartitionListener(self._client_name, watermark, commit),
+            listener=_PartitionListener(self._client_name, commit, forget),
         )
         await consumer.start()
         try:
@@ -241,7 +256,7 @@ class KafkaEventBroker:
                             # No key means no order: the record gets a lane of its own.
                             lanes.submit(
                                 record.key or (partition, record.offset),
-                                partial(self._handle, watermark, partition, record),
+                                partial(self._handle, watermark, attempts, partition, record),
                             )
                 await commit()
                 if lanes.failure is not None and lanes.in_flight == 0:
@@ -256,15 +271,46 @@ class KafkaEventBroker:
             await consumer.stop()
 
     async def _handle(
-        self, watermark: Watermark, partition: TopicPartition, record: ConsumerRecord
+        self,
+        watermark: Watermark,
+        attempts: Attempts,
+        partition: TopicPartition,
+        record: ConsumerRecord,
     ) -> None:
-        event = decode(record)
-        handlers = self._handlers.get(event.type, [])
-        if handlers:  # a topic carries its whole context; other types pass by untouched
-            log.info("\n%s", format_event("RECEIVED", event))
-            for handler in handlers:
-                await handler(event)
+        try:
+            event = decode(record)
+            handlers = self._handlers.get(event.type, [])
+            if handlers:  # a topic carries its whole context; other types pass by untouched
+                log.info("\n%s", format_event("RECEIVED", event))
+                for handler in handlers:
+                    await handler(event)
+        except PortFailure:
+            raise  # the event is sound: delivered again, and counted toward no cap
+        except PoisonPill as poison:
+            await self._park(record, poison, attempts=1)
+        except Exception as error:
+            failed = attempts.failed(partition, record.offset)
+            if self._max_attempts is None or failed < self._max_attempts:
+                raise
+            await self._park(record, error, failed)
+        attempts.done(partition, record.offset)
         watermark.finished(partition, record.offset)
+
+    async def _park(self, record: ConsumerRecord, error: Exception, attempts: int) -> None:
+        """Dead-letter a record that will not be handled, or acknowledge it where there is no cap.
+
+        The record goes to ``dlq.<context>`` as it was, key included, so a replay keeps
+        per-key order, with the failure and the attempt count in two headers.
+        """
+        if self._max_attempts is None:
+            log.info("%s acknowledged %s offset %d, which cannot be handled: %r", self._client_name, record.topic, record.offset, error)  # fmt: skip
+            return
+        headers = list(record.headers or ())
+        headers += [("failure", repr(error).encode()), ("attempts", str(attempts).encode())]
+        await self._producer.send_and_wait(
+            f"dlq.{record.topic}", record.value, key=record.key, headers=headers
+        )
+        log.error("%s parked %s offset %d on dlq.%s after %d attempt(s): %r", self._client_name, record.topic, record.offset, record.topic, attempts, error)  # fmt: skip
 
     async def _take_again(
         self, consumer: AIOKafkaConsumer, watermark: Watermark, failure: Exception

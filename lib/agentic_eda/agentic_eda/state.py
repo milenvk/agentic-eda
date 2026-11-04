@@ -13,8 +13,10 @@ The activator is the port's one caller, on behalf of the agent that declared its
 
 from typing import Protocol
 
+from .broker import PortFailure
 
-class StaleVersion(RuntimeError):
+
+class StaleVersion(PortFailure):
     """A commit named a version that is no longer the current one: somebody else wrote first."""
 
 

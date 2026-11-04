@@ -315,10 +315,11 @@ force at that point and not against the finished system. The closings were decid
   count (`NoAnswer`, `RejectedAnswer`, an exception from the agent's code): a port's failure,
   the store or the broker unreachable or a `StaleVersion`, retries without a cap, because
   the event is sound and dead-lettering it for an outage would be wrong. The activator tells
-  the two apart by raising its port calls' failures under one class of its own, and the
-  adapter counts every other failure.
+  the two apart by raising its port calls' failures as `PortFailure`, which `StaleVersion`
+  extends, and the adapter counts every other failure.
 * **Two silent acknowledgments** (closed in ch 10, poison pills). A malformed event, and an
-  event about a state missing from the store, are logged at warning level and acknowledged;
+  event about a state missing from the store, are raised by the activator as a `PoisonPill`,
+  which the adapter acknowledges until a cap is set;
   a store restored from an older backup meets the second for every trip opened since. From
   ch 10 both go to `dlq.<context>` instead, with the record's key, so that a store restored
   from a backup leaves a replayable trace rather than dropping every newer trip's events.

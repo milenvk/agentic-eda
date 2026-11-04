@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from agentic_eda import connect, eda
 from agentic_eda.activator import Activator, NoAnswer
+from agentic_eda.broker import PoisonPill, PortFailure
 from agentic_eda.memory_broker import InMemoryBroker
 from agentic_eda.memory_state_store import InMemoryStateStore
 
@@ -167,15 +168,32 @@ async def test_a_redelivered_request_finds_its_trip_and_causes_nothing_twice(sys
     assert len(store.rows) == 1
 
 
-async def test_an_event_about_a_state_the_store_never_had_is_acknowledged_with_a_warning(system, caplog):  # fmt: skip
+async def test_an_event_about_a_state_the_store_never_had_is_a_poison_pill(system):
     broker, _ = system
     async with activator().running():
         await broker.publish(TRIP_CREATED, "Elsewhere", {"trip_id": 99, "origin": "NYC"})
         await broker.settled()
 
     assert broker.of_type(ITINERARY_REQUESTED) == []
-    assert broker.failed == []
-    assert "has no Trip 99" in caplog.text
+    assert broker.failed == []  # never retried: nothing creates the trip later
+    ((poisoned, poison),) = broker.poisoned
+    assert poisoned.type == TRIP_CREATED and "has no Trip 99" in str(poison)
+
+
+async def test_a_failing_store_is_a_port_failure_and_not_the_events(system, monkeypatch):
+    broker, store = system
+
+    async def down(*args, **kwargs):
+        raise ConnectionError("the database is down")
+
+    monkeypatch.setattr(store, "commit", down)
+    async with activator().running():
+        await request(broker)
+        await broker.settled()
+
+    ((_, error),) = broker.failed  # redelivered, and counted toward no cap
+    assert isinstance(error, PortFailure) and isinstance(error.__cause__, ConnectionError)
+    assert broker.of_type(TRIP_CREATED) == []  # nothing published before the commit
 
 
 async def test_the_state_is_not_committed_when_the_answer_is_rejected(system):

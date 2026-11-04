@@ -10,8 +10,9 @@ work in flight across all of them.
 
 Nothing here belongs to Kafka. The Kafka adapter is the first user, and any
 adapter over a broker that hands out records in per-key order can use the same
-two classes. ``Watermark`` is for the log-shaped brokers, which take one
-committed position per partition rather than an acknowledgement per record.
+classes. ``Watermark`` is for the log-shaped brokers, which take one
+committed position per partition rather than an acknowledgement per record, and
+``Attempts`` is for an adapter that caps the deliveries of a failing record.
 """
 
 import asyncio
@@ -146,3 +147,29 @@ class Watermark:
             self._pending.pop(partition, None)
             self._position.pop(partition, None)
             self._committed.pop(partition, None)
+
+
+class Attempts:
+    """Per record, how many of its deliveries to this process have failed.
+
+    ``failed`` counts one more and returns the count; ``done`` forgets a record that
+    finished or was parked; ``forget`` drops a partition's records when the group takes
+    the partition away. The counts live in memory, so a restart starts them again, which
+    is no worse than the at-least-once floor underneath.
+    """
+
+    def __init__(self) -> None:
+        self._failed: dict[tuple[Hashable, int], int] = {}
+
+    def failed(self, partition: Hashable, offset: int) -> int:
+        key = (partition, offset)
+        self._failed[key] = self._failed.get(key, 0) + 1
+        return self._failed[key]
+
+    def done(self, partition: Hashable, offset: int) -> None:
+        self._failed.pop((partition, offset), None)
+
+    def forget(self, partitions: Iterable[Hashable]) -> None:
+        gone = set(partitions)
+        for key in [key for key in self._failed if key[0] in gone]:
+            del self._failed[key]

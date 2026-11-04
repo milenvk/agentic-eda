@@ -12,11 +12,16 @@ class FakeBroker:
     """Records how the factory opened it, and whether it was closed."""
 
     def __init__(
-        self, bootstrap_servers: str, client_name: str, start: str = "now"
+        self,
+        bootstrap_servers: str,
+        client_name: str,
+        start: str = "now",
+        max_attempts: int | None = None,
     ) -> None:
         self.bootstrap_servers = bootstrap_servers
         self.client_name = client_name
         self.start = start
+        self.max_attempts = max_attempts
         self.closed = False
 
     async def __aenter__(self) -> "FakeBroker":
@@ -46,6 +51,15 @@ async def test_a_component_reads_from_now_unless_it_asks_otherwise(fake_adapter)
 
     async with connect.event_broker("Observer", start="beginning") as observer:
         assert observer.start == "beginning"
+
+
+async def test_the_retry_cap_comes_from_the_environment_and_is_unbounded_without(fake_adapter, monkeypatch):  # fmt: skip
+    async with connect.event_broker("BookingAgent") as broker:
+        assert broker.max_attempts is None
+
+    monkeypatch.setenv("MAX_ATTEMPTS", "5")
+    async with connect.event_broker("BookingAgent") as capped:
+        assert capped.max_attempts == 5
 
 
 async def test_broker_is_closed_on_the_way_out(fake_adapter):

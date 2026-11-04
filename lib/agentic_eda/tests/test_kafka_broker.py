@@ -15,7 +15,7 @@ import pytest
 from aiokafka.structs import TopicPartition
 
 from agentic_eda import kafka_broker
-from agentic_eda.broker import WireEvent
+from agentic_eda.broker import PoisonPill, PortFailure, WireEvent
 from agentic_eda.kafka_broker import KafkaEventBroker, decode, encode, topic_for
 from agentic_eda.lanes import Watermark
 
@@ -104,7 +104,8 @@ class FakeConsumer:
         """Serve the partition's records from that offset on again, as a real consumer refetches them."""
         self.calls.append("seek")
         self.seeks.append((partition, offset))
-        again = [r for r in self.served.get(partition, []) if r.offset >= offset]
+        by_offset = {r.offset: r for r in self.served.get(partition, [])}  # each record once
+        again = [by_offset[o] for o in sorted(by_offset) if o >= offset]
         FakeConsumer.prepared.insert(0, {partition: again})
 
     async def commit(self, offsets=None) -> None:
@@ -137,7 +138,11 @@ def make_event(**overrides) -> WireEvent:
 def record(offset: int, event: WireEvent, key: bytes | None = None) -> SimpleNamespace:
     message = encode(event)
     return SimpleNamespace(
-        offset=offset, key=key, value=message.value, headers=list(message.headers.items())
+        topic=BOOKING.topic,
+        offset=offset,
+        key=key,
+        value=message.value,
+        headers=list(message.headers.items()),
     )
 
 
@@ -212,7 +217,7 @@ def test_envelope_is_cloudevents_structured_json():
     assert envelope["subject"] == "trip"
 
 
-async def test_publish_mints_id_time_and_datacontenttype(fake_kafka):
+async def test_publish_generates_id_time_and_datacontenttype(fake_kafka):
     async with KafkaEventBroker("kafka:9092", client_name="test") as broker:
         published = await broker.publish("booking.SomethingHappened", "test", {"a": 1})
 
@@ -333,7 +338,7 @@ async def test_a_revoked_partition_is_committed_and_then_forgotten():
     async def commit() -> None:
         commits.append(str(watermark.advanced()))
 
-    listener = kafka_broker._PartitionListener("test", watermark, commit)
+    listener = kafka_broker._PartitionListener("test", commit, watermark.forget)
     watermark.fetched(BOOKING, 0)
     watermark.fetched(BOOKING, 1)
     watermark.finished(BOOKING, 0)
@@ -466,6 +471,90 @@ async def test_a_failure_waits_for_the_other_lanes_and_cancels_none_of_them(fake
     assert handled == ["event-1", "event-2", "event-1", "event-2"]  # finished work behind the failure comes back too
     assert fake_kafka.last.seeks == [(BOOKING, 0)]
     assert fake_kafka.last.commits == [{BOOKING: 2}]
+
+
+async def test_a_record_failing_max_attempts_times_is_parked_and_passed(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0, max_attempts=3)
+    handled: list[str] = []
+
+    async def handler(event: WireEvent) -> None:
+        handled.append(event.id)
+        if event.id == "event-1":
+            raise RuntimeError("the model answered in prose")
+
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append(batch((0, "event-1", b"trip-1"), (1, "event-2", b"trip-1")))
+    async with broker:
+        await run_until(broker, lambda: fake_kafka.last and fake_kafka.last.commits and fake_kafka.last.commits[-1] == {BOOKING: 2})  # fmt: skip
+        sent = FakeProducer.last.sent
+
+    assert handled == ["event-1"] * 3 + ["event-2"]  # three attempts, then the lane moves on
+    ((topic, value, key, headers),) = sent
+    assert (topic, key) == ("dlq.booking", b"trip-1")  # the context's DLQ, key preserved
+    assert json.loads(value)["id"] == "event-1"  # the record as it was
+    assert ("attempts", b"3") in headers and any(name == "failure" for name, _ in headers)
+    assert fake_kafka.last.seeks == [(BOOKING, 0)] * 2  # two retries, no seek after the parking
+
+
+async def test_a_port_failure_counts_toward_no_cap(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0, max_attempts=2)
+    attempts: list[str] = []
+
+    async def handler(event: WireEvent) -> None:
+        attempts.append(event.id)
+        if len(attempts) < 5:
+            raise PortFailure("the state store failed: connection refused")
+
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append({BOOKING: [record(0, make_event(), b"trip-1")]})
+    async with broker:
+        await run_until(broker, lambda: fake_kafka.last and fake_kafka.last.commits)
+        assert FakeProducer.last.sent == []  # nothing parked: the event was sound all along
+
+    assert attempts == ["event-1"] * 5
+    assert fake_kafka.last.commits == [{BOOKING: 1}]
+
+
+async def test_a_poison_pill_is_parked_at_once(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0, max_attempts=3)
+    attempts: list[str] = []
+
+    async def handler(event: WireEvent) -> None:
+        attempts.append(event.id)
+        raise PoisonPill("booking.TripRequested event-1 never validates")
+
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append({BOOKING: [record(0, make_event(), b"trip-1")]})
+    async with broker:
+        await run_until(broker, lambda: fake_kafka.last and fake_kafka.last.commits)
+        ((topic, _, key, headers),) = FakeProducer.last.sent
+
+    assert attempts == ["event-1"]  # no retry: it would fail the same way
+    assert (topic, key) == ("dlq.booking", b"trip-1")
+    assert ("attempts", b"1") in headers
+    assert fake_kafka.last.seeks == []
+    assert fake_kafka.last.commits == [{BOOKING: 1}]
+
+
+async def test_without_a_cap_a_poison_pill_is_acknowledged(fake_kafka, caplog):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0)
+    attempts: list[str] = []
+
+    async def handler(event: WireEvent) -> None:
+        attempts.append(event.id)
+        raise PoisonPill("booking.TripRequested event-1 never validates")
+
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append({BOOKING: [record(0, make_event(), b"trip-1")]})
+    caplog.set_level(logging.INFO)
+    async with broker:
+        await run_until(broker, lambda: fake_kafka.last and fake_kafka.last.commits)
+        assert FakeProducer.last.sent == []  # no dead-letter topic to park it on
+
+    assert attempts == ["event-1"]
+    assert fake_kafka.last.seeks == []
+    assert fake_kafka.last.commits == [{BOOKING: 1}]
+    assert "cannot be handled" in caplog.text
 
 
 class Gated:

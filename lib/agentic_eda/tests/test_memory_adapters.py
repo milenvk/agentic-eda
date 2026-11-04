@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+from agentic_eda.broker import PoisonPill, PortFailure
 from agentic_eda.memory_broker import InMemoryBroker
 from agentic_eda.memory_state_store import InMemoryStateStore
 from agentic_eda.state import StaleVersion
@@ -32,6 +33,22 @@ async def test_the_broker_delivers_in_publish_order_and_records_a_failing_handle
     assert broker.published[0].datacontenttype == "application/json"
 
 
+async def test_the_broker_records_a_poison_pill_apart_from_a_failure():
+    broker = InMemoryBroker()
+
+    async def refuse(event):
+        raise PoisonPill("never validates")
+
+    await broker.subscribe("t.One", refuse)
+    delivering = asyncio.create_task(broker.run())
+    await broker.publish("t.One", "s", {}, id="a")
+    await broker.settled()
+    delivering.cancel()
+
+    assert [event.id for event, _ in broker.poisoned] == ["a"]
+    assert broker.failed == []
+
+
 async def test_the_store_finds_a_created_state_again_and_fences_a_stale_commit():
     store = InMemoryStateStore()
     assert await store.create("req-1") == 1
@@ -45,3 +62,4 @@ async def test_the_store_finds_a_created_state_again_and_fences_a_stale_commit()
     assert await store.handled(1, "req-1") and not await store.handled(1, "req-2")
     with pytest.raises(StaleVersion):
         await store.commit(1, {"status": "planning"}, 0, "ev-2")
+    assert issubclass(StaleVersion, PortFailure)  # the event was sound: redelivered, uncounted

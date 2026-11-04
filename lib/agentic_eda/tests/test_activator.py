@@ -5,6 +5,7 @@ The broker is a stub, so no Kafka and no network are involved.
 
 import asyncio
 import json
+import uuid
 from contextlib import asynccontextmanager
 
 import pytest
@@ -20,7 +21,7 @@ from pydantic import BaseModel, ValidationError
 from starlette.applications import Starlette
 
 from agentic_eda import connect, eda
-from agentic_eda.broker import WireEvent
+from agentic_eda.broker import PoisonPill, WireEvent
 from agentic_eda.activator import Activator, NoAnswer, RejectedAnswer
 from agentic_eda.activator.adapters import adapter_for
 from agentic_eda.activator.declarations import PureConsumer, produced_classes
@@ -177,15 +178,27 @@ async def test_a_credential_never_reaches_the_agent(broker):
     assert not hasattr(seen[0], "identitytoken")
 
 
-async def test_a_malformed_event_is_rejected_before_the_agent_and_acknowledged(broker):
+async def test_a_malformed_event_is_rejected_before_the_agent_as_a_poison_pill(broker):
     called = []
 
     async def plan(request):
         called.append(request)
 
     malformed = WireEvent(id="req-2", type=ITINERARY_REQUESTED, source="s", data={"trip_id": "t"})
-    assert await activate(plan, broker, malformed) == []
-    assert called == []
+    with pytest.raises(PoisonPill):  # the adapter parks or acknowledges it, and never retries
+        await activate(plan, broker, malformed)
+    assert called == [] and broker.published == []
+
+
+async def test_a_rerun_states_the_same_fact_under_the_same_id(broker):
+    async def plan(request):
+        return ItineraryProposed.model_validate(PROPOSAL)
+
+    await activate(plan, broker)
+    first, second = await activate(plan, broker)  # the same inbound event, delivered again
+
+    assert first.id == second.id  # a consumer deduplicating by id drops the second
+    assert uuid.UUID(first.id).version == 5 and first.id != "req-1"
 
 
 async def test_an_agent_that_answers_nothing_is_a_failure(broker):

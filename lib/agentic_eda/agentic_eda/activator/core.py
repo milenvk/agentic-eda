@@ -14,6 +14,12 @@ version it loaded and the event's id, then publishes, then acknowledges. An acti
 answered nothing, or with a class the agent did not declare, fails before the commit, so
 its redelivery runs the agent again; and once the commit is made, the publish follows even
 if the activation is cancelled meanwhile, so the state and the facts it records never part.
+
+Every fact leaves under an id derived from the inbound event, so an activation run again
+states the same facts under the same ids. An event that can never be handled, malformed or
+about a state missing from the store, is raised as a ``PoisonPill`` for the adapter to park
+or acknowledge, and a failure of a port call as a ``PortFailure``, which an adapter capping
+the attempts does not count: the event is sound.
 """
 
 import asyncio
@@ -27,10 +33,10 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, ValidationError
 
 from .. import connect
-from ..broker import PARTITION_KEY, EventBroker, WireEvent
-from ..contracts import EventContract, Nothing
+from ..broker import PARTITION_KEY, EventBroker, PoisonPill, PortFailure, WireEvent
+from ..contracts import EventContract, Nothing, binding_of
 from ..envelope import ContextAttributes
-from ..publishing import publish_fact
+from ..publishing import derived_id, publish_fact
 from ..state import StateStore
 from .adapters import adapter_for
 from .declarations import Consumes, State, produced_classes
@@ -149,13 +155,17 @@ class Activator:
                     await delivering
 
     async def activate(self, event: WireEvent) -> None:
-        """One activation: returning acknowledges the event, raising redelivers it."""
+        """One activation: returning acknowledges the event, raising redelivers it.
+
+        A ``PoisonPill`` is the exception: the event can never be handled, and the adapter
+        parks or acknowledges it instead of delivering it again.
+        """
         request = self._validated(event)
         if request is None:
-            return  # acknowledged: a malformed event never validates, however often it returns
+            raise PoisonPill(f"{event.type} {event.id} never validates")
         activation = Activation(event=event, request=request, activator=self)
         if self._state is not None and not await self._load(activation):
-            return  # acknowledged: already handled, or about a state this store never had
+            return  # acknowledged: already handled
         token = _ACTIVATION.set(activation)
         try:
             result = await self._adapter.invoke(self._agent, request, self._thread_id(activation))
@@ -204,21 +214,21 @@ class Activator:
             return None
 
     async def _load(self, activation: Activation) -> bool:
-        """Find or create the event's state and put it on the activation; False means skip."""
+        """Find or create the event's state and put it on the activation; False means handled."""
         declared, event = self._state, activation.event
         if isinstance(activation.request, declared.created_by):
             # An event about no state yet, such as a request: it starts one, and a
             # redelivery of it finds the one it started.
-            state_id = await self._store.create(event.id)
+            state_id = await _port("the state store", self._store.create(event.id))
         else:
             state_id = int(getattr(activation.request, declared.key))
-        if not declared.read_only and await self._store.handled(state_id, event.id):
+        if not declared.read_only and await _port("the state store", self._store.handled(state_id, event.id)):  # fmt: skip
             log.info("%s already handled %s for %s %s", self.source, event.id, declared.key, state_id)
             return False
-        loaded = await self._store.load(state_id)
+        loaded = await _port("the state store", self._store.load(state_id))
         if loaded is None:
-            log.warning("%s has no %s %s for %s %s", self.source, declared.cls.__name__, state_id, event.type, event.id)  # fmt: skip
-            return False
+            # Nothing creates it later, so the event would fail the same way every time.
+            raise PoisonPill(f"{self.source} has no {declared.cls.__name__} {state_id} for {event.type} {event.id}")  # fmt: skip
         document, activation.version = loaded
         # The row's id is the state's id, on a new state and a loaded one alike.
         activation.state = declared.cls.model_validate({**document, declared.key: state_id})
@@ -228,11 +238,14 @@ class Activator:
     async def _commit(self, activation: Activation) -> None:
         if self._state is None or self._state.read_only:
             return
-        await self._store.commit(
-            activation.state_id,
-            activation.state.model_dump(mode="json"),
-            activation.version,
-            activation.event.id,
+        await _port(
+            "the state store",
+            self._store.commit(
+                activation.state_id,
+                activation.state.model_dump(mode="json"),
+                activation.version,
+                activation.event.id,
+            ),
         )
 
     def _thread_id(self, activation: Activation) -> str:
@@ -291,13 +304,28 @@ class Activator:
         return type(fact).model_validate(fact.model_dump(exclude={"attributes_"}))
 
     async def _publish(self, fact: EventContract, activation: Activation) -> WireEvent:
-        """Publish one outbound fact with its envelope: the one path out of a component."""
+        """Publish one outbound fact with its envelope: the one path out of a component.
+
+        The id is derived from the inbound event, the fact's type, and its place among the
+        facts of that type this activation has stated, so a rerun states it under the same id.
+        """
         inbound = activation.event
+        event_type = binding_of(fact).type
+        ordinal = sum(1 for earlier in activation.published if earlier.type == event_type)
         attributes = {
             "correlationid": str(getattr(inbound, "correlationid", inbound.id)),
             "causationid": inbound.id,
         }
-        published = await publish_fact(self._broker, self.source, fact, attributes)
+        published = await _port(
+            "the event broker",
+            publish_fact(
+                self._broker,
+                self.source,
+                fact,
+                attributes,
+                id=derived_id(self.source, inbound.id, event_type, ordinal),
+            ),
+        )
         activation.published.append(published)
         return published
 
@@ -330,6 +358,16 @@ def attach(
 
     app.router.lifespan_context = lifespan
     return activator
+
+
+async def _port(name: str, call):
+    """Await a port's call, raising what fails as a ``PortFailure``: the event is sound."""
+    try:
+        return await call
+    except PortFailure:
+        raise
+    except Exception as error:
+        raise PortFailure(f"{name} failed: {error!r}") from error
 
 
 async def _to_the_end(step) -> None:

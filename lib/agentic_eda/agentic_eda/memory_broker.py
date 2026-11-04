@@ -2,7 +2,8 @@
 
 Events are delivered in publish order, one at a time, to every handler subscribed to their
 type, which keeps the port's ordering promise and more. A handler that raises is recorded
-in ``failed`` rather than redelivered, so a test asserts the failure instead of looping.
+in ``failed`` rather than redelivered, and one raising a ``PoisonPill`` in ``poisoned``
+rather than parked, so a test asserts either instead of looping.
 """
 
 import asyncio
@@ -10,7 +11,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from .broker import EventHandler, WireEvent
+from .broker import EventHandler, PoisonPill, WireEvent
 
 log = logging.getLogger("EventBroker")
 
@@ -19,6 +20,7 @@ class InMemoryBroker:
     def __init__(self) -> None:
         self.published: list[WireEvent] = []
         self.failed: list[tuple[WireEvent, Exception]] = []
+        self.poisoned: list[tuple[WireEvent, PoisonPill]] = []
         self._handlers: dict[str, list[EventHandler]] = {}
         self._queue: asyncio.Queue[WireEvent] = asyncio.Queue()
 
@@ -53,6 +55,9 @@ class InMemoryBroker:
                 for handler in self._handlers.get(event.type, []):
                     try:
                         await handler(event)
+                    except PoisonPill as poison:
+                        log.warning("%s %s cannot be handled: %s", event.type, event.id, poison)
+                        self.poisoned.append((event, poison))
                     except Exception as error:
                         log.warning("a handler of %s %s failed: %r", event.type, event.id, error)
                         self.failed.append((event, error))

@@ -19,6 +19,23 @@ class WireEvent(ContextAttributes):
 
 EventHandler = Callable[[WireEvent], Awaitable[None]]
 
+
+class PortFailure(RuntimeError):
+    """A port failed, not the event: a store or a broker unreachable, or a write it refused.
+
+    An adapter delivers the event again and counts the attempt toward no cap, since nothing
+    about the event is wrong. The activator raises every failure of its port calls under
+    this class, and a store raises its own refusals as subclasses of it.
+    """
+
+
+class PoisonPill(ValueError):
+    """An event that can never be handled: it fails the same way on every delivery.
+
+    An adapter with a dead-letter topic parks it there at once; one without acknowledges
+    it, so that it never blocks the events behind it.
+    """
+
 # The CloudEvents partitioning extension: the attribute an adapter orders by. Events
 # sharing its value are delivered in publish order, one at a time, to one consumer.
 # Producers set it, adapters read it, and neither spells the name twice.
@@ -49,7 +66,12 @@ class EventBroker(Protocol):
         handler: EventHandler,
         mode: str = "broadcast",
     ) -> None:
-        """Call ``handler`` for every event of the given type."""
+        """Call ``handler`` for every event of the given type.
+
+        Returning from the handler acknowledges the event; raising delivers it again, with
+        two exceptions: a ``PoisonPill`` is parked or acknowledged, and a ``PortFailure``
+        counts toward no cap on the attempts.
+        """
         ...
 
 
