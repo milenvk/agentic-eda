@@ -3,7 +3,8 @@
 import asyncio
 from datetime import date
 
-from customer_channel import REPLIES, Conversation, lisbon_trip
+from change_of_mind import REPLIES
+from customer_channel import APPROVAL, Conversation, in_words, lisbon_trip
 
 from agentic_eda.broker import WireEvent
 from travel_agency import event_types
@@ -64,6 +65,13 @@ async def test_the_channel_hears_only_its_own_workflow():
     assert conversation.arrived.empty()
 
 
-def test_the_four_replies_are_one_per_outcome():
-    assert len(REPLIES) == 4
+def test_the_replies_are_a_question_a_change_and_an_approval():
+    assert len(REPLIES) == 3 and REPLIES[-1] == APPROVAL
     assert all(reply[0].isupper() and reply.endswith((".", "?")) for reply in REPLIES)
+
+
+def test_the_request_in_words_names_the_journeys_and_the_budget():
+    words = in_words(lisbon_trip(conversation_id="conv-1"))
+    assert words.startswith("2 adults, New York to Madrid on ")
+    assert "Madrid to Lisbon on " in words and "Lisbon to New York on " in words
+    assert words.endswith("with a budget of 3,500 USD.")

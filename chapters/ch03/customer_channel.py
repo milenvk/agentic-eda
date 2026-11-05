@@ -3,13 +3,15 @@
 Until the Front Desk arrives in chapter 4, this script writes `booking.TripRequested` and
 `booking.CustomerReplied` in booking's published language, and shows what booking publishes
 back. The script generates the workflow's `correlationid` and matches every event by it; the
-trip's id it learns from `booking.TripCreated`, since the store assigns it. One conversation:
-the request, the proposal, and four replies, one per outcome, each sent once the previous
-outcome has arrived.
+trip's id it learns from `booking.TripCreated`, since the store assigns it.
+
+Run on its own, it is the demo's first act: one request, one proposal, one reply that approves
+an itinerary. The other acts import the channel from here and send their own replies.
 """
 
 import asyncio
 import sys
+from contextlib import suppress
 from datetime import date, timedelta
 from uuid import uuid4
 
@@ -42,13 +44,10 @@ ENDS_THE_WORKFLOW = {event_types.TRIP_REQUEST_REJECTED, event_types.ITINERARY_AP
 # A rejection or a change sends the trip back to planning: the next thing to wait for is a proposal.
 BACK_TO_PLANNING = {event_types.ITINERARY_REJECTED, event_types.TRIP_CHANGED}
 
-# A customer's words, one reply per outcome, in the order the conversation goes.
-REPLIES = [
-    "Thanks, got it.",  # too little to act on: a question comes back
-    "Could we leave a day later? The fares on that day are too high.",  # a change, and a re-plan
-    "No, all of these are too expensive for what they offer.",  # a rejection, and a re-plan
-    "The cheapest one, please.",  # an approval, by description
-]
+# The customer's words that approve an itinerary by description rather than by number.
+APPROVAL = "The cheapest one, please."
+
+CITY_NAMES = {"NYC": "New York", "MAD": "Madrid", "LIS": "Lisbon"}
 
 # The demo's own output is the show; keep client libraries to real errors.
 console.quiet_client_logs()
@@ -80,12 +79,23 @@ def journey(origin: str, destination: str, on: date) -> OriginDestination:
     return OriginDestination(origin=origin, destination=destination, departure_date=on)
 
 
+def in_words(request: TripRequested) -> str:
+    """The request as a customer would say it, before it becomes an event."""
+    legs = ", ".join(
+        f"{CITY_NAMES.get(j.origin, j.origin)} to {CITY_NAMES.get(j.destination, j.destination)}"
+        f" on {j.departure_date.day} {j.departure_date:%B %Y}"
+        for j in request.origin_destinations
+    )
+    budget = f"{request.budget.amount:,.0f} {request.budget.currency}"
+    return f"{request.adults} adults, {legs}, with a budget of {budget}."
+
+
 class Conversation:
     """One workflow as the channel sees it: what it publishes, and what comes back for it."""
 
-    def __init__(self, broker: EventBroker) -> None:
+    def __init__(self, broker: EventBroker, correlation_id: str | None = None) -> None:
         self.broker = broker
-        self.correlation_id = str(uuid4())
+        self.correlation_id = correlation_id or str(uuid4())
         self.arrived: asyncio.Queue[WireEvent] = asyncio.Queue()
 
     async def listen(self) -> None:
@@ -96,10 +106,10 @@ class Conversation:
         if getattr(event, "correlationid", None) == self.correlation_id:
             await self.arrived.put(event)
 
-    async def say(self, fact, causation: WireEvent | None = None) -> WireEvent:
+    async def say(self, fact, caused_by: str | None = None) -> WireEvent:
         attributes = {"correlationid": self.correlation_id}
-        if causation is not None:
-            attributes["causationid"] = causation.id
+        if caused_by is not None:
+            attributes["causationid"] = caused_by
         event = await publish_fact(self.broker, SOURCE, fact, attributes)
         console.show("PUBLISHED", event)
         return event
@@ -128,6 +138,59 @@ def show_itineraries(ready: WireEvent) -> None:
         print(f"  {itinerary.rank}. {itinerary.label}: {total.amount:,.0f} {total.currency}")
 
 
+async def open_trip(conversation: Conversation) -> tuple[int, WireEvent] | None:
+    """Ask for the trip and wait for the first proposal; None when booking refused the request."""
+    request = lisbon_trip(conversation_id=str(uuid4()))
+    print(f"\nThe customer asks for: {in_words(request)}\n", flush=True)
+    await conversation.say(request)
+    print("\nNothing is blocked; waiting for booking's answer...\n", flush=True)
+    answer = await conversation.hear()
+    if answer.type == event_types.TRIP_REQUEST_REJECTED:
+        console.success("booking refused the request, and no itinerary was planned for it.")
+        return None
+    trip_id = answer.data["trip_id"]
+    console.success(f"the trip is {trip_id}: the store assigned the id, booking announced it.")
+    ready = await conversation.hear()
+    show_itineraries(ready)
+    return trip_id, ready
+
+
+async def converse(conversation: Conversation, trip_id: int, ready: WireEvent, replies: list[str]) -> WireEvent | None:  # fmt: skip
+    """Send the replies one by one, each once the previous outcome is in; the approval, or None."""
+    question = None  # the question the next reply answers, when booking asked one
+    for words in replies:
+        print(f'\nThe customer replies: "{words}"\n', flush=True)
+        reply = CustomerReplied(trip_id=trip_id, proposal_id=ready.data["proposal_id"], words=words, answering=question)  # fmt: skip
+        await conversation.say(reply, caused_by=ready.id)
+        outcome = await conversation.hear()
+        question = outcome.data["question"] if outcome.type == event_types.CLARIFICATION_REQUESTED else None  # fmt: skip
+        if outcome.type in BACK_TO_PLANNING:
+            print("\nBack to planning; waiting for the next proposal...\n", flush=True)
+            ready = await conversation.hear()
+            show_itineraries(ready)
+        if outcome.type in ENDS_THE_WORKFLOW:
+            return outcome
+    console.success("the customer ran out of replies before approving.")
+    return None
+
+
+def approved(outcome: WireEvent) -> None:
+    console.success(
+        f"itinerary {outcome.data['rank']} of proposal {outcome.data['proposal_id']} is approved."
+    )
+
+
+async def hang_up(listening: asyncio.Task) -> None:
+    """Stop reading, and let the broker leave the group before the connection closes."""
+    listening.cancel()
+    with suppress(asyncio.CancelledError):
+        await listening
+
+
+def row_command(trip_id: int) -> str:
+    return f'docker compose exec postgres psql -U agency -c "select id, status, version from trips where id = {trip_id}"'  # fmt: skip
+
+
 async def main() -> None:
     # Booking answers a request within a second, before a fresh subscription has settled, so
     # the channel asks for history: it then reads what was published while it was joining.
@@ -136,42 +199,21 @@ async def main() -> None:
         await conversation.listen()
         listening = asyncio.create_task(broker.run())
 
-        request = await conversation.say(lisbon_trip(conversation_id=str(uuid4())))
-        print("\nNothing is blocked; waiting for booking's answer...\n", flush=True)
-        answer = await conversation.hear()
-        if answer.type == event_types.TRIP_REQUEST_REJECTED:
-            console.success("booking rejected the request, and no itinerary was planned for it.")
+        opened = await open_trip(conversation)
+        if opened is None:
             return
-        trip_id = answer.data["trip_id"]
-        console.success(f"the trip is {trip_id}: the store assigned the id, booking announced it.")
-
-        ready = await conversation.hear()
-        show_itineraries(ready)
-        question = None  # the question the next reply answers, when booking asked one
-        for words in REPLIES:
-            print(f'\nThe customer replies: "{words}"\n', flush=True)
-            reply = CustomerReplied(trip_id=trip_id, proposal_id=ready.data["proposal_id"], words=words, answering=question)  # fmt: skip
-            await conversation.say(reply, causation=ready)
-            outcome = await conversation.hear()
-            question = outcome.data["question"] if outcome.type == event_types.CLARIFICATION_REQUESTED else None  # fmt: skip
-            if outcome.type in BACK_TO_PLANNING:
-                print("\nBack to planning; waiting for the next proposal...\n", flush=True)
-                ready = await conversation.hear()
-                show_itineraries(ready)
-            if outcome.type in ENDS_THE_WORKFLOW:
-                break
-        else:
-            console.success("the customer ran out of replies before approving.")
-            return
-        console.success(
-            f"itinerary {outcome.data['rank']} of proposal {outcome.data['proposal_id']} is approved."
-        )
-        print(
-            f"\nThe whole workflow, in the audit record:\n"
-            f"  grep {conversation.correlation_id} data/audit.log\n",
-            flush=True,
-        )
-        listening.cancel()
+        trip_id, ready = opened
+        outcome = await converse(conversation, trip_id, ready, [APPROVAL])
+        if outcome is not None:
+            approved(outcome)
+            print(
+                f"\nThe whole workflow, in the audit record:\n"
+                f"  grep {conversation.correlation_id} data/audit.log | wc -l\n"
+                f"\nThe trip, in PostgreSQL:\n"
+                f"  {row_command(trip_id)}\n",
+                flush=True,
+            )
+        await hang_up(listening)
 
 
 if __name__ == "__main__":

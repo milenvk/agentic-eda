@@ -114,10 +114,18 @@ services:
     <<: *demo
     command: ["python", "customer_channel.py"]
 
+  demo-change:
+    <<: *demo
+    command: ["python", "change_of_mind.py"]
+
+  demo-survives-request:
+    <<: *demo
+    command: ["python", "trip_survives.py", "request"]
+
+  demo-survives-reply:
+    <<: *demo
+    command: ["python", "trip_survives.py", "reply"]
+
   demo-rejected:
     <<: *demo
     command: ["python", "rejected_request.py"]
-
-  demo-redelivered:
-    <<: *demo
-    command: ["python", "redelivered_request.py"]

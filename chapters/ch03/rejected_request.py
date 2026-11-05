@@ -2,14 +2,14 @@
 
 The journeys are out of order, which no field constraint can catch, so the event validates at
 the boundary and reaches the Booking Agent, whose `open` operation checks the rules in code
-and answers `booking.TripRequestRejected` under the conversation's key. No trip is created and
+and answers `booking.TripRequestRejected` under the conversation's key. No trip is opened and
 planning is never asked.
 """
 
 import asyncio
 from uuid import uuid4
 
-from customer_channel import Conversation, lisbon_trip
+from customer_channel import Conversation, hang_up, lisbon_trip
 
 from agentic_eda import console
 from agentic_eda.connect import event_broker
@@ -32,8 +32,8 @@ async def main() -> None:
         print("\nThe event is valid against its contract; the Trip's rules are another matter...\n", flush=True)  # fmt: skip
         answer = await conversation.hear()
         if answer.type == event_types.TRIP_REQUEST_REJECTED:
-            console.success(f"rejected under the conversation's key, with the reason: {answer.data['reason']}")  # fmt: skip
-        listening.cancel()
+            console.success(f"refused by the Trip, with the reason: {answer.data['reason']}. No trip is opened.")  # fmt: skip
+        await hang_up(listening)
 
 
 if __name__ == "__main__":

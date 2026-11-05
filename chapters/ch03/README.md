@@ -32,7 +32,9 @@ Where to read the code, in the order the chapter teaches it:
   how the Trip is written for it.
 - [events/booking.py](../../lib/travel_agency/travel_agency/events/booking.py): booking's
   nine contracts.
-- [customer_channel.py](customer_channel.py): the conversation, from the customer's side.
+- The customer channel, one script per act: [customer_channel.py](customer_channel.py),
+  [change_of_mind.py](change_of_mind.py), [trip_survives.py](trip_survives.py), and
+  [rejected_request.py](rejected_request.py).
 
 ## Setup
 
@@ -40,9 +42,9 @@ The same `.env` as chapter 1, in the repository root. If you skipped chapter 1, 
 [its Setup section](../ch01/README.md#setup) first.
 
 The Booking Agent asks its model to read a reply and call one of four tools. The default
-model in `.env.example`, `qwen3:4b-instruct` on Ollama, reads all four scripted replies as intended.
-Smaller models, `llama3.2` among them, ask a question where the words describe an itinerary
-or reject where they ask for a change, so keep the default or go larger.
+model in `.env.example`, `qwen3:4b-instruct` on Ollama, reads every scripted reply as
+intended. Smaller models, `llama3.2` among them, ask a question where the words describe an
+itinerary or reject where they ask for a change, so keep the default or go larger.
 
 ## The demo, in two terminals
 
@@ -70,17 +72,17 @@ Then follow the conversation for the rest of the demo. Ctrl-C detaches without s
 anything:
 
 ```sh
-docker compose --profile demo logs -f demo demo-rejected demo-redelivered booking-agent itinerary-planner audit-consumer
+docker compose --profile demo logs -f demo demo-change demo-survives-request demo-survives-reply demo-rejected booking-agent itinerary-planner audit-consumer
 ```
 
 Wait for `BookingAgent is subscribed and waiting for events` and the same line from
 `ItineraryPlannerAgent` and `AuditConsumer` before the first act.
 
-## Act 1: the trip approval workflow, from the request to the approval
+## Act 1: a trip, booked
 
 In the second terminal, start the conversation: the running example's request, New York to
-Lisbon for two with three days in Madrid on the way, six months from today, followed by four
-replies in a customer's words:
+Lisbon for two with three days in Madrid on the way, six months from today, followed by one
+reply that approves an itinerary:
 
 ```sh
 docker compose --profile demo up -d --build --force-recreate demo
@@ -88,8 +90,9 @@ docker compose --profile demo up -d --build --force-recreate demo
 
 Observe in the watch terminal, in order:
 
-1. `demo-1` prints a PUBLISHED card for `booking.TripRequested`. Its `partitionkey` is the
-   conversation's id and its data has no trip id: no trip exists yet.
+1. `demo-1` prints the request in a customer's words, then a PUBLISHED card for
+   `booking.TripRequested`. Its `partitionkey` is the conversation's id and its data has no
+   trip id: no trip exists yet.
 2. `booking-agent-1` receives it and, with no LLM call, publishes `booking.TripCreated` with
    a `trip_id` of 1 (or the next free number: the store assigned it). `demo-1` prints the id.
 3. `booking-agent-1` receives its own `booking.TripCreated` and publishes
@@ -98,44 +101,102 @@ Observe in the watch terminal, in order:
 4. `itinerary-planner-1` plans as in chapter 2 and publishes `planning.ItineraryProposed`.
    `booking-agent-1` records the proposal on the Trip and publishes `booking.ProposalReady`;
    `demo-1` lists the itineraries.
-5. The customer replies `Sounds good.` `booking-agent-1` runs its LLM over the reply, the
-   proposal, and the trip's requirements; the words settle nothing, so the LLM calls
-   `request_clarification` and `booking.ClarificationRequested` comes back with a question.
-6. The customer replies `Could we leave a day later? The fares on that day are too high.`
-   The LLM calls `change` with every journey's new date; the Trip moves the stays with
-   their journeys, checks the dates as it checked the request, and `booking.TripChanged`
-   is published. `booking-agent-1` consumes it and asks planning again, the reason in the
-   request. A new proposal arrives.
-7. The customer replies `No, all of these are too expensive for what they offer.`
-   `booking.ItineraryRejected`, another planning request, another proposal.
-8. The customer replies `The one with the morning flight, please.` The LLM resolves the
-   description against the proposal's itineraries and calls `approve` with its rank;
-   `booking.ItineraryApproved` ends the workflow, and `demo-1` prints a green ✔ and a
-   `grep` command for the whole workflow in the audit record.
+5. The customer replies `The cheapest one, please.` `booking-agent-1` runs its LLM over the
+   reply and the proposal, logs `the LLM decided: ItineraryApproved`, and publishes
+   `booking.ItineraryApproved` with the rank the Trip accepted. `demo-1` prints a green ✔
+   and two commands.
 
 Every event from the request on carries the same `correlationid`, and from
 `booking.TripCreated` on, each one's `partitionkey` is the trip's id. The agent set none of
-them.
-
-A small model may read a reply differently: reject instead of changing the dates, or ask
-which itinerary where the words describe one. The script follows whatever booking publishes,
-so the conversation still runs; it ends early when an approval comes before the fourth reply,
-and it ends unapproved when the fourth reply earns a question. Either way every event is in
-the audit record, and the Trip is in PostgreSQL where the conversation left it. An
-LLM that answers in prose instead of calling a tool fails its activation, which the broker
-redelivers: `booking-agent-1` then shows the same `booking.CustomerReplied` received twice,
-and the second reading usually calls a tool.
-
-The Trip is in PostgreSQL. Read the row while the stack runs:
+them. Run the first printed command to count the workflow's events in the audit record:
 
 ```sh
-docker compose exec postgres psql -U agency -c "select id, status, version, request_event_id from trips"
+grep <correlationid> data/audit.log | wc -l
 ```
 
-The `version` is the number of activations that changed the trip, and the `state` column,
-left out above, is the Trip as the activator last committed it.
+Run the second to read the Trip in PostgreSQL. The `version` is the number of activations
+that changed the trip, and the `state` column, left out here, is the Trip as the activator
+last committed it:
 
-## Act 2: a request that is no business request
+```sh
+docker compose exec postgres psql -U agency -c "select id, status, version from trips where id = <trip_id>"
+```
+
+A different model may read the reply differently, and ask which itinerary instead of
+approving. The script follows whatever booking publishes, and ends unapproved when its one
+reply earns a question. Either way every event is in the audit record, and the Trip is in
+PostgreSQL where the conversation left it.
+
+## Act 2: the customer changes their mind
+
+A second conversation, with three replies:
+
+```sh
+docker compose --profile demo up -d --build --force-recreate demo-change
+```
+
+Observe in the watch terminal, after the request, the trip, and the first proposal as in
+Act 1:
+
+1. The customer replies `Thanks, got it.` The words settle nothing, so the LLM calls
+   `request_clarification` and `booking.ClarificationRequested` comes back with a question
+   and two options.
+2. The customer replies `Could we leave a day later? The fares on that day are too high.`
+   The reply's `answering` field carries the question. The LLM calls `change` with every
+   journey's new date; the Trip moves the stays with their journeys, checks the dates as it
+   checked the request, and `booking.TripChanged` is published with the new requirements.
+   `booking-agent-1` consumes it and asks planning again, the reason in the request. A new
+   proposal arrives.
+3. The customer replies `The cheapest one, please.` `booking.ItineraryApproved` ends the
+   conversation.
+
+If the LLM first calls `change` with one journey's date, the Trip refuses it and the log
+shows `the LLM's call of change was refused`; the LLM then calls again with every date. The
+refusal is in the log, never on the wire.
+
+## Act 3: the trip survives a redelivery and a restart
+
+A third conversation, in two runs. First, the request, published twice with the same id, as
+a broker that promises at-least-once delivery may deliver it:
+
+```sh
+docker compose --profile demo up -d --build --force-recreate demo-survives-request
+```
+
+Observe in the watch terminal:
+
+1. `demo-survives-request-1` prints two PUBLISHED cards with the same `id`.
+2. `booking-agent-1` prints two RECEIVED cards and one `booking.TripCreated`. For the
+   second delivery it logs `already handled`: the store keeps the request's event id under
+   a unique index, so the redelivery found the trip the first delivery created, and the
+   event's id was already recorded against it.
+3. The proposal arrives, the script lists the itineraries, prints a green ✔, and stops with
+   the three commands below.
+
+Read the trip's row and note its `version`:
+
+```sh
+docker compose exec postgres psql -U agency -c "select id, status, version from trips where id = <trip_id>"
+```
+
+Restart the Booking Agent. Its in-memory session store, where ADK kept each activation's
+trace, is gone with the process; the Trip is not:
+
+```sh
+docker compose restart booking-agent
+```
+
+Wait for `BookingAgent is subscribed and waiting for events`, then let the customer reply:
+
+```sh
+docker compose --profile demo up -d --build --force-recreate demo-survives-reply
+```
+
+`booking-agent-1` receives `booking.CustomerReplied`, loads the Trip from PostgreSQL, logs
+`the LLM decided: ItineraryApproved`, and publishes the approval. Read the row again: the
+`version` is one higher, and nothing else about the conversation changed.
+
+## Act 4: a request the Trip refuses
 
 Send a request whose journeys are out of order, the way home first:
 
@@ -149,30 +210,13 @@ Observe in the watch terminal:
    the activator lets it through to the agent.
 2. `booking-agent-1` publishes `booking.TripRequestRejected` under the conversation's key,
    its `reason` naming the broken rule. The Trip's `open` operation checked the rules in
-   code; no LLM was involved, no trip was created, and planning was never asked.
+   code; no LLM was involved, no trip was opened, and planning was never asked.
 
 Chapter 2's malformed request stopped at the boundary, where the contract is checked. This
-one passed the boundary and stopped at the Trip, where the rules are.
-
-## Act 3: one request, delivered twice
-
-Publish a request and then the very same event again, same id and all, as a broker that
-promises at-least-once delivery may do:
-
-```sh
-docker compose --profile demo up -d --build --force-recreate demo-redelivered
-```
-
-Observe in the watch terminal:
-
-1. `demo-redelivered-1` prints two PUBLISHED cards with the same `id`.
-2. `booking-agent-1` prints two RECEIVED cards and one `booking.TripCreated`. For the
-   second delivery it logs `already handled`: the store keeps the request's event id under
-   a unique index, so the redelivery found the trip the first delivery created, and the
-   event's id was already recorded against it.
-3. The trip goes on to planning like any other, so a `booking.ProposalReady` may arrive
-   meanwhile. After 30 seconds with no second `TripCreated`, `demo-redelivered-1` prints a
-   green ✔.
+one passed the boundary and stopped at the Trip, where the rules are. The activator had
+created the trip's row before the activation, as it does for every request, so a row at
+status `new` remains, with the request's event id recorded against it: a redelivery of the
+refused request is refused once.
 
 ## Shutting down
 
@@ -183,8 +227,8 @@ stored events, the trips in PostgreSQL, and Ollama's downloaded models:
 docker compose --profile demo down
 ```
 
-The audit record in `data/audit.log` stays on disk. Delete the file to start the next run
-with an empty record.
+The audit record in `data/audit.log` stays on disk, and so does `data/trip_survives.json`
+from Act 3. Delete them to start the next run clean.
 
 ## Tests
 
@@ -197,7 +241,7 @@ model, no API key, and no `.env`:
 
 The Booking Agent's suite runs the whole workflow through the activator on the in-memory
 broker and the in-memory state store, with a scripted LLM in place of a model and a plain
-function in place of the Planner: a request, the proposal, each of the four replies, and a
+function in place of the Planner: a request, the proposal, each kind of reply, and a
 redelivered request. The library's PostgreSQL adapter is tested against a database the test
 runner starts.
 
@@ -209,6 +253,8 @@ runner starts.
 - **The same reply is read again and again.** The LLM answers in prose every time. A larger
   model in `.env` ends it; so does stopping the Booking Agent, which leaves the trip where it
   was in PostgreSQL.
+- **Act 3's reply step says there is no conversation to continue.** Run its request step
+  first; it writes `data/trip_survives.json`, which the reply step reads.
 - **Ollama is slow.** A reply is one model call, a proposal several. See
   [Local models with Ollama](../../README.md#local-models-with-ollama) in the repository
   README for the GPU options.
