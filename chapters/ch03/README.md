@@ -33,7 +33,7 @@ Where to read the code, in the order the chapter teaches it:
 - [events/booking.py](../../lib/travel_agency/travel_agency/events/booking.py): booking's
   nine contracts.
 - The customer channel, one script per act: [customer_channel.py](customer_channel.py),
-  [change_of_mind.py](change_of_mind.py), [trip_survives.py](trip_survives.py), and
+  [change_of_mind.py](change_of_mind.py), [redelivered_request.py](redelivered_request.py), and
   [rejected_request.py](rejected_request.py).
 
 ## Setup
@@ -72,7 +72,7 @@ Then follow the conversation for the rest of the demo. Ctrl-C detaches without s
 anything:
 
 ```sh
-docker compose --profile demo logs -f demo demo-change demo-survives-request demo-survives-reply demo-rejected booking-agent itinerary-planner audit-consumer
+docker compose --profile demo logs -f demo demo-change demo-redelivered demo-rejected booking-agent itinerary-planner audit-consumer
 ```
 
 Wait for `BookingAgent is subscribed and waiting for events` and the same line from
@@ -154,47 +154,31 @@ If the LLM first calls `change` with one journey's date, the Trip refuses it and
 shows `the LLM's call of change was refused`; the LLM then calls again with every date. The
 refusal is in the log, never on the wire.
 
-## Act 3: the trip survives a redelivery and a restart
+## Act 3: a request delivered twice
 
-A third conversation, in two runs. First, the request, published twice with the same id, as
-a broker that promises at-least-once delivery may deliver it:
+A third conversation, whose request is published twice with the same id, as a broker that
+promises at-least-once delivery may deliver it:
 
 ```sh
-docker compose --profile demo up -d --build --force-recreate demo-survives-request
+docker compose --profile demo up -d --build --force-recreate demo-redelivered
 ```
 
 Observe in the watch terminal:
 
-1. `demo-survives-request-1` prints two PUBLISHED cards with the same `id`.
+1. `demo-redelivered-1` prints two PUBLISHED cards with the same `id`.
 2. `booking-agent-1` prints two RECEIVED cards and one `booking.TripCreated`. For the
    second delivery it logs `already handled`: the store keeps the request's event id under
    a unique index, so the redelivery found the trip the first delivery created, and the
    event's id was already recorded against it.
 3. The proposal arrives, the script lists the itineraries, prints a green ✔, and stops with
-   the three commands below.
+   the command below.
 
-Read the trip's row and note its `version`:
+Read the trip's row: one trip, at status `proposed`, its `version` counting the activations
+that changed it:
 
 ```sh
 docker compose exec postgres psql -U agency -c "select id, status, version from trips where id = <trip_id>"
 ```
-
-Restart the Booking Agent. Its in-memory session store, where ADK kept each activation's
-trace, is gone with the process; the Trip is not:
-
-```sh
-docker compose restart booking-agent
-```
-
-Wait for `BookingAgent is subscribed and waiting for events`, then let the customer reply:
-
-```sh
-docker compose --profile demo up -d --build --force-recreate demo-survives-reply
-```
-
-`booking-agent-1` receives `booking.CustomerReplied`, loads the Trip from PostgreSQL, logs
-`the LLM decided: ItineraryApproved`, and publishes the approval. Read the row again: the
-`version` is one higher, and nothing else about the conversation changed.
 
 ## Act 4: a request the Trip refuses
 
@@ -227,8 +211,7 @@ stored events, the trips in PostgreSQL, and Ollama's downloaded models:
 docker compose --profile demo down
 ```
 
-The audit record in `data/audit.log` stays on disk, and so does `data/trip_survives.json`
-from Act 3. Delete them to start the next run clean.
+The audit record in `data/audit.log` stays on disk. Delete it to start the next run clean.
 
 ## Tests
 
@@ -253,8 +236,6 @@ runner starts.
 - **The same reply is read again and again.** The LLM answers in prose every time. A larger
   model in `.env` ends it; so does stopping the Booking Agent, which leaves the trip where it
   was in PostgreSQL.
-- **Act 3's reply step says there is no conversation to continue.** Run its request step
-  first; it writes `data/trip_survives.json`, which the reply step reads.
 - **Ollama is slow.** A reply is one model call, a proposal several. See
   [Local models with Ollama](../../README.md#local-models-with-ollama) in the repository
   README for the GPU options.

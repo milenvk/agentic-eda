@@ -118,13 +118,9 @@ services:
     <<: *demo
     command: ["python", "change_of_mind.py"]
 
-  demo-survives-request:
+  demo-redelivered:
     <<: *demo
-    command: ["python", "trip_survives.py", "request"]
-
-  demo-survives-reply:
-    <<: *demo
-    command: ["python", "trip_survives.py", "reply"]
+    command: ["python", "redelivered_request.py"]
 
   demo-rejected:
     <<: *demo
