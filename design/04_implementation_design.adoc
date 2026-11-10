@@ -589,7 +589,7 @@ model an adapter concern. The activator owns five things.
    answers. From chapter 2 through chapter 6 the unit is one event and the answer at most one
    event, or `Nothing`, and an agent that has more to do reaches its next step by consuming
    its own event, as the Booking Agent does from `booking.TripCreated`. Each relaxation arrives
-   with its pattern: several in, through the Router's window (ch 4) and the Planner's activation
+   with its pattern: several in, through the Router's window (ch 5) and the Planner's activation
    inbox (ch 7); several out, through the publish tool and `eda.publish` (ch 7, the reservation
    step; ch 9, the compensation step; the Duty-of-Care Monitor's sweep), with the at-least-once
    cost taught in ch 8. A scheduled event is a port side effect, not a second answer. Open for
@@ -840,10 +840,10 @@ items).
   with `planning.ItineraryRequestSuperseded`, and restarted from its checkpoint with the new
   requirements. Nothing else declares anything in the book.
 * **No defer, no nack.** The port offers neither, and the activator adds neither. Staging an
-  event until its prerequisite arrives is the `InboxStore` (the Agentic Inbox, ch 4):
+  event until its prerequisite arrives is the `InboxStore` (the Agentic Inbox, ch 7):
   activation gated on the completeness of its context, verified deterministically before any
   inference runs. Re-sequencing at ingress happens exactly once in the design, at one line,
-  inside the Semantic Router: the time window of ch 4's semantic windowing is sorted by the
+  inside the Semantic Router: the time window of ch 5's semantic windowing is sorted by the
   sender's timestamp before the one bulk call, a deterministic fix that works only where a
   trusted sequence exists. Bouncing an event through a consumer that runs a model would re-run
   the model, and a nack fights per-key ordering everywhere (block the key, as queue brokers do,
@@ -1056,7 +1056,7 @@ the file and still absent from the prompt when there is none.
   "Local models with Ollama" section; chapter READMEs and `.env.example` point there.
   Predictive throttling against provider limits (ch 11) is LiteLLM's rate-limit
   configuration, tokens and requests per minute per deployment, never hand-written.
-* **Chapter-mandated local models** (the ch 4 Semantic Router's embeddings, ch 13's
+* **Chapter-mandated local models** (the ch 5 Semantic Router's embeddings, ch 13's
   Llama Guard, the ch 11 fallback chain) never read the general `LLM_MODEL`. The chapter
   pins the component's model in its own compose files and forces the service on by
   including `compose/ollama.yaml` with an env-file list,

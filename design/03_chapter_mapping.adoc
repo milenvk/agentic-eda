@@ -104,48 +104,51 @@ payment offstage until ch 10.
 
 | 4
 | Workflow
-| W1 step 1 for chat and email; W2 complete; W3's inspiration path
+| W1 step 1 for chat; the Booking Agent at two replicas; the lanes under a burst
 | Front Desk (the Customer Relations agent: chat shell out of the page budget, intent classifier
   and publishing code in it, the classifier's structured output, writer of Customer and
-  Conversation, delivery by subscription),
-  email replay script + seeded dataset (`customer.EmailReceived`), Semantic Router at two
-  replicas (writing booking's, support's, and destination's requests directly, and
-  `booking.SupplierUpdateReceived`; the time window sorted by sender timestamp), email delivery
-  adapter, Token Defense Filter, the `InboxStore` table (the Agentic Inbox staging an early
-  supplier update) added to the PostgreSQL in compose since ch 3, support adapter and Support
-  Desk AaaS sim (the first component not our code, moved here from ch 3 on 2026-10-07; the
-  fallback is ch 5 beside the Research Agent), Destination Inspiration crew (CrewAI, the target
-  of routing by meaning, its pack through `output_pydantic`), the lanes
-  demonstration (a burst of trip requests into one Planner process, every inference in flight,
-  order kept per trip, a kill mid-burst replayed from the watermark)
-| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end;
-  `support.SupportRequested` and `support.SupportTicketResolved`, the support edge
-| Reflex agents (the classifier as the first), semantic routing (the same classification in an
-  interactive message and a windowed burst, and why they are two components), semantic
-  windowing, filters and payload mediation, broadcast vs competing consumers with per-key
-  serialization, ordering per key in the contract, concurrency inside the consumer (per-key lanes, the commit watermark, the
-  in-flight cap; lanes built by the client on Kafka and provided by the broker on Pub/Sub, SQS
-  FIFO, and Service Bus), out-of-sequence handling (two patterns built, the Agentic Inbox as
-  activation gated on completeness and the ingress re-sequencer at one line; NACK and retry
-  analyzed, not built), subscribe-all, the capability intersection rule, pull vs push, delivery as a subscription with one adapter
-  per channel; the practical shows the classifier and the Router's shape only; edge prompting
-  at the vendor's edge (the template at the edge, the reply parsed back, the broker ignorant of
-  prompt engineering, the anticorruption layer named), the support context by the boundary
-  test, the shock absorber in one sentence (from ch 3, 2026-10-07)
+  Conversation, delivery by subscription; a short window over several messages in a row and a
+  filter on the channel's presence and typing events), the Booking Agent at two replicas with
+  the Audit Consumer in broadcast, the lanes demonstration (a burst of trip requests into one
+  Planner process, every inference in flight, order kept per trip, a kill mid-burst replayed
+  from the watermark); the email channel, the Router, the filter, the `InboxStore`, the
+  support edge, and the crew moved to ch 5 and ch 7 on 2026-11-09
+| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end
+| Reflex agents (the classifier as the first), semantic routing (the classifier at the edge;
+  the Router is ch 5's), semantic windowing and filters on the chat channel (payload mediation
+  named, built in ch 5), broadcast vs competing consumers with per-key serialization, ordering
+  per key in the contract, concurrency inside the consumer (per-key lanes, the commit
+  watermark, the in-flight cap; lanes built by the client on Kafka and provided by the broker
+  on Pub/Sub, SQS FIFO, and Service Bus), subscribe-all, the capability intersection rule,
+  pull vs push, delivery as a subscription with one adapter per channel; the practical shows
+  the classifier's shape only; the customer context by the boundary test
 
 | 5
 | Component
-| W3's ingestion; S1 variants
+| W3's ingestion; S1 variants; W1 step 1 for email; W2 complete; W3's inspiration path (from ch 4, 2026-11-09)
 | `BlobStore` (MinIO), claim-check ingestion (`destination.BrochureUploaded`,
   `destination.DocumentAvailable`), Destination Research Agent (LlamaIndex, an MCP tool server
   over the indexed brochures, the Planner's tool; moved here from ch 3 on 2026-10-07), the
   Observer/Reflector Agent in both variants (summarizing vs experiential), with no store behind
-  them
+  them;
+  moved here from ch 4 on 2026-11-09: email replay script + seeded dataset
+  (`customer.EmailReceived`), Semantic Router at two replicas (writing booking's, support's,
+  and destination's requests directly, and `booking.SupplierUpdateReceived`; the time window
+  sorted by sender timestamp), email delivery adapter, Token Defense Filter, support adapter
+  and Support Desk AaaS sim (the first component not our code), Destination Inspiration crew
+  (CrewAI, the target of routing by meaning, its pack through `output_pydantic`)
 | The A/B; the Planner's tool call to the Research Agent, with the airline's REST and the
-  hotel's MCP taught as the Planner's other tools
+  hotel's MCP taught as the Planner's other tools;
+  `customer.EmailReceived`; `support.SupportRequested` and `support.SupportTicketResolved`,
+  the support edge
 | Claim check, context bottleneck, memory strategies; tools over MCP and a legacy system over
   REST (two of the four kinds of counterpart), the synchronous-query rule (a perishable answer
-  nobody else acts on), the destination context by the boundary test
+  nobody else acts on), the destination context by the boundary test; from ch 4 (2026-11-09): semantic routing over a windowed burst with
+  competing replicas (why the classifier and the Router are two components), semantic
+  windowing, payload mediation, the filter, the ingress re-sequencer at one line, edge
+  prompting at the vendor's edge (the template at the edge, the reply parsed back, the broker
+  ignorant of prompt engineering, the anticorruption layer named), the support context by the
+  boundary test, the shock absorber in one sentence
 
 | 6
 | Component
@@ -167,7 +170,9 @@ payment offstage until ch 10.
   attached in its lifespan, as every ADK agent does),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
   `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
-  recording for ch 12
+  recording for ch 12;
+  the `InboxStore` table (the Agentic Inbox staging an early supplier update), moved from ch 4
+  on 2026-11-09
 | The Booking Agent's wait at the barrier before `ProposalReady` and its reservation step
   (`FlightReserved`, `HotelReserved`, `ReservationFailed`, `CarReserved`, holds with an expiry,
   the fallback decided by reasoning among the backup, a re-plan, and a question to the
@@ -184,7 +189,9 @@ payment offstage until ch 10.
   legacy over REST, a person through edge prompting; from ch 3, 2026-10-07), propose-commit (the Planner proposes, the
   customer commits; the Negotiator proposes, the reservation step commits), the last-room
   conflict, hierarchical context, communication topologies, planning without side effects, the
-  edge observes and the owner commits, interrupting events and their three strategies,
+  edge observes and the owner commits, interrupting events and their three strategies, out-of-sequence handling (the
+  Agentic Inbox as activation gated on completeness, the ingress re-sequencer cited from ch 5,
+  NACK and retry analyzed, not built; from ch 4, 2026-11-09),
   experiential lessons in context paths, ACRISS beside the Rental Car Agent; 7.8's dynamic
   provisioning stays a horizon with its costs stated
 
@@ -197,7 +204,7 @@ payment offstage until ch 10.
   writer of the ApprovalRequest), Duty-of-Care Monitor (proactive, stateless, in servicing, with
   the Travel Advisory Feed sim), the hotel sim's slow-counter auto-responder
 | The `StateStore`'s macro-state, with the version check as the fence (the Trip's row
-  exists since ch 4), and the `GuardStateStore`; the Booking Agent's wait for the pass or the manager's
+  exists since ch 3), and the `GuardStateStore`; the Booking Agent's wait for the pass or the manager's
   decision, `ApprovalRequested` through the outbox, the 48-hour timeout, the follow-up nudge
   scheduled from `ProposalReady`; the barrier's straggler timeout; a negotiation durable across
   a slow counter

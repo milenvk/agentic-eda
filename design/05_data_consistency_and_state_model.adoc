@@ -71,7 +71,7 @@ principle, not violations of it:
   it, and `booking.CustomerReplied` records what the customer said about a proposal, in the
   customer's words, a fact about the request rather than a change to the trip, read by the
   Booking Agent, which alone commits what it means; the demo script (ch 3), the Front Desk
-  and the Router (ch 4), and a partner adapter (ch 14) write them. `planning.ItineraryRequested`
+  (ch 4), the Router (ch 5), and a partner adapter (ch 14) write them. `planning.ItineraryRequested`
   is written by the Booking Agent (the demo script in ch 1 and 2), `support.SupportRequested`
   and `destination.InspirationRequested` by the classifiers. Every transition of the thing
   requested has one writer.
@@ -199,7 +199,7 @@ joining both topics (the Observer's `TripView`) can see the proposal before the 
 that started it. The Booking Agent itself is not exposed, since it wrote the request only after
 recording the trip, and a crash between the two is ch 8's durability lesson.
 
-A robust read model handles this by **staging**, the `InboxStore` shape of ch 4, with the
+A robust read model handles this by **staging**, the `InboxStore` shape of ch 7, with the
 causation chain naming the prerequisite:
 
 * If `planning.ItineraryProposed` arrives first, the projection stages it under the trip id

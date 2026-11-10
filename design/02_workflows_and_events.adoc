@@ -39,7 +39,9 @@ requests and printing what booking publishes; the Front Desk is the customer cha
    conversation to the trip and follows the trip's facts from here on. Nobody outside Customer Relations reads the
    conversation; a request may carry the customer's words for one field, as `TripRequested`
    carries the preferences and `CustomerReplied` the reply. In ch 3 the demo script writes
-   `TripRequested`; the Router writes it for email from ch 4.
+   `TripRequested`; the Router writes it for email from ch 5. Several messages sent in a row are buffered in a
+   short window and classified once when it closes, and the channel's presence and typing
+   events are dropped before any classification (ch 4's token defense).
 2. **Booking validates and asks planning** [3]. The Booking Agent consumes `TripRequested`,
    checks it as a business request (dates in the future and in order, at least one
    origin-destination, the party stated, a budget or an explicit "no limit"). A request that fails gets
@@ -134,8 +136,8 @@ requests and printing what booking publishes; the Front Desk is the customer cha
 audit consumer; one topic per context and per-key lanes in the adapter), ch 2 (the LangGraph
 Planner replacing the plain one on the same events; CloudEvents contracts, correlation and
 causation, `partitionkey`), ch 3 (the Booking Agent takes planning's end and the demo script the
-customer's: steps 2, 5, and 7), ch 5 (the Research Agent's tool in step 3), ch 4 (the Front Desk and
-the Router become the customer channel: steps 1 and 6 for chat and email), ch 7 (steps 4 and 9 and
+customer's: steps 2, 5, and 7), ch 5 (the Research Agent's tool in step 3), ch 4 (the Front Desk becomes
+the customer channel: steps 1 and 6 for chat), ch 5 (the Router, the same for email), ch 7 (steps 4 and 9 and
 the partial re-plan: the demonstration ends with the trip reserved, both holds in place), ch 8
 (steps 8 and 11, the follow-up nudge), ch 10 (step 10, idempotent).
 
@@ -440,12 +442,12 @@ at-least-once.
 
 The Router records the trip-to-thread link, and the email delivery adapter follows the trip's
 facts by trip id and replies on the thread, recording `customer.CustomerNotified`: delivery is
-one pattern with one adapter per channel. The Router runs as two replicas from ch 4: competing
+one pattern with one adapter per channel. The Router runs as two replicas from ch 5: competing
 consumption, and with `partitionkey` (the conversation id) per-key serialization. The Router
-and the Front Desk's classifier do the same job in two components, and ch 4 says why: an
+and the Front Desk's classifier do the same job in two components, and ch 5 says why: an
 interactive single message against a windowed burst with competing consumers.
 
-*Built in:* ch 4 (the support edge with it).
+*Built in:* ch 5 (moved from ch 4 on 2026-11-09; the support edge with it).
 
 === W3: Destination Knowledge, Ingestion and Inspiration
 
@@ -459,8 +461,8 @@ whose personas turn the indexed brochures into a themed suggestion pack,
 `destination.SuggestionPackReady`, which the Front Desk shows the customer; a customer who then
 decides starts W1.
 
-*Built in:* ch 4 (the crew, routed to by meaning), ch 5 (the Research Agent as an MCP tool
-server, and the claim check).
+*Built in:* ch 5 (the crew, routed to by meaning, moved from ch 4 on 2026-11-09; the Research
+Agent as an MCP tool server, and the claim check).
 
 === W4: B2B Policy and Approval
 
@@ -690,7 +692,7 @@ Conventions:
 4+e| customer: the customer, the conversations with them, and the channels (W2, S2)
 | ChatMessageReceived | Front Desk, carrying the conversation id and the customer id; classified in-process | Audit, Observer | ch 4
 | CustomerNotified | Front Desk or the email delivery adapter, on delivering a message to the customer | Audit, Observer | ch 4
-| EmailReceived | Email replay script | Semantic Router | ch 4
+| EmailReceived | Email replay script | Semantic Router | ch 5
 
 4+e| planning: trip planning, the proposals
 | ItineraryRequested | *open host.* The Booking Agent, in its activation on its own `booking.TripCreated`, `booking.ItineraryRejected`, or `booking.TripChanged` (the demo script in ch 1 and 2), in planning's published language: the trip id as key, the request's own id (`request_id`, numbered by the Trip), the validated requirements, and on a re-plan the reason and the items carried over | Planner (its only inbound request), audit, Observer | ch 1
@@ -698,10 +700,10 @@ Conventions:
 | ItineraryRequestSuperseded | Planner, when a newer request for the same trip interrupts the run in progress; names the abandoned request, causation the newer one | Booking Agent (stops expecting that proposal), audit | ch 7
 
 4+e| booking: the trip's lifecycle, from request to confirmation or cancellation
-| TripRequested | *open host.* Whoever asks, in booking's published language: the demo script (ch 3), the Front Desk and the Router (ch 4), the partner adapter in V2 (ch 14); keyed by the conversation's id, since no trip exists yet | Booking Agent (validates and records the trip), audit, Observer | ch 3
+| TripRequested | *open host.* Whoever asks, in booking's published language: the demo script (ch 3), the Front Desk (ch 4) and the Router (ch 5), the partner adapter in V2 (ch 14); keyed by the conversation's id, since no trip exists yet | Booking Agent (validates and records the trip), audit, Observer | ch 3
 | TripCreated | Booking Agent, on recording the Trip: the store-assigned trip id and the accepted request; causation the `TripRequested`; the first event keyed by the trip's id | The Booking Agent itself (its next step, the planning request); whoever wrote the request (the demo script in ch 3, the Front Desk and the email delivery adapter from ch 4, matching by correlation id); audit, Observer | ch 3
 | TripRequestRejected | Booking Agent, when validation fails; what is missing or wrong | Front Desk (as a question to the customer), audit | ch 3
-| CustomerReplied | *open host.* Whoever asks: the demo script (ch 3), the Front Desk and the Router (ch 4); the proposal answered, the customer's words about it, and, when booking asked one, the question being answered, set by the channel that showed it; what it means is booking's reading | Booking Agent | ch 3
+| CustomerReplied | *open host.* Whoever asks: the demo script (ch 3), the Front Desk (ch 4) and the Router (ch 5); the proposal answered, the customer's words about it, and, when booking asked one, the question being answered, set by the channel that showed it; what it means is booking's reading | Booking Agent | ch 3
 | ProposalReady | Booking Agent, on recording a proposal (at once until ch 7, after the barrier from ch 7); the itineraries as the customer should see them | Front Desk, email delivery adapter, audit | ch 3
 | ItineraryApproved | Booking Agent, naming the proposal by its id and the chosen itinerary by its rank | Planner (marks the itinerary), Policy Gate (from ch 8), the reservation step (from ch 7), Observer | ch 3
 | ItineraryRejected | Booking Agent, with the customer's reason | The Booking Agent itself (its next step, a new `ItineraryRequested`), Observer, audit | ch 3
@@ -714,7 +716,7 @@ Conventions:
 | CarRentalReserved | Rental Car Agent, an edge observation | Booking Agent, Observer | ch 7
 | CarRentalUnavailable | Rental Car Agent | Booking Agent | ch 7
 | CarReserved | Booking Agent, recording the car on the trip; causation is the car event | Front Desk, Observer | ch 7
-| SupplierUpdateReceived | Semantic Router, an edge observation from a supplier's email | `InboxStore` staging, Booking Agent | ch 4
+| SupplierUpdateReceived | Semantic Router, an edge observation from a supplier's email | `InboxStore` staging, Booking Agent | ch 5
 | ApprovalRequested | Booking Agent (outbox), carrying the semantic checkpoint | Approval console, audit | ch 8
 | ApprovalTimedOut | EventScheduler, relaying for the Booking Agent | Booking Agent (escalation) | ch 8
 | CustomerFollowUpDue | EventScheduler, relaying for the Booking Agent, scheduled from `ProposalReady` | Booking Agent | ch 8
@@ -741,12 +743,12 @@ Conventions:
 | CompensationDrafted | Recovery Agent | Booking Agent (the barrier, then the compensation step) | ch 9
 
 4+e| support: customer support, fulfilled by a vendor
-| SupportRequested | *open host.* Whoever asks: the Front Desk and the Router; keyed by the conversation until a trip exists | Support adapter (edge prompting to the Support Desk AaaS sim) | ch 4
-| SupportTicketResolved | Support adapter | Front Desk, email delivery adapter, Observer | ch 4
+| SupportRequested | *open host.* Whoever asks: the Front Desk and the Router; keyed by the conversation until a trip exists | Support adapter (edge prompting to the Support Desk AaaS sim) | ch 5
+| SupportTicketResolved | Support adapter | Front Desk, email delivery adapter, Observer | ch 5
 
 4+e| destination: destination knowledge (W3)
-| InspirationRequested | *open host.* The Front Desk's classifier or the Router, on a vague request; keyed by the conversation | Destination Inspiration crew | ch 4
-| SuggestionPackReady | Destination Inspiration crew | Front Desk, email delivery adapter | ch 4
+| InspirationRequested | *open host.* The Front Desk's classifier or the Router, on a vague request; keyed by the conversation | Destination Inspiration crew | ch 5
+| SuggestionPackReady | Destination Inspiration crew | Front Desk, email delivery adapter | ch 5
 | BrochureUploaded | UI shell or script | Claim-check ingestion | ch 5
 | DocumentAvailable | Claim-check ingestion | Research Agent | ch 5
 

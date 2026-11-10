@@ -50,7 +50,7 @@ reconciliation of 2026-09-11:
 * **Frameworks:** the roster is fixed by section 1.5: **LangGraph, Google ADK, LlamaIndex,
   CrewAI**. Framework agents are the showcases; every other agent is plain Python against
   the Ports. Debut order: LangGraph in ch 2 (the Planner), ADK in ch 3 (the Booking Agent as a
-  custom agent hosting deterministic steps beside a reasoning sub-agent), CrewAI in ch 4 (the
+  custom agent hosting deterministic steps beside a reasoning sub-agent), CrewAI in ch 5 (the
   Destination Inspiration crew), LlamaIndex in ch 5 (the Research Agent as an MCP tool server
   over the claim-checked brochures), ADK again in ch 7 (the Hotel Negotiator) and ch 9 (the
   Recovery Agent) (debut order revised 2026-10-07). Every ADK agent runs
@@ -451,7 +451,7 @@ The map's rules:
   that language, under the serving context's prefix; the serving context answers with its own
   fact and writes every later fact about the thing requested. Booking serves
   `booking.TripRequested` and `booking.CustomerReplied`, written by the demo script (ch 3), the
-  Front Desk and the Router (ch 4), and the partner adapter (ch 14); planning serves
+  Front Desk (ch 4), the Router (ch 5), and the partner adapter (ch 14); planning serves
   `planning.ItineraryRequested`, written by the Booking Agent (and by the demo script in ch 1
   and 2); support serves `support.SupportRequested` and destination serves
   `destination.InspirationRequested`, both written by the classifiers. A request is a fact that
@@ -468,7 +468,7 @@ The map's rules:
   is recorded on the trip when the Booking Agent publishes `booking.ProposalReady`; the Rental
   Car Agent's `booking.CarRentalReserved` by `booking.CarReserved`; the payment provider
   adapter's `booking.PaymentAuthorized` by `booking.TripConfirmed`; the Router's
-  `booking.SupplierUpdateReceived` (a supplier's email, ch 4) by whatever trip fact it
+  `booking.SupplierUpdateReceived` (a supplier's email, ch 5) by whatever trip fact it
   warrants. The observation is an input to the owner, never a change to the aggregate, which
   keeps one writer per trip.
 * **Planning has no side effects.** Reasoning publishes proposals, and one deterministic owner
@@ -909,7 +909,10 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   `RebookingProposed`), shows `support.SupportTicketResolved` and
   `destination.SuggestionPackReady` by conversation id, and records `customer.CustomerNotified`
   for each delivery. Its chat UI and live event-stream view are out of the page budget; the
-  classifier and the publishing code are in it. In ch 3 the demo script stands in for it.
+  classifier and the publishing code are in it. It buffers several messages sent in a row in a
+  short window and classifies once when it closes, and it drops the channel's presence and
+  typing events before any classification (ch 4's token defense). In ch 3 the demo script
+  stands in for it.
 
 | Destination Research Agent
 | Tool-Using
@@ -924,7 +927,7 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | Semantic Router
 | Reflex
 | py + local embeddings/Ollama
-| 4
+| 5
 | Classifies inbound email and writes the serving context's request directly:
   `booking.TripRequested`, `support.SupportRequested`, `destination.InspirationRequested`, or,
   for a supplier's email, the edge observation `booking.SupplierUpdateReceived`; drops spam
@@ -932,14 +935,14 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   replies on. Consumes bursts in time-windowed micro-batches, sorted by sender timestamp before
   the one bulk call (semantic windowing, and the ingress re-sequencer at one line), and strips
   raw email down to the fields the request needs (payload mediation). Runs as two replicas from
-  ch 4, the book's demonstration of competing consumption and per-key serialization. It is the
+  ch 5, the book's demonstration of competing consumption and per-key serialization. It is the
   Front Desk's classifier generalised to a batch inbox: the prose says why they are two
   components (an interactive message against a windowed burst with competing consumers).
 
 | Destination Inspiration crew
 | Reflective
 | CrewAI
-| 4
+| 5
 | Divergent ideation as its own component in the destination context: on
   `destination.InspirationRequested` ("somewhere warm in March") several personas turn the
   indexed brochures into a themed suggestion pack ("three ways to spend a week in Portugal"),
@@ -1042,12 +1045,11 @@ from that chapter; a later chapter's compose file switches on what it teaches.
 | The support context's edge: on `support.SupportRequested` it templates the request into the
   vendor's prompt (Deterministic Edge Prompting), hands it to the Support Desk AaaS sim, and
   publishes `support.SupportTicketResolved` with the answer. The classifiers write the request.
-  The first component not our code, taught in ch 4 as the adapter at a vendor's edge (moved
-  from ch 3 on 2026-10-07; if ch 4's plan finds it too much it moves to ch 5 beside the
-  Research Agent).
+  The first component not our code, taught in ch 5 as the adapter at a vendor's edge, beside
+  the Research Agent (moved from ch 3 on 2026-10-07 and from ch 4 on 2026-11-09).
 
 | Email delivery adapter
-| 4
+| 5
 | The Customer Relations context's edge for outbound email: subscribes to the booking topic
   filtered by the trips the Router opened from email, keeps the trip-to-thread link, replies on
   the thread, and records `customer.CustomerNotified`. Delivery is one pattern with one adapter
@@ -1169,12 +1171,12 @@ code a flight search takes, so nearby airports (JFK and Newark) appear in one se
   the demo.
 
 | Support Desk AaaS sim
-| 4
+| 5
 | An external "agent as a service" answering support requests; integrated via Deterministic
   Edge Prompting, PII-scrubbed by the ch 13 egress interceptor. Deliberately *not* our code.
 |===
 
-Inbound email (ch 4) is a replay script over a seeded dataset (real requests, vendor updates,
+Inbound email (ch 5) is a replay script over a seeded dataset (real requests, vendor updates,
 spam) publishing `customer.EmailReceived`: a script, not a service.
 
 === Ports and infrastructure
