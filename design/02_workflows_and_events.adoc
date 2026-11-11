@@ -39,9 +39,7 @@ requests and printing what booking publishes; the Front Desk is the customer cha
    conversation to the trip and follows the trip's facts from here on. Nobody outside Customer Relations reads the
    conversation; a request may carry the customer's words for one field, as `TripRequested`
    carries the preferences and `CustomerReplied` the reply. In ch 3 the demo script writes
-   `TripRequested`; the Router writes it for email from ch 5. Several messages sent in a row are buffered in a
-   short window and classified once when it closes, and the channel's presence and typing
-   events are dropped before any classification (ch 4's token defense).
+   `TripRequested`; the Router writes it for email from ch 5.
 2. **Booking validates and asks planning** [3]. The Booking Agent consumes `TripRequested`,
    checks it as a business request (dates in the future and in order, at least one
    origin-destination, the party stated, a budget or an explicit "no limit"). A request that fails gets

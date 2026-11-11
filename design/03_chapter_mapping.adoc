@@ -107,17 +107,17 @@ payment offstage until ch 10.
 | W1 step 1 for chat; the Booking Agent at two replicas; the lanes under a burst
 | Front Desk (the Customer Relations agent: chat shell out of the page budget, intent classifier
   and publishing code in it, the classifier's structured output, writer of Customer and
-  Conversation, delivery by subscription; a short window over several messages in a row and a
-  filter on the channel's presence and typing events), the Booking Agent at two replicas with
-  the Audit Consumer in broadcast, the lanes demonstration (a burst of trip requests into one
+  Conversation, delivery by subscription), the Booking Agent at two replicas with the Audit
+  Consumer hearing every event, the lanes demonstration (a burst of trip requests into one
   Planner process, every inference in flight, order kept per trip, a kill mid-burst replayed
   from the watermark); the email channel, the Router, the filter, the `InboxStore`, the
   support edge, and the crew moved to ch 5 and ch 7 on 2026-11-09
 | `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end
-| Reflex agents (the classifier as the first), semantic routing (the classifier at the edge;
-  the Router is ch 5's), semantic windowing and filters on the chat channel (payload mediation
-  named, built in ch 5), broadcast vs competing consumers with per-key serialization, ordering
-  per key in the contract, concurrency inside the consumer (per-key lanes, the commit
+| Reflex agents (the classifier as the first), routing at the edge (the front agent routes and
+  does not act; the words are routed, not interpreted, so `CustomerReplied` carries words;
+  `produces` as the capability surface; the Router is ch 5's), order per key in the contract
+  and at two replicas (one component, one consumer group; the partition count caps the
+  replicas; no subscription modes), concurrency inside the consumer (per-key lanes, the commit
   watermark, the in-flight cap; lanes built by the client on Kafka and provided by the broker
   on Pub/Sub, SQS FIFO, and Service Bus), subscribe-all, the capability intersection rule,
   pull vs push, delivery as a subscription with one adapter per channel; the practical shows

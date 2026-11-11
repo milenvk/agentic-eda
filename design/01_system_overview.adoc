@@ -909,10 +909,9 @@ from that chapter; a later chapter's compose file switches on what it teaches.
   `RebookingProposed`), shows `support.SupportTicketResolved` and
   `destination.SuggestionPackReady` by conversation id, and records `customer.CustomerNotified`
   for each delivery. Its chat UI and live event-stream view are out of the page budget; the
-  classifier and the publishing code are in it. It buffers several messages sent in a row in a
-  short window and classifies once when it closes, and it drops the channel's presence and
-  typing events before any classification (ch 4's token defense). In ch 3 the demo script
-  stands in for it.
+  classifier and the publishing code are in it. It routes and does not act: it has no domain
+  tools, its outputs are the requests above, and it hears the answers through its
+  subscription. In ch 3 the demo script stands in for it.
 
 | Destination Research Agent
 | Tool-Using
