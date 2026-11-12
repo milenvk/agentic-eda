@@ -1,5 +1,5 @@
 # Chapter 1 — the decoupled booking workflow.
-# Kafka, the Itinerary Planner Agent, and (per demo act) the audit consumer.
+# Kafka, the Itinerary Planner agent, and (per demo act) the audit consumer.
 # See README.md for the walkthrough.
 
 include:

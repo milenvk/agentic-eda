@@ -68,7 +68,7 @@ def journey(
 
 
 def new_trip_id() -> int:
-    """The Booking Agent assigns trip ids from chapter 3; until then the script picks one."""
+    """The Booking agent assigns trip ids from chapter 3; until then the script picks one."""
     return time.time_ns()
 
 

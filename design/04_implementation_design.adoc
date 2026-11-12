@@ -52,7 +52,7 @@ one component keeps (settled 2026-10-24). `travel_agency` holds only what two or
 components must agree on to talk to each other: the event classes and the value objects
 inside them, the event-type constants, and the key registry.
 Everything a component needs only for itself lives in that component's directory: its
-aggregate and the aggregate's operations (the Booking Agent's Trip, in
+aggregate and the aggregate's operations (the Booking agent's Trip, in
 `components/booking_agent/booking_agent/trip.py`), its prompts, its graph or agent tree, its
 tools, its supplier clients, its store schema. The test: would another component have to
 import this module to exchange events with this one? If yes it is shared; if no it is the
@@ -213,7 +213,7 @@ neither reads nor interprets it; that is what lets chapter 15 move it to a manag
 store without touching an agent, and it carries its own `schema_version` field. Two adapters from
 chapter 3: PostgreSQL and in-memory, for the tests. The PostgreSQL adapter owns its schema and
 creates it on first use: the state table, named by the component's configuration
-(`STATE_STORE_TABLE=trips` for the Booking Agent, beside `STATE_STORE_URL`; the library is
+(`STATE_STORE_TABLE=trips` for the Booking agent, beside `STATE_STORE_URL`; the library is
 generic and names no business), with `id` serial, `request_event_id` unique, `version`, the
 `state` document as JSONB, and `status` as a generated column copied out of the document for
 anyone reading the table; and `handled_events` with `state_id` and `event_id`, unique
@@ -418,7 +418,7 @@ from then on the component resumes from its own committed position.
 --
 * Ch 1 uses the default throughout, so the audit consumer sees only what follows it. The
   patterns that need history ask for it in their own code: event sourcing (ch 6) and time
-  travel (ch 10). Ch 3's demo scripts ask for it too: the Booking Agent answers a request
+  travel (ch 10). Ch 3's demo scripts ask for it too: the Booking agent answers a request
   within a second, before a fresh subscription has settled, so each script opens its broker
   with `start="beginning"` and filters what it reads by its workflow's `correlationid`.
 * One Kafka detail the port does not hide: redelivery of an unacknowledged event depends
@@ -622,7 +622,7 @@ model an adapter concern. The activator owns five things.
    The activator runs one activation per delivery unit and publishes what the activation
    answers. From chapter 2 through chapter 6 the unit is one event and the answer at most one
    event, or `Nothing`, and an agent that has more to do reaches its next step by consuming
-   its own event, as the Booking Agent does from `booking.TripCreated`. Each relaxation arrives
+   its own event, as the Booking agent does from `booking.TripCreated`. Each relaxation arrives
    with its pattern: several in, through the Router's window (ch 5) and the Planner's activation
    inbox (ch 7); several out, through the publish tool and `eda.publish` (ch 7, the reservation
    step; ch 9, the compensation step; the Duty-of-Care Monitor's sweep), with the at-least-once
@@ -688,7 +688,7 @@ model an adapter concern. The activator owns five things.
   in-memory session service of its own, the request's data as JSON text without its
   attributes
 | what the agent handed to `eda.activation().answer(event)`, the one way code that cannot
-  return hands over its event (the Booking Agent's tools, and its custom agent's code paths,
+  return hands over its event (the Booking agent's tools, and its custom agent's code paths,
   since a custom agent's run method is a generator of ADK events; a refusal on one of those
   code paths is answered with `Nothing` and the refusal's reason, since the Trip changes only
   through this agent's own activations and the same event would be refused again), else the
@@ -717,7 +717,7 @@ model an adapter concern. The activator owns five things.
 
 | LlamaIndex
 | `await agent.run(user_msg=request.model_dump_json())`; no component of the book attaches a
-  LlamaIndex agent to the broker (the Research Agent is an MCP tool server consuming nothing
+  LlamaIndex agent to the broker (the Research agent is an MCP tool server consuming nothing
   from it), so this adapter serves the reader's own agents
 | `response.get_pydantic_model(produces)` or `structured_response`; LlamaIndex formats the
   answer after the run rather than constraining it during the run
@@ -771,9 +771,9 @@ promised.
    CloudEvents HTTP binding in and the same core behind it. ADK's own server offers the
    nearest alternative, `/apps/{app}/trigger/pubsub` and `/trigger/eventarc` routes that
    decode a cloud's payload and run the agent; they are the rejected alternative because they
-   couple the agent's host to one cloud's delivery, where the attachment does not. The ch 3 Booking Agent is the first
+   couple the agent's host to one cloud's delivery, where the attachment does not. The ch 3 Booking agent is the first
    attachment inside a framework's own app (ADK's), and every ADK agent after it (the ch 7
-   Negotiator, the ch 9 Recovery Agent) is hosted the same way; the ch 4 Front Desk and the
+   Negotiator, the ch 9 Recovery agent) is hosted the same way; the ch 4 Front Desk and the
    ch 5 Inspiration crew attach inside their own apps. The ch 2 Planner runs in a FastAPI app of its own, the
    compiled graph invoked in-process and the activator's lanes governing concurrency. That
    is the shape most teams run LangGraph in production, the library inside their own
@@ -788,7 +788,7 @@ promised.
    activator's hands. 2.6 says in one sentence that a team on the platform puts the same
    block in that app and what it trades.
 ** *Framework sessions* (decided 2026-10-06). An agent's framework session is its private
-   working memory and the activation's trace, never an aggregate's state. The Booking Agent's
+   working memory and the activation's trace, never an aggregate's state. The Booking agent's
    ADK session, keyed by the trip like every activation's, accumulates each activation's events
    as the trip's reasoning trace; its `LlmAgent` sub-agent re-sends none of it
    (`include_contents="none"`), and its instruction is rendered for every activation from
@@ -813,7 +813,7 @@ promised.
    supported by specific models only, with a fallback ADK's own documentation calls
    unreliable) and the natural one everywhere else, since stating a fact becomes one tool
    call. The Hotel Negotiator states `booking.RateNegotiated` this way from inside its A2A
-   loop (ch 7, the book's first publish tool); the Recovery Agent states
+   loop (ch 7, the book's first publish tool); the Recovery agent states
    `servicing.CompensationDrafted` the same way (ch 9). The generic publish tool, a free
    `type`, `source`, or attribute for the model to fill, is the one thing ruled out, for the
    reason ADK's documentation gives: hallucinated destinations and malformed schemas.
@@ -822,7 +822,7 @@ promised.
    one of `produces`, the answer is validated, the envelope is generated from the inbound event,
    the publish counts toward the activation's answer). It exists because a typed answer
    returned at the end cannot commit each of several facts before the next: the Booking
-   Agent's reservation step (ch 7) publishes `FlightReserved` before it places the hotel
+   agent's reservation step (ch 7) publishes `FlightReserved` before it places the hotel
    hold, so a crash between the two loses nothing. Ch 7 introduces both twins together,
    `publish_tool` for a model and `eda.publish` for code; `eda.publish` is already in the
    library, called by nothing before ch 7, and `publish_tool` is added in ch 7. Agent code never receives
@@ -842,7 +842,7 @@ deduplicating by id drops them; the side effect behind the fact (a second hold o
 supplier) is repeated all the same. A durable agent resumes from its checkpoint past the fact (ch 8);
 until then the design's agents state their facts at the end of the activation (the Planner's
 typed answer, the classifier's one request, the Negotiator's one `RateNegotiated` at the end
-of its loop, made durable in ch 8), and the Booking Agent's step returns the one event its
+of its loop, made durable in ch 8), and the Booking agent's step returns the one event its
 operation produced after committing the Trip's document with the inbound event's id, so a
 rerun after a mid-activation death finds the event already handled and answers nothing (ch 3's
 dedup by event id, applied to every activation). To confirm in code
@@ -863,7 +863,7 @@ a tool call followed by a final answer (its static mock loops to ADK's call limi
 fixture is a scripted `BaseLlm` subclass, one answer per call. One consequence, found when the
 component was built (2026-10-24): the host's own routes and dev UI run a second instance of
 the agent outside any activation, and an agent that reads its request and its Trip from the
-activation cannot be driven from there, so the Booking Agent exposes no `root_agent` to the
+activation cannot be driven from there, so the Booking agent exposes no `root_agent` to the
 host's `agents_dir` and the dev UI's look waits for an agent that can be, the ch 7 Negotiator.
 Before ch 7:
 that ADK accepts the flattened function with Pydantic-typed fields (dates, enums, nested
@@ -946,10 +946,10 @@ A prompt is the part of an agent most likely to change, so prompts are configura
 code. Every prompt is a versioned file inside the component's package
 (`<package>/prompts/<name>.v<N>.md`), beside the module loading it (`prompts/__init__.py`)
 through `importlib.resources`, never through a path built from `__file__`. Through ch 3 the
-files are the Planner's `brief`, `flights`, `hotels`, and `rank`, and the Booking Agent's
+files are the Planner's `brief`, `flights`, `hotels`, and `rank`, and the Booking agent's
 `reply`, each at `v1`. The code that
 writes the agent's state as the LLM reads it is in that module too, beside the prompt file
-(the Booking Agent's journeys numbered in travel order, and each itinerary by what a
+(the Booking agent's journeys numbered in travel order, and each itinerary by what a
 customer would describe it by), so the agent module passes its state and the request and
 formats nothing. The Planner's module also holds `ask`, its one call of the LiteLLM SDK: a
 prompt's name and a typed answer's class in, an instance out. The files are
@@ -975,11 +975,11 @@ the added behaviour cannot be segregated cleanly behind a flag (01_system_overvi
 ground rules). A port
 switched off is the same kind of setting: the Planner's hydration adapter is
 `HYDRATION_ADAPTER` (default `none`, an adapter that loads nothing; present from ch 2) and
-its destination knowledge tool will be `RESEARCH_AGENT_URL` (the Research Agent's MCP
+its destination knowledge tool will be `RESEARCH_AGENT_URL` (the Research agent's MCP
 server, unset by default, meaning off; added and switched on in ch 5), each read at start,
 switched on by the
 compose file of the chapter that teaches it, and mentioned by no earlier chapter's compose
-file, configuration file, or prose. The Booking Agent's one setting through ch 3 is
+file, configuration file, or prose. The Booking agent's one setting through ch 3 is
 `CLARIFICATION_CAP` (three by default).
 
 A prompt file puts its fixed text first, the role and the rules, and its variable text
@@ -994,7 +994,7 @@ change: the local LLM's reading of a borderline case drifts from day to day on a
 build, model, and flags, so a count quoted from another day proves nothing.
 
 The prompt file is the whole prompt: every sentence the LLM reads is in the file, and the
-code passes values only. In the Booking Agent's renderer a line whose variables all render
+code passes values only. In the Booking agent's renderer a line whose variables all render
 empty is left out, which is how
 a sentence about something the reply may not carry, the question being answered, is written in
 the file and still absent from the prompt when there is none. The Planner's renderer is a
@@ -1047,7 +1047,7 @@ plain format of the file.
   file is the only thing that differs between chapters: which components it selects (ch 2
   selects the LangGraph Planner in place of ch 1's), which adapter each port gets (in-memory
   or Postgres), which prompt version, and which behaviour flags are on. Ch 4's compose runs
-  the Booking Agent at two replicas and ch 5's the Semantic Router (`deploy.replicas: 2`),
+  the Booking agent at two replicas and ch 5's the Semantic Router (`deploy.replicas: 2`),
   the book's demonstrations of competing consumption and per-key serialization. A demo
   script is a service of its own under the `demo` profile, one per act (`demo`,
   `demo-change`, and so on), run in the `python.Dockerfile` image with the chapter's

@@ -8,14 +8,14 @@ its contract, hands the agent a typed request, validates the agent's answer, and
 it as `planning.ItineraryProposed` with the request's `correlationid`, its `causationid`,
 and the trip's `partitionkey`.
 
-Components in play: Kafka, the Itinerary Planner Agent
+Components in play: Kafka, the Itinerary Planner agent
 ([components/itinerary_planner](../../components/itinerary_planner)), its two suppliers,
 the Airline Reservation System simulator
 ([components/airline_reservation_system_sim](../../components/airline_reservation_system_sim),
 REST) and the Hotel Reservation System simulator
 ([components/hotel_reservation_system_sim](../../components/hotel_reservation_system_sim),
 MCP), and the audit consumer ([components/audit_consumer](../../components/audit_consumer)).
-The demo scripts stand in for the Booking Agent, planning's caller, until it arrives in
+The demo scripts stand in for the Booking agent, planning's caller, until it arrives in
 chapter 3.
 
 Where to read the code, in the order the chapter teaches it:

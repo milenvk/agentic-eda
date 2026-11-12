@@ -2,16 +2,16 @@
 
 The booking workflow the chapter watched fail, rebuilt decoupled behind the
 `EventBroker` interface. A demo script publishes `planning.ItineraryRequested`;
-the Itinerary Planner Agent (a plain asyncio loop that calls an LLM, no
+the Itinerary Planner agent (a plain asyncio loop that calls an LLM, no
 framework) consumes it on its own schedule and answers with
 `planning.ItineraryProposed`, one itinerary in the shape every later
 chapter keeps; the script receives the reply by subscribing. Nothing waits on
 anything.
 
-Components in play: Kafka (single KRaft container), the Itinerary Planner Agent
+Components in play: Kafka (single KRaft container), the Itinerary Planner agent
 ([components/itinerary_planner_minimal](../../components/itinerary_planner_minimal)),
 and the audit consumer ([components/audit_consumer](../../components/audit_consumer)).
-The demo script stands in for the Booking Agent, planning's caller, until it
+The demo script stands in for the Booking agent, planning's caller, until it
 arrives in chapter 3.
 
 ## Setup
@@ -61,7 +61,7 @@ the show, not the itinerary text.
 
 ### Terminal 1: start the system and watch
 
-Build and start the stack (Kafka and the Itinerary Planner Agent) in the
+Build and start the stack (Kafka and the Itinerary Planner agent) in the
 background. The first run builds the images and can take several minutes;
 later runs reuse the build cache and start in seconds. `--build` keeps the
 images in sync with the source, so if you edit the code, the next start

@@ -9,7 +9,7 @@ from .events import ReviewReceived, ReviewTriaged
 
 console.configure_logging()
 
-app = FastAPI(title="Review Triage Agent")
+app = FastAPI(title="Review Triage agent")
 
 eda.attach(
     app,

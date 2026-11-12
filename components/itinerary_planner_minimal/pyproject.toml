@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "itinerary-planner-minimal"
 version = "0.1.0"
-description = "The Itinerary Planner Agent in its chapter 1 form: a loop that calls an LLM, with no framework."
+description = "The Itinerary Planner agent in its chapter 1 form: a loop that calls an LLM, with no framework."
 requires-python = ">=3.13"
 # The two libraries in lib/ are installed alongside this package; see Dockerfile.
 dependencies = [

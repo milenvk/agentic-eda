@@ -1,4 +1,4 @@
-"""The Itinerary Planner Agent: a LangGraph graph, as its developer built it.
+"""The Itinerary Planner agent: a LangGraph graph, as its developer built it.
 
 Nothing here knows about events or a broker. What the graph consumes and produces is
 declared where it is hosted, in `app.py`.

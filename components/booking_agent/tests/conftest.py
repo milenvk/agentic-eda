@@ -1,4 +1,4 @@
-"""Fixtures for the Booking Agent's tests: the running example as a request, a proposal
+"""Fixtures for the Booking agent's tests: the running example as a request, a proposal
 answering it, and a scripted LLM. No model, no broker, and no database are involved."""
 
 from collections.abc import AsyncGenerator

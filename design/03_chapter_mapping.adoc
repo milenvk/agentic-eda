@@ -38,7 +38,7 @@ payment offstage until ch 10.
 | Workflow
 | W1 slice 1: the `planning.ItineraryRequested` to `planning.ItineraryProposed` round trip,
   decoupled
-| Demo script as planning's caller (the Booking Agent's stand-in), the plain Planner (a loop
+| Demo script as planning's caller (the Booking agent's stand-in), the plain Planner (a loop
   over LiteLLM publishing the book's proposal shape with one itinerary), `EventBroker` port,
   Kafka adapter (one topic per context, per-key lanes with watermark commits, a null record key
   until ch 2), audit consumer (subscribed to each type by its constant until ch 4's
@@ -78,7 +78,7 @@ payment offstage until ch 10.
 | Component
 | W1 slice 2: booking takes planning's end; the customer's decision (restructured 2026-10-07:
   one theme, the business state and the agent)
-| Booking Agent (ADK custom agent inside ADK's own app, the first attachment inside a
+| Booking agent (ADK custom agent inside ADK's own app, the first attachment inside a
   framework's own app: deterministic steps on `TripRequested` and `ItineraryProposed`, an
   `LlmAgent` sub-agent on `CustomerReplied` with the Trip's operations as its tools; event-only,
   consuming booking's events, its own included, and planning's proposal, the Trip's writer, assigning the trip's id from the
@@ -93,7 +93,7 @@ payment offstage until ch 10.
   a second proposal, an approval), `demo-redelivered` (one request published twice under one
   id, one trip), and `demo-rejected` (a request valid against its contract and refused by
   the Trip's rules)
-| The Booking Agent's validation (`TripRequestRejected`), the trip's creation (`TripCreated`),
+| The Booking agent's validation (`TripRequestRejected`), the trip's creation (`TripCreated`),
   its request to planning, `ProposalReady`,
   and its reply step, the chapter's reasoning step (`ItineraryApproved`, `ItineraryRejected`,
   `TripChanged`, `ClarificationRequested`, the re-request); the trip-booking workflow end to end
@@ -111,10 +111,10 @@ payment offstage until ch 10.
 
 | 4
 | Workflow
-| W1 step 1 for chat; the Booking Agent at two replicas; the lanes under a burst
+| W1 step 1 for chat; the Booking agent at two replicas; the lanes under a burst
 | Front Desk (the Customer Relations agent: chat shell out of the page budget, intent classifier
   and publishing code in it, the classifier's structured output, writer of Customer and
-  Conversation, delivery by subscription), the Booking Agent at two replicas with the Audit
+  Conversation, delivery by subscription), the Booking agent at two replicas with the Audit
   Consumer hearing every event, the lanes demonstration (a burst of trip requests into one
   Planner process, every inference in flight, order kept per trip, a kill mid-burst replayed
   from the watermark); the email channel, the Router, the filter, the `InboxStore`, the
@@ -134,9 +134,9 @@ payment offstage until ch 10.
 | Component
 | W3's ingestion; S1 variants; W1 step 1 for email; W2 complete; W3's inspiration path (from ch 4, 2026-11-09)
 | `BlobStore` (MinIO), claim-check ingestion (`destination.BrochureUploaded`,
-  `destination.DocumentAvailable`), Destination Research Agent (LlamaIndex, an MCP tool server
+  `destination.DocumentAvailable`), Destination Research agent (LlamaIndex, an MCP tool server
   over the indexed brochures, the Planner's tool; moved here from ch 3 on 2026-10-07), the
-  Observer/Reflector Agent in both variants (summarizing vs experiential), with no store behind
+  Observer/Reflector agent in both variants (summarizing vs experiential), with no store behind
   them;
   moved here from ch 4 on 2026-11-09: email replay script + seeded dataset
   (`customer.EmailReceived`), Semantic Router at two replicas (writing booking's, support's,
@@ -144,7 +144,7 @@ payment offstage until ch 10.
   sorted by sender timestamp), email delivery adapter, Token Defense Filter, support adapter
   and Support Desk AaaS sim (the first component not our code), Destination Inspiration crew
   (CrewAI, the target of routing by meaning, its pack through `output_pydantic`)
-| The A/B; the Planner's tool call to the Research Agent, with the airline's REST and the
+| The A/B; the Planner's tool call to the Research agent, with the airline's REST and the
   hotel's MCP taught as the Planner's other tools;
   `customer.EmailReceived`; `support.SupportRequested` and `support.SupportTicketResolved`,
   the support edge
@@ -176,11 +176,11 @@ payment offstage until ch 10.
   through the book's first publish tool; running inside ADK's FastAPI app with the activator
   attached in its lifespan, as every ADK agent does),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
-  `BarrierStore`, Rental Car Agent (py, on `FlightReserved`), Car Rental sim; the first run's
+  `BarrierStore`, Rental Car agent (py, on `FlightReserved`), Car Rental sim; the first run's
   recording for ch 12;
   the `InboxStore` table (the Agentic Inbox staging an early supplier update), moved from ch 4
   on 2026-11-09
-| The Booking Agent's wait at the barrier before `ProposalReady` and its reservation step
+| The Booking agent's wait at the barrier before `ProposalReady` and its reservation step
   (`FlightReserved`, `HotelReserved`, `ReservationFailed`, `CarReserved`, holds with an expiry,
   the fallback decided by reasoning among the backup, a re-plan, and a question to the
   customer); the partial re-plan (items carried over on a re-request, the re-plan brief a
@@ -199,7 +199,7 @@ payment offstage until ch 10.
   edge observes and the owner commits, interrupting events and their three strategies, out-of-sequence handling (the
   Agentic Inbox as activation gated on completeness, the ingress re-sequencer cited from ch 5,
   NACK and retry analyzed, not built; from ch 4, 2026-11-09),
-  experiential lessons in context paths, ACRISS beside the Rental Car Agent; 7.8's dynamic
+  experiential lessons in context paths, ACRISS beside the Rental Car agent; 7.8's dynamic
   provisioning stays a horizon with its costs stated
 
 | 8
@@ -211,7 +211,7 @@ payment offstage until ch 10.
   writer of the ApprovalRequest), Duty-of-Care Monitor (proactive, stateless, in servicing, with
   the Travel Advisory Feed sim), the hotel sim's slow-counter auto-responder
 | The `StateStore`'s macro-state, with the version check as the fence (the Trip's row
-  exists since ch 3), and the `GuardStateStore`; the Booking Agent's wait for the pass or the manager's
+  exists since ch 3), and the `GuardStateStore`; the Booking agent's wait for the pass or the manager's
   decision, `ApprovalRequested` through the outbox, the 48-hour timeout, the follow-up nudge
   scheduled from `ProposalReady`; the barrier's straggler timeout; a negotiation durable across
   a slow counter
@@ -223,12 +223,12 @@ payment offstage until ch 10.
 | 9
 | Workflow
 | W5 complete
-| Recovery Agent (ADK, in servicing, `CompensationDrafted` through a publish tool), the livelock
+| Recovery agent (ADK, in servicing, `CompensationDrafted` through a publish tool), the livelock
   guard (platform, per correlation id in the
   `GuardStateStore`, `system.LivelockDetected`), the Hotel Reservation System sim's callback
   adapter (`servicing.HotelSoldOut`) with sold-out injection and its non-converging
   auto-responder
-| The Policy Gate's `EntitlementDetermined`; the Booking Agent's wait for it, its rebooking
+| The Policy Gate's `EntitlementDetermined`; the Booking agent's wait for it, its rebooking
   request to planning, `RebookingProposed` after the barrier, its compensation step
   (`FlightReservationCancelled`, `TripCancelled`); the misconfigured rule behind the deadlock and
   the macro-timeout that breaks it
@@ -291,7 +291,7 @@ payment offstage until ch 10.
 | observability across W1 end to end; schema evolution on `booking.TripRequested` and on
   `planning.ItineraryProposed`
 | OTel instrumentation, Jaeger in compose, the partner adapter writing `booking.TripRequested`
-  V2 (traveller documents, a loyalty programme), the Translator serving V1 to the Booking Agent
+  V2 (traveller documents, a loyalty programme), the Translator serving V1 to the Booking agent
   through a deprecation window; the rail item, a new kind of item in a proposal, with its
   rail source
 | Tracing; the deprecation window

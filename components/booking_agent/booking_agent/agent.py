@@ -1,4 +1,4 @@
-"""The Booking Agent: an ADK custom agent over the Trip.
+"""The Booking agent: an ADK custom agent over the Trip.
 
 Every activation is one of the Trip's operations. The agent dispatches on the inbound
 event's class: a request, planning's proposal, and the trip's own events are one operation

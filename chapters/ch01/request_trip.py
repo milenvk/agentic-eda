@@ -1,7 +1,7 @@
 """Plays planning's caller: asks for an itinerary, then waits — without
 blocking anything — for the proposal to arrive as an event.
 
-Chapter 3's Booking Agent takes over this role; until then, this script stands
+Chapter 3's Booking agent takes over this role; until then, this script stands
 in for it.
 """
 

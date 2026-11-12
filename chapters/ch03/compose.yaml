@@ -1,5 +1,5 @@
 # Chapter 3: the trip approval workflow, from the request to the approved itinerary.
-# Kafka, PostgreSQL, the Booking Agent on ADK with its Trip in the state store, the
+# Kafka, PostgreSQL, the Booking agent on ADK with its Trip in the state store, the
 # LangGraph Itinerary Planner with its two suppliers, and the audit consumer. The demo
 # scripts stand in for the customer channel. See README.md for the walkthrough.
 
@@ -57,7 +57,7 @@ services:
         condition: service_healthy
         required: false
 
-  # Chapter 2's Planner, unchanged: it now answers the Booking Agent instead of a script.
+  # Chapter 2's Planner, unchanged: it now answers the Booking agent instead of a script.
   itinerary-planner:
     <<: *llm
     stop_grace_period: 45s  # a shutdown gives the activations in flight 30s to finish first

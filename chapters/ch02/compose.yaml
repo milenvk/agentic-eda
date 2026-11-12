@@ -1,5 +1,5 @@
 # Chapter 2: the round trip on a real Planner, contracted, correlated, and keyed.
-# Kafka, the LangGraph Itinerary Planner Agent in place of chapter 1's, its two
+# Kafka, the LangGraph Itinerary Planner agent in place of chapter 1's, its two
 # suppliers, and the audit consumer. See README.md for the walkthrough.
 
 include:

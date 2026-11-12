@@ -1,4 +1,4 @@
-"""The app that hosts the Itinerary Planner Agent, with the activator attached to it."""
+"""The app that hosts the Itinerary Planner agent, with the activator attached to it."""
 
 from fastapi import FastAPI
 
@@ -9,7 +9,7 @@ from .agent import agent
 
 console.configure_logging()
 
-app = FastAPI(title="Itinerary Planner Agent")
+app = FastAPI(title="Itinerary Planner agent")
 
 # Everything event-driven about this component: what the agent consumes, what it
 # produces, and the activator attached to the app that hosts it.

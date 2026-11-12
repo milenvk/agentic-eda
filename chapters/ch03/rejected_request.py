@@ -1,7 +1,7 @@
 """A request that is no business request: it passes the contract and fails the Trip's rules.
 
 The journeys are out of order, which no field constraint can catch, so the event validates at
-the boundary and reaches the Booking Agent, whose `open` operation checks the rules in code
+the boundary and reaches the Booking agent, whose `open` operation checks the rules in code
 and answers `booking.TripRequestRejected` under the conversation's key. No trip is opened and
 planning is never asked.
 """

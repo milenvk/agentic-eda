@@ -1,17 +1,17 @@
 # Chapter 3: The Business State and the Agent
 
-The demo script that stood in for booking gives way to the Booking Agent, and the trip
+The demo script that stood in for booking gives way to the Booking agent, and the trip
 approval workflow runs end to end for the first time: a request, the trip, planning's
 proposal, the customer's replies in their own words, and the approval. The business's state
-is the Trip, one class in the Booking Agent's component with the rules in code and one
+is the Trip, one class in the Booking agent's component with the rules in code and one
 operation per business action, each returning the one event that says what happened. The
 Trip lives in a state store, PostgreSQL from this chapter, and the activator of chapter 2,
 extended by one declaration for the state, loads the Trip before every activation and
 commits it after. The agent is built on ADK, the book's second framework, and calls an LLM
 on one event only: the customer's reply.
 
-Components in play: Kafka, PostgreSQL, the Booking Agent
-([components/booking_agent](../../components/booking_agent)), the Itinerary Planner Agent
+Components in play: Kafka, PostgreSQL, the Booking agent
+([components/booking_agent](../../components/booking_agent)), the Itinerary Planner agent
 of chapter 2 with its two suppliers, and the audit consumer. The demo scripts stand in for
 the customer channel until the Front Desk arrives in chapter 4.
 
@@ -41,7 +41,7 @@ Where to read the code, in the order the chapter teaches it:
 The same `.env` as chapter 1, in the repository root. If you skipped chapter 1, follow
 [its Setup section](../ch01/README.md#setup) first.
 
-The Booking Agent asks its model to read a reply and call one of four tools. The default
+The Booking agent asks its model to read a reply and call one of four tools. The default
 model in `.env.example`, `qwen3:4b-instruct` on Ollama, reads every scripted reply as
 intended. Smaller models, `llama3.2` among them, ask a question where the words describe an
 itinerary or reject where they ask for a change, so keep the default or go larger.
@@ -60,7 +60,7 @@ component it came from, and every event appears as a card.
 
 ### Terminal 1: start the system and watch
 
-Build and start the stack: Kafka, PostgreSQL, the Booking Agent, the Planner, the two
+Build and start the stack: Kafka, PostgreSQL, the Booking agent, the Planner, the two
 simulators, and the audit consumer. The first run builds five images and can take several
 minutes; later runs reuse the build cache:
 
@@ -222,7 +222,7 @@ model, no API key, and no `.env`:
 ./test.sh
 ```
 
-The Booking Agent's suite runs the whole workflow through the activator on the in-memory
+The Booking agent's suite runs the whole workflow through the activator on the in-memory
 broker and the in-memory state store, with a scripted LLM in place of a model and a plain
 function in place of the Planner: a request, the proposal, each kind of reply, and a
 redelivered request. The library's PostgreSQL adapter is tested against a database the test
@@ -234,7 +234,7 @@ runner starts.
   database it cannot reach shows up at startup, and a model's refusal to call a tool shows
   up as a failed activation, redelivered.
 - **The same reply is read again and again.** The LLM answers in prose every time. A larger
-  model in `.env` ends it; so does stopping the Booking Agent, which leaves the trip where it
+  model in `.env` ends it; so does stopping the Booking agent, which leaves the trip where it
   was in PostgreSQL.
 - **Ollama is slow.** A reply is one model call, a proposal several. See
   [Local models with Ollama](../../README.md#local-models-with-ollama) in the repository

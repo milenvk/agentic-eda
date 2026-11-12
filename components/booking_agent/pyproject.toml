@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "booking-agent"
 version = "0.1.0"
-description = "The Booking Agent: an ADK custom agent over the Trip, the booking context's state, hosted by ADK's own app with the agent activator attached."
+description = "The Booking agent: an ADK custom agent over the Trip, the booking context's state, hosted by ADK's own app with the agent activator attached."
 requires-python = ">=3.13"
 # The two libraries in lib/ are installed alongside this package; see Dockerfile.
 dependencies = [

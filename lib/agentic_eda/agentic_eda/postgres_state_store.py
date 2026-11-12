@@ -1,7 +1,7 @@
 """PostgreSQL adapter for the StateStore port.
 
 Two tables, created on first use if they are missing. The state table, named by the
-component's configuration (``trips`` for the Booking Agent), holds one row per state: a
+component's configuration (``trips`` for the Booking agent), holds one row per state: a
 serial ``id``, the ``request_event_id`` that created it under a unique index, the
 ``version``, and the ``state`` document as JSONB, with the document's ``status`` copied
 into a column for anyone reading the table. ``handled_events`` holds one row per event that

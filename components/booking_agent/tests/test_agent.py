@@ -1,6 +1,6 @@
-"""The Booking Agent through the activator: the workflow on the in-memory broker.
+"""The Booking agent through the activator: the workflow on the in-memory broker.
 
-Two agents share the broker: the Booking Agent on ADK, with a scripted LLM for the reply,
+Two agents share the broker: the Booking agent on ADK, with a scripted LLM for the reply,
 and a stand-in for the Planner, a plain function answering every planning request with the
 same proposal. The store is the in-memory one.
 """

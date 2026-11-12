@@ -1,4 +1,4 @@
-"""The Itinerary Planner Agent, in its chapter 1 form.
+"""The Itinerary Planner agent, in its chapter 1 form.
 
 An agent is a loop that calls an LLM: this one consumes a planning request,
 reasons over it once, and publishes the proposed itinerary. No framework — the

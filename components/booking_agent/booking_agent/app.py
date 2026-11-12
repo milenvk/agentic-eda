@@ -1,4 +1,4 @@
-"""The app that hosts the Booking Agent: ADK's own, with the activator attached to it."""
+"""The app that hosts the Booking agent: ADK's own, with the activator attached to it."""
 
 import os
 from pathlib import Path

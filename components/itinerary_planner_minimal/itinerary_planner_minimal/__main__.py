@@ -1,4 +1,4 @@
-"""Runs the Itinerary Planner Agent against the configured broker."""
+"""Runs the Itinerary Planner agent against the configured broker."""
 
 import asyncio
 import functools
