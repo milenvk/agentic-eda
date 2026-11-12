@@ -71,7 +71,8 @@ Then follow the conversation for the rest of the demo. Ctrl-C detaches without s
 anything:
 
 ```sh
-docker compose --profile demo logs -f demo demo-malformed demo-overlapping itinerary-planner audit-consumer
+docker compose --profile demo logs -f demo demo-malformed demo-overlapping \
+    itinerary-planner audit-consumer
 ```
 
 Wait for `ItineraryPlannerAgent is subscribed and waiting for events` and the same line

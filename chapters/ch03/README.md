@@ -72,7 +72,8 @@ Then follow the conversation for the rest of the demo. Ctrl-C detaches without s
 anything:
 
 ```sh
-docker compose --profile demo logs -f demo demo-change demo-redelivered demo-rejected booking-agent itinerary-planner audit-consumer
+docker compose --profile demo logs -f demo demo-change demo-redelivered \
+    demo-rejected booking-agent itinerary-planner audit-consumer
 ```
 
 Wait for `BookingAgent is subscribed and waiting for events` and the same line from
@@ -119,7 +120,8 @@ that changed the trip, and the `state` column, left out here, is the Trip as the
 last committed it:
 
 ```sh
-docker compose exec postgres psql -U agency -c "select id, status, version from trips where id = <trip_id>"
+docker compose exec postgres psql -U agency \
+    -c "select id, status, version from trips where id = <trip_id>"
 ```
 
 A different model may read the reply differently, and ask which itinerary instead of
@@ -177,7 +179,8 @@ Read the trip's row: one trip, at status `proposed`, its `version` counting the 
 that changed it:
 
 ```sh
-docker compose exec postgres psql -U agency -c "select id, status, version from trips where id = <trip_id>"
+docker compose exec postgres psql -U agency \
+    -c "select id, status, version from trips where id = <trip_id>"
 ```
 
 ## Act 4: a request the Trip refuses

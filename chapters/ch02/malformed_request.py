@@ -16,9 +16,11 @@ from travel_agency.event_types import ITINERARY_REQUESTED
 
 PATIENCE_SECONDS = 30
 
-# No journey, no adult, and a budget that is not money.
+# No journey, no adult, and a budget that is not money. Every other field is valid.
+TRIP_ID = new_trip_id()
 NOT_A_TRIP = {
-    "trip_id": new_trip_id(),
+    "trip_id": TRIP_ID,
+    "request_id": f"{TRIP_ID}-1",
     "origin_destinations": [],
     "stays": [],
     "adults": 0,

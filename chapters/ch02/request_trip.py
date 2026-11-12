@@ -72,7 +72,9 @@ def new_trip_id() -> int:
     return time.time_ns()
 
 
-async def request_itineraries(broker: EventBroker, trip: ItineraryRequested) -> WireEvent:
+async def request_itineraries(
+    broker: EventBroker, trip: ItineraryRequested
+) -> WireEvent:
     """Publish one request as the first event of a new workflow."""
     request = await publish_fact(
         broker, SOURCE, trip, attributes={"correlationid": str(uuid4())}

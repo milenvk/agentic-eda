@@ -76,7 +76,8 @@ component the acts involve; the ones not running yet join the stream the
 moment they start. Ctrl-C detaches without stopping anything:
 
 ```sh
-docker compose --profile demo --profile audit logs -f demo itinerary-planner audit-consumer
+docker compose --profile demo --profile audit \
+  logs -f demo itinerary-planner audit-consumer
 ```
 
 On a fresh broker, the first start may log a few alarming-looking client
