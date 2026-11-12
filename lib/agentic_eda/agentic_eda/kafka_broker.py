@@ -63,6 +63,15 @@ def decode(record: ConsumerRecord) -> WireEvent:
     return WireEvent(**envelope.get_attributes(), data=envelope.get_data())
 
 
+def _decoded(record: ConsumerRecord) -> WireEvent:
+    """The record as an event, or a ``PoisonPill`` where it is no CloudEvent."""
+    try:
+        return decode(record)
+    except Exception as error:
+        # The same bytes fail the same way on every delivery, so a retry would never end.
+        raise PoisonPill(f"{record.topic} offset {record.offset} is no CloudEvent: {error!r}") from error
+
+
 class _PartitionListener(ConsumerRebalanceListener):
     """What the adapter does when the group hands partitions out.
 
@@ -120,7 +129,8 @@ class KafkaEventBroker:
     record is parked on its context's dead-letter topic, ``dlq.<context>``, with its key,
     and the loop moves past it. Unset, a failing record is delivered again without end.
     A ``PortFailure`` counts toward no cap, since the event is sound, and a ``PoisonPill``
-    is parked at once, or acknowledged where there is no cap.
+    is parked at once, or acknowledged where there is no cap. A record that is no
+    CloudEvent is a ``PoisonPill`` too.
     """
 
     def __init__(
@@ -278,7 +288,7 @@ class KafkaEventBroker:
         record: ConsumerRecord,
     ) -> None:
         try:
-            event = decode(record)
+            event = _decoded(record)
             handlers = self._handlers.get(event.type, [])
             if handlers:  # a topic carries its whole context; other types pass by untouched
                 log.info("\n%s", format_event("RECEIVED", event))

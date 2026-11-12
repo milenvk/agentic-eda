@@ -21,15 +21,17 @@ through making it yours.
 Everything lives on `main`, organized so the whole book's code is visible at a glance:
 
 - **`components/`**: every component of the application as a self-contained directory
-  containing sources, Dockerfile, pinned dependencies, and unit tests. Components are added
-  and replaced as the book progresses, never rewritten in place, so each chapter's teaching
-  code stays in the tree.
+  containing sources, Dockerfile, pinned dependencies, and unit tests. A component is built
+  for the chapter that first uses it and grows by addition: a later chapter adds behaviour
+  behind a setting that is off by default, so every earlier chapter's stack still runs from
+  the same tree. Where a chapter replaces a component, as chapter 2 replaces chapter 1's
+  Planner, the earlier one stays in the tree beside it.
 - **`lib/agentic_eda/`**: the library, holding the `EventBroker` and `StateStore` ports and
   their adapters, the `@event` contracts, and the agent activator. It never imports the application, and its
   test suite runs in an image without it. It is the book's reference implementation, taught
   one part per chapter, with no promise of a release cycle.
-- **`lib/travel_agency/`**: the application's shared code, holding the event-type constants,
-  and the event catalog as code.
+- **`lib/travel_agency/`**: the application's shared code, holding the event-type constants
+  and the event catalog as code, with the value objects the events share.
 - **`lib/supplier_world/`**: the one seeded world the supplier simulators share (cities,
   airports, hotels, routes), installed by the simulators and the tests that build requests
   for them, never by an agent: the suppliers stand for systems outside the agency.
@@ -37,7 +39,13 @@ Everything lives on `main`, organized so the whole book's code is visible at a g
   and make your own.
 - **`chapters/chNN/`**: one directory per chapter, with a README describing what the chapter
   demonstrates and how to run it, the Docker Compose files that assemble exactly that
-  chapter's components, and the chapter's demo scripts.
+  chapter's components, the chapter's demo scripts, and `test.sh`, which runs every test
+  suite of the chapter inside its component's own image.
+- **`compose/`** and **`docker/`**: one Compose fragment per infrastructure service (Kafka,
+  PostgreSQL, Ollama), included by the chapters that need it, and the two shared images for
+  demo scripts and tests.
+
+Chapters 1 to 3 are built so far. The design covers the whole book.
 
 Working in a chapter's directory brings up exactly that chapter's stack:
 
@@ -54,10 +62,11 @@ release per tag, so the code in your printed copy is always reachable.
 
 | Document | Contents |
 |---|---|
-| [design/01_system_overview.adoc](design/01_system_overview.adoc) | The business, architecture, and every component: 12 agents, 4 vendor simulators, 4 deterministic components, the Ports |
+| [design/01_system_overview.adoc](design/01_system_overview.adoc) | The business, architecture, and every component: 12 agents, 6 vendor simulators, 10 deterministic components, the Ports |
 | [design/02_workflows_and_events.adoc](design/02_workflows_and_events.adoc) | The workflow catalog and the event catalog |
 | [design/03_chapter_mapping.adoc](design/03_chapter_mapping.adoc) | What each chapter adds to the system |
-| [design/04_implementation_design.adoc](design/04_implementation_design.adoc) | The low-level design: port surfaces, event envelope, naming, and repository conventions |
+| [design/04_implementation_design.adoc](design/04_implementation_design.adoc) | The low-level design: port surfaces, event envelope, naming, the agent activator, and repository conventions |
+| [design/05_data_consistency_and_state_model.adoc](design/05_data_consistency_and_state_model.adoc) | How state stays consistent: one writer per aggregate, ordering per key, the Trip's operations, and what the activation protocol leaves open |
 
 ## Requirements
 

@@ -557,6 +557,52 @@ async def test_without_a_cap_a_poison_pill_is_acknowledged(fake_kafka, caplog):
     assert "cannot be handled" in caplog.text
 
 
+def not_a_cloudevent(offset: int, key: bytes | None = None) -> SimpleNamespace:
+    """A record some other producer wrote to the topic: JSON, and no event."""
+    return SimpleNamespace(
+        topic=BOOKING.topic, offset=offset, key=key, value=b'{"hello": "world"}', headers=[]
+    )
+
+
+async def test_a_record_that_is_no_cloudevent_is_parked_at_once(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0, max_attempts=3)
+    handled: list[str] = []
+
+    async def handler(event: WireEvent) -> None:
+        handled.append(event.id)
+
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append(
+        {BOOKING: [not_a_cloudevent(0, b"trip-1"), record(1, make_event(), b"trip-1")]}
+    )
+    async with broker:
+        await run_until(broker, lambda: fake_kafka.last and fake_kafka.last.commits and fake_kafka.last.commits[-1] == {BOOKING: 2})  # fmt: skip
+        ((topic, value, key, headers),) = FakeProducer.last.sent
+
+    assert handled == ["event-1"]  # the event behind it is not held up
+    assert (topic, value, key) == ("dlq.booking", b'{"hello": "world"}', b"trip-1")
+    assert ("attempts", b"1") in headers
+    assert fake_kafka.last.seeks == []  # no retry: the same bytes would fail the same way
+
+
+async def test_without_a_cap_a_record_that_is_no_cloudevent_is_acknowledged(fake_kafka, caplog):
+    broker = KafkaEventBroker("kafka:9092", client_name="test", retry_delay=0)
+
+    async def handler(event: WireEvent) -> None:
+        raise AssertionError("no event was decoded, so no handler runs")
+
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append({BOOKING: [not_a_cloudevent(0)]})
+    caplog.set_level(logging.INFO)
+    async with broker:
+        await run_until(broker, lambda: fake_kafka.last and fake_kafka.last.commits)
+        assert FakeProducer.last.sent == []
+
+    assert fake_kafka.last.seeks == []
+    assert fake_kafka.last.commits == [{BOOKING: 1}]
+    assert "is no CloudEvent" in caplog.text
+
+
 class Gated:
     """A handler that blocks each event until the test releases it by id."""
 

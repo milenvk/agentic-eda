@@ -20,10 +20,10 @@ Each chapter maps to the application in one of three ways:
   across the existing system; it owns no new business workflow but touches many.
 
 Every chapter still ends with the working system one increment richer; the type only says what
-carries the narrative. Under the immutable-component rule (01_system_overview.adoc, ground
-rules) a chapter's code is its compose file: the column "Selected for the first time" lists the
-components whose code first runs, complete, in that chapter, and "Switched on" the behaviour
-its configuration enables in components already running. Event types debut in the chapter
+carries the narrative. Components grow by addition (01_system_overview.adoc, ground rules):
+the column "Selected for the first time" lists the components whose code first runs in that
+chapter, and "Switched on" the behaviour the chapter adds to components already running
+and enables in its compose file. Chapters 1 to 3 are built; every later row is the plan. Event types debut in the chapter
 named in the catalog (02_workflows_and_events.adoc); the fixed points of the spine are the
 customer's decision in ch 3, `booking.TripConfirmed` in ch 8 with the customer reference, and
 payment offstage until ch 10.
@@ -41,7 +41,8 @@ payment offstage until ch 10.
 | Demo script as planning's caller (the Booking Agent's stand-in), the plain Planner (a loop
   over LiteLLM publishing the book's proposal shape with one itinerary), `EventBroker` port,
   Kafka adapter (one topic per context, per-key lanes with watermark commits, a null record key
-  until ch 2), audit consumer, first compose file
+  until ch 2), audit consumer (subscribed to each type by its constant until ch 4's
+  subscribe-all), first compose file
 | The round trip
 | Decoupling, durability, pub/sub, reply by subscription (causation by request id), second
   consumer at zero producer cost
@@ -81,11 +82,17 @@ payment offstage until ch 10.
   framework's own app: deterministic steps on `TripRequested` and `ItineraryProposed`, an
   `LlmAgent` sub-agent on `CustomerReplied` with the Trip's operations as its tools; event-only,
   consuming booking's events, its own included, and planning's proposal, the Trip's writer, assigning the trip's id from the
-  `StateStore` and announcing it by `booking.TripCreated`, every later step present and
-  off), PostgreSQL in compose with the `StateStore`'s PostgreSQL adapter (the `trips`
+  `StateStore` and announcing it by `booking.TripCreated`), PostgreSQL in compose with the
+  `StateStore`'s PostgreSQL adapter (the `trips`
   row, the request's event id under a unique index; the in-memory adapter for the tests),
-  `InMemoryBroker`, first agent mock test; the demo script stands in for the customer channel and
-  writes `booking.TripRequested` and `booking.CustomerReplied` in a customer's words
+  `InMemoryBroker`, first agent mock test, the reply eval (the live LLM's reading of the
+  demo's replies, counted over twenty readings); the demo scripts stand in for the customer
+  channel and write `booking.TripRequested` and `booking.CustomerReplied` in a customer's
+  words, in four acts, one script-service each: `demo` (a request, a proposal, an approval
+  by description), `demo-change` (a reply too thin to act on, a question, a change of dates,
+  a second proposal, an approval), `demo-redelivered` (one request published twice under one
+  id, one trip), and `demo-rejected` (a request valid against its contract and refused by
+  the Trip's rules)
 | The Booking Agent's validation (`TripRequestRejected`), the trip's creation (`TripCreated`),
   its request to planning, `ProposalReady`,
   and its reply step, the chapter's reasoning step (`ItineraryApproved`, `ItineraryRejected`,
@@ -289,7 +296,7 @@ payment offstage until ch 10.
   rail source
 | Tracing; the deprecation window
 | Semantic observability, schema evolution (a published language evolves as callers appear, and
-  the immutable consumer is the reason the Translator exists)
+  a consumer still on V1 is the reason the Translator exists)
 
 | 15
 | Layer

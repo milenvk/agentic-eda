@@ -11,17 +11,23 @@
 == Overview
 
 This document describes how the Travel Agency system ensures consistency across its components
-without requiring synchronous coordination. The strategy rests on four pillars: **Event
-Sourcing** as the write model (immutable facts), **CQRS** (Command Query Responsibility
+without requiring synchronous coordination. The strategy rests on four pillars: **one writer
+per aggregate**, with the aggregate's state in that writer's store and every change
+announced as an immutable fact, **CQRS** (Command Query Responsibility
 Segregation) to separate writes from reads, **ordering per key** as part of the broker contract
 (an aggregate's events arrive in publish order), and **eventual consistency** across aggregates
 enforced through causation tracking, staging, and idempotent read model updates.
 
-== Event Sourcing: The Write Model
+== The Write Model: State in the Store, Facts on the Broker
 
-The system does not store aggregate state directly. Instead, every state transition is recorded as
-an immutable event, the fact that it happened. An aggregate root is the entity whose events are
-the source of truth for that aggregate's state.
+An aggregate's current state is kept by its one writer: the Trip is one document in the
+Booking Agent's `StateStore`, loaded before an activation and committed after it with the
+id of the event that caused the change (The Trip's Operations, below). Every state
+transition is also announced as an immutable event, the fact that it happened, published
+after the commit. The store is the authority on what an aggregate is now; the events are
+the authority on what happened, and the source of every read model. The aggregate itself is
+not event-sourced: the Trip is never rebuilt from its events, and ch 6 teaches event
+sourcing on the log as the record behind the read models.
 
 * **Aggregates:** the spine has two aggregate roots, the Trip (booking) and the Proposal
   (planning). Each event belongs to exactly one aggregate. A Trip's events name the trip id,
@@ -36,23 +42,26 @@ the source of truth for that aggregate's state.
   same rules with their own writers and topics; this document works through the spine.
 * **Immutability:** events are written once and never modified. Correction is a new event
   (e.g., `booking.TripCancelled`), not an edit to an existing one.
-* **Replay and Rebuilding:** the full history of an aggregate's events reconstructs its current
-  state. If a read model is corrupted or stale, replaying the event log rebuilds it without loss
-  of information.
+* **Replay and Rebuilding:** a read model is rebuilt from the events. If one is corrupted or
+  stale, replaying the event log rebuilds it without loss of information. Until ch 8's
+  outbox, a fact lost between a commit and its publish is missing from the log (The
+  Activation Protocol, below).
 
 == CQRS: Separation of Writes and Reads
 
-CQRS does not mean the event log itself is separate from the command handler. It means the *model
-used to answer queries* is separate and derived.
+CQRS means the *model used to answer queries* is separate from the write model and derived
+from its events.
 
-* **Write Model (Events):** agents publish facts, never commands. These events carry the fact (e.g.,
+* **Write Model (the aggregate and its facts):** the aggregate in its writer's store, changed
+  only through its operations. Agents publish facts, never commands. These events carry the fact (e.g.,
   "customer requested a trip for 2 travelers"). Once published, an event is immutable. It does
   not express an opinion about whether the request is valid; the event is the record of the fact
   that it was requested.
 * **Read Model (Projected State):** a separate service or component listens to events and builds a
-  materialized view, a queryable snapshot. For example, the Booking Agent maintains a read model
-  saying "Trip 123 has status = 'requested', traveler count = 2". This view is mutable and can be
-  rebuilt from scratch.
+  materialized view, a queryable snapshot. For example, the Observer's `TripView` (ch 6) says
+  "Trip 123 has status = 'requested', traveler count = 2". This view is mutable and can be
+  rebuilt from scratch. The `StateStore` is not a read model: nothing queries it but the
+  activator, by the trip's id.
 * **Eventual Consistency:** the read model lags behind the event log. When an event is published,
   the read model has not yet been updated. A subscriber listening for events and projecting them
   into the read model does so at its own pace. If the subscriber is fast, the lag is milliseconds;
@@ -115,12 +124,13 @@ attributes.
 
 * **Causation id:** when the Planner receives a `planning.ItineraryRequested` event, it
   publishes `planning.ItineraryProposed` with `causationid` set to that event's id, and the
-  request's own causation points at the `booking.TripRequested`, `booking.ItineraryRejected`, or
+  request's own causation points at the `booking.TripCreated`, `booking.ItineraryRejected`, or
   `booking.TripChanged` that led the Booking Agent to write it. The read model can trace
   backward: "this proposal answered this request, which followed this rejection."
-* **Correlation id:** all events in a logical flow share a correlation id, the conversation's
-  id, generated at the first customer message (or by the demo script standing in for it) and
-  inherited by everything that follows, the trip request included. The audit log can then
+* **Correlation id:** all events in a logical flow share a correlation id, an id of its
+  own, generated by whoever starts the workflow (the customer channel, or the demo script
+  standing in for it) and inherited by everything that follows, the trip request included;
+  the conversation's id is separate, and is data. The audit log can then
   trace the entire workflow by correlation id. A second workflow on the same trip (ch 8's duty
   of care, ch 9's disruption) generates its own.
 
@@ -174,8 +184,8 @@ Brokers guarantee at-least-once delivery, which means an event may be redelivere
 consumer crashed or was slow to acknowledge). A projection must be idempotent: applying the same
 event twice produces the same final state as applying it once.
 
-Example: a read model stores `trip_status`. When `booking.TripRequested` arrives with trip id 123
-and status "requested", the projection updates the row for trip 123. If the same event is
+Example: a read model stores `trip_status`. When `booking.TripCreated` arrives with trip id 123,
+the projection updates the row for trip 123. If the same event is
 redelivered due to a consumer restart, the projection receives it again. An idempotent projection
 checks: "have I already processed this event?" If yes, skip it. If no, process and record it.
 
@@ -195,17 +205,17 @@ Out-of-order arrival occurs only *across topics*. The Booking Agent writes
 `booking.TripRequested`'s consequences on the booking topic and `planning.ItineraryRequested`
 on the planning topic, and the Planner's `planning.ItineraryProposed` follows on the planning
 topic. Two lanes carry the same key value, so nothing orders them against each other: a view
-joining both topics (the Observer's `TripView`) can see the proposal before the trip request
-that started it. The Booking Agent itself is not exposed, since it wrote the request only after
+joining both topics (the Observer's `TripView`) can see the proposal before the
+`booking.TripCreated` that started it. The Booking Agent itself is not exposed, since it wrote the request only after
 recording the trip, and a crash between the two is ch 8's durability lesson.
 
 A robust read model handles this by **staging**, the `InboxStore` shape of ch 7, with the
 causation chain naming the prerequisite:
 
 * If `planning.ItineraryProposed` arrives first, the projection stages it under the trip id
-  until the `booking.TripRequested` at the end of its causation chain (proposal, request,
-  trip request) has been applied, then applies it.
-* If `booking.TripRequested` arrives first, the projection records the trip, and the proposal
+  until the `booking.TripCreated` in its causation chain (proposal, planning request, trip
+  created, trip request) has been applied, then applies it.
+* If `booking.TripCreated` arrives first, the projection records the trip, and the proposal
   applies on arrival.
 
 In both cases the final state is the same, because the prerequisite is explicit. A projection
@@ -288,8 +298,10 @@ force at that point and not against the finished system. The closings were decid
   random UUID's. The first stated fact wins, which is the right rule for an LLM whose second
   answer may differ. It is always on, since nothing before ch 10 observes how an id is
   derived; a publisher outside an activation (a demo script, a channel) has no inbound event
-  and keeps a random id. A fact stated mid-activation through `eda.publish` is outside
-  this closing and belongs to ch 8's durable checkpoint (`04_implementation_design.adoc`,
+  and keeps a random id. A fact stated mid-activation through `eda.publish` leaves through
+  the same path and gets a derived id too, so a rerun stating the same facts in the same
+  order repeats their ids; the side effect behind such a fact is repeated all the same, and
+  that belongs to ch 8's durable checkpoint (`04_implementation_design.adoc`,
   Publish tools).
 * **A rebalance runs one activation twice** (accepted; the fence, ch 8). On revocation the
   adapter commits the watermark and forgets the partition while the lane in flight runs on,
@@ -318,8 +330,8 @@ force at that point and not against the finished system. The closings were decid
   the two apart by raising its port calls' failures as `PortFailure`, which `StaleVersion`
   extends, and the adapter counts every other failure.
 * **Two silent acknowledgments** (closed in ch 10, poison pills). A malformed event, and an
-  event about a state missing from the store, are raised by the activator as a `PoisonPill`,
-  which the adapter acknowledges until a cap is set;
+  event about a state missing from the store, are raised by the activator as a `PoisonPill`, and a record that is no CloudEvent by the
+  adapter itself; the adapter acknowledges a `PoisonPill` until a cap is set;
   a store restored from an older backup meets the second for every trip opened since. From
   ch 10 both go to `dlq.<context>` instead, with the record's key, so that a store restored
   from a backup leaves a replayable trace rather than dropping every newer trip's events.
@@ -416,7 +428,7 @@ notion at all. In the Travel Agency system **the solution is causation and stagi
 2. The Planner publishes `planning.ItineraryProposed` with `causationid` pointing to the
    request, keyed by the trip id; the request's causation points at the booking fact that led
    to it.
-3. The Trip's own read model applies proposals as they arrive; the trip exists, because the
+3. The Trip records proposals as they arrive; the trip exists, because the
    Booking Agent wrote the request after recording it.
 4. Cross-topic views (the Observer's `TripView`, ch 6) are built from every topic, stage what
    arrives early, and reconcile by causation, scoped by `contextpath` from ch 7.
@@ -450,12 +462,13 @@ moving the system keeps the guarantee by construction.
   `booking.TripCancelled` after `booking.FlightReservationCancelled` and a refund. State
   includes the trip request, the count of planning requests made (the latest is outstanding,
   and a proposal names it by `request_id`), the proposals received as event-carried state, the accepted
-  proposal's id and itinerary rank, the status
-  (requested, planning, proposed, approved, awaiting policy approval, reserving, reserved,
-  confirmed, cancelled), the Traveler entities, the Reservation entities (status pending,
+  proposal's id and itinerary rank, the count of questions asked per proposal, the status
+  (new, requested, planning, proposed, awaiting clarification, approved, awaiting policy
+  approval, reserving, reserved, confirmed, cancelled), the Traveler entities, the Reservation entities (status pending,
   hold, confirmed, or cancelled, hold expiry, supplier reference, the negotiated rate), from
   ch 8 the customer reference and the workflow's macro-state (`StateStore`) as part of
-  this aggregate, and from ch 10 the Payment entity.
+  this aggregate, and from ch 10 the Payment entity. The Trip as built through ch 3 holds
+  the fields ch 3 uses (The state and its schema, below).
 * **Proposal:** owned by the Itinerary Planner. Identified by a `proposal_id` generated by the
   Planner at publish time, keyed by the trip id; each
   `planning.ItineraryProposed` is the immutable answer, published under its own event id and
@@ -480,7 +493,7 @@ The Trip is one class in the Booking Agent's component (`components/booking_agen
 never in `travel_agency`, which holds only what components share), a Pydantic model whose fields are the trip's state and
 whose methods are its operations, one per business action, each guarded by the checks that
 keep the trip consistent (the invariants) and each returning the one event it produces. The
-class depends on the event classes and on nothing else: it never meets the store, the broker,
+class depends on the event classes and the library's `Refused`, and on nothing else: it never meets the store, the broker,
 the framework, or the LLM, which is what makes it testable as plain Python and what lets its
 operations be handed to an LLM as tools. The word aggregate names this pattern once, for readers
 who know Domain-Driven Design; the book otherwise says the Trip, the Trip's operations, the
@@ -521,11 +534,12 @@ Four rules hold for every activation:
   the event that made it necessary.
 * **One cause, once.** The activator records the inbound event's id with the trip at commit. A
   redelivered event whose id is already recorded is acknowledged with no effect and no event
-  produced a second time, before any agent code runs: deduplication by event id, named in chapter 3 and built in chapter
-  10. Creation is the same rule on a different index: the request's event id is unique on the
+  produced a second time, before any agent code runs: deduplication by event id, built and
+  named in chapter 3 and taught in full in chapter 10. Creation is the same rule on a different index: the request's event id is unique on the
   `trips` table, so a redelivered `booking.TripRequested` finds its trip.
-* **One version.** From chapter 8 the activator's commit carries the version it loaded, and the
-  store refuses a stale one (the fence, `04_implementation_design.adoc`).
+* **One version.** The activator's commit carries the version it loaded, and the
+  store refuses a stale one (the fence, `04_implementation_design.adoc`; built from chapter 3
+  and taught in chapter 8).
 * **One writer.** Only the Booking Agent's activations call the operations, and only the
   activator writes the row. The LLM proposes an operation by calling its tool; the operation
   decides.
@@ -546,10 +560,11 @@ Four rules hold for every activation:
 | `booking.TripCreated`, with the store-assigned id and the accepted request; status
   `requested`
 
-| `request_planning(reason=None, carried_over=())`, on the agent's own `booking.TripCreated`,
-  `booking.ItineraryRejected`, or `booking.TripChanged`
+| `request_planning(reason=None)`, on the agent's own `booking.TripCreated`,
+  `booking.ItineraryRejected`, or `booking.TripChanged` (chapter 7 adds `carried_over`)
 | `requested`
-| the trip has no outstanding planning request
+| none beyond the status: `requested` means a planning request is owed and none is
+  outstanding
 | `planning.ItineraryRequested` with the request's id (the trip's id and the count of its
   planning requests, `7-2` for trip 7's second), the requirements as they now stand and, on a
   re-plan, the customer's reason (and from chapter 7 the items carried over); status `planning`
@@ -619,31 +634,38 @@ and `reserved` after `approved`.
 
 The store keeps the Trip's state, saved as one JSON document: the class's fields serialised by the activator
 (`trip.model_dump()`) on the way out and rebuilt (`Trip.model_validate`) on the way in, with
-`schema_version` as one of the fields from chapter 3. Within the book the state's shape never
-changes, because the Trip carries every later chapter's fields from chapter 3 with defaults
-(reservations empty, macro-state absent, payment absent); later chapters switch behaviour on, not
-fields. For a reader's own system the rule is the one chapter 14 teaches for events: an additive
+`schema_version` as one of the fields from chapter 3. As built through chapter 3 the fields
+are `schema_version`, `trip_id`, `status`, `requirements`, `planning_requests`, `proposals`
+(each with its id, its itineraries, and the count of questions asked about it), and
+`approved` (the proposal's id and the rank). Within the book the state's shape changes by
+addition only: a later chapter adds its fields with defaults (reservations empty, macro-state
+absent, payment absent), so a row written by an earlier chapter loads unchanged. The rule
+is the one chapter 14 teaches for events: an additive
 change is a new optional field with a default, free at load; a breaking change bumps
 `schema_version` and adds an upcast function the activator applies before validating, a read-time
-migration, with rows never rewritten in bulk.
+migration, with rows never rewritten in bulk. The book makes no breaking change, so the
+activator has no upcast step.
 
-==== Operations present in code and switched on later
+==== Operations added in later chapters
 
-Each is designed in its chapter and listed here only so the Trip is complete from its first
-appearance: `record_rate` and the barrier (ch 7), `reserve_flight`, `reserve_hotel`,
+Each is designed and added to the Trip in its chapter, and listed here so the Trip's whole
+surface is in one place: `record_rate` and the barrier (ch 7), `reserve_flight`, `reserve_hotel`,
 `record_reservation_failure`, `record_car` (ch 7), `record_policy_result`,
 `request_approval`, `record_approval`, `time_out` (ch 8), `confirm` (ch 8), `record_rebooking`,
 `compensate`, `cancel` (ch 9), `request_payment`, `record_payment` (ch 10).
 
-=== Read Models
+=== Stores and Read Models
 
-* **Trip Read Model:** maintained by the Booking Agent in the `StateStore`,
-  PostgreSQL from ch 3. Stores the trip id, the request, the status, the reservations, the
+* **The Trip's state:** the write model, kept for the Booking Agent by the activator in the
+  `StateStore`, PostgreSQL from ch 3. Stores the trip id, the requirements, the status, the
+  count of planning requests, the
   proposals received through `planning.ItineraryProposed` (event-carried state, immutable, so
-  a copy cannot drift), and the accepted proposal's id and itinerary rank. Updated by the
-  Trip's own events, by planning's answers, and by the edge observations. It never queries
-  planning's store.
-* **Proposal store:** maintained by the Itinerary Planner behind its store port. One table
+  a copy cannot drift), the accepted proposal's id and itinerary rank, and from ch 7 the
+  reservations. Changed by the Trip's operations, one per activation, on booking's requests,
+  the agent's own events, planning's answers, and the edge observations. The Booking Agent
+  never queries planning's store.
+* **Proposal store** (designed, not built through ch 3; `01_system_overview.adoc`, The
+  Proposal): maintained by the Itinerary Planner behind its store port. One table
   keyed by the proposal's id, with the trip id, the published event id, the request and
   publish times, the status, the chosen rank, and the requirements and itineraries as
   documents, indexed on trip id and request time; a trip's proposals are listed in the order
@@ -651,8 +673,9 @@ appearance: `record_rate` and the barrier (ch 7), `reserve_flight`, `reserve_hot
 * **Semantic Views:** maintained by the Observer/Reflector Agent (ch 6) in the
   `SemanticViewStore`: `TripView` per trip, built from every topic and reconciled by causation,
   scoped by `contextpath`.
-* **Audit Read Model:** maintained by the Audit Consumer. Stores all events in arrival order,
-  grouped by correlation id for tracing entire workflows.
+* **Audit Read Model:** maintained by the Audit Consumer. Appends every event, whole, as one
+  line of JSON to a file (`AUDIT_LOG`) in arrival order; a workflow is read out of it by
+  filtering on its correlation id.
 
 There is no payment read model: the Payment entity lives on the trip, and the payment provider
 adapter's `IdempotencyStore` holds request keys, not a model.
@@ -671,9 +694,9 @@ Scenario: the customer changes the dates while the Planner is composing the prop
    `planning.ItineraryRequestSuperseded(request=R1)` with causation `R2`, and restarts from its
    checkpoint with the new requirements, re-planning the stay only; had the activation already
    finished, `R2` would be handled in the next one and the trip would have two proposals.
-   Either way the Planner publishes `planning.ItineraryProposed(proposal=R2, trip_id=T-123)`,
+   Either way the Planner publishes `planning.ItineraryProposed(trip_id=T-123)` answering `R2`,
    causation id `R2`, correlation id `CID-A` (inherited), key `T-123` on the planning topic.
-3. **Projection (Trip Read Model):** at T1, records the new dates and the outstanding request.
+3. **The Trip:** at T1, records the new dates and the outstanding request.
    At T2, receives the superseded fact and stops expecting a proposal for `R1`, then receives
    proposal `R2` and records it. **No conflict, because Trip and Proposal are separate
    aggregates.**
@@ -734,7 +757,8 @@ lifecycle to a fact already owned by the trip.
 == Summary
 
 The Travel Agency system is a **hybrid consistency model**: strong within aggregates, eventual
-across them. It combines event sourcing (immutable facts), CQRS (separated read models), ordering
+across them. It combines one writer per aggregate with its state in a store, immutable
+facts for every change, CQRS (separated read models), ordering
 by key in the broker contract (one lane per aggregate, one consumer at a time), and causation
 tracking (explicit dependency chains). Each aggregate has a single writer, in-order delivery on
 every supported broker, and an independent lifecycle. Idempotent projections handle
