@@ -3,7 +3,8 @@
 # suppliers, and the audit consumer. See README.md for the walkthrough.
 
 include:
-  - ../../compose/kafka.yaml
+  - path: ../../compose/kafka.yaml
+    env_file: ../../.env
   - path: ../../compose/ollama.yaml
     env_file: ../../.env
 

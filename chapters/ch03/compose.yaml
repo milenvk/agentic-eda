@@ -4,7 +4,8 @@
 # scripts stand in for the customer channel. See README.md for the walkthrough.
 
 include:
-  - ../../compose/kafka.yaml
+  - path: ../../compose/kafka.yaml
+    env_file: ../../.env
   - ../../compose/postgres.yaml
   - path: ../../compose/ollama.yaml
     env_file: ../../.env

@@ -22,7 +22,7 @@ class RecordingBroker:
         self.published.append(event)
         return event
 
-    async def subscribe(self, event_type, handler, mode="broadcast") -> None:
+    async def subscribe(self, event_type, handler) -> None:
         self.subscribed.append(event_type)
         self.handler = handler
 

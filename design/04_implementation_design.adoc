@@ -122,9 +122,7 @@ class EventBroker(Protocol):
         self, event_type: str, source: str, data: dict,
         id: str | None = None, attributes: dict[str, str] | None = None,
     ) -> WireEvent: ...
-    async def subscribe(
-        self, event_type: str, handler: EventHandler, mode: str = "broadcast"
-    ) -> None: ...
+    async def subscribe(self, event_type: str, handler: EventHandler) -> None: ...
 ----
 
 * `publish` returns the event as published, so a caller sees what the broker filled in as well
@@ -141,13 +139,15 @@ class EventBroker(Protocol):
   event. Extension values are `str | int | bool` because the spec allows integer and boolean
   extensions and a producer outside the book may send one; the book's own are strings.
 * Deferred capabilities carried by the frozen surface: `attributes` is exercised from ch 2
-  (CloudEvents, `correlationid`, `causationid`, and `partitionkey`), `mode="competing"` and the
-  `"*"` subscribe-all sentinel from ch 4. Ch 1 code uses none of them, and the adapter
+  (CloudEvents, `correlationid`, `causationid`, and `partitionkey`), and the `"*"`
+  subscribe-all sentinel from ch 4. Ch 1 code uses neither, and the adapter
   underneath is already the production-shaped one (one topic per context, per-key lanes):
   ch 1 prints none of its internals, so nothing in the chapter changes when they are taught.
-  Through ch 3 the Kafka adapter accepts `mode` and ignores it, since group identity gives
-  both semantics (Subscription Mechanics, below), and it has no subscribe-all: the audit
-  consumer subscribes to each type by its constant until ch 4 adds the sentinel.
+  Through ch 3 the Kafka adapter has no subscribe-all: the audit consumer subscribes to each
+  type by its constant until ch 4 adds the sentinel.
+* The port has no subscription mode. A component is one consumer group under its own name:
+  its replicas share its subscription, and every other component receives every event
+  (Subscription Mechanics, below).
 * The port has no nack, no defer, and no key parameter. Returning from a handler acknowledges;
   raising redelivers under at-least-once, with two exceptions the port module defines: a
   `PoisonPill`, an event that can never be handled, is parked or acknowledged, and a
@@ -365,8 +365,8 @@ name one. The mapping is the same from ch 1 to the end of the book, and the port
 == Subscription Mechanics (Kafka adapter)
 
 * Consumer group id = the adapter's `client_name`. Distinct components therefore each
-  receive every event (broadcast across components), while replicas sharing a `client_name`
-  compete within one group; the two `mode` semantics fall out of group identity.
+  receive every event, while replicas sharing a `client_name` compete within one group, so
+  each event reaches one of them.
 * Offsets are committed manually, **only after the handler returns**
   (`enable_auto_commit=False`), and only up to the watermark (the consumer rule, below). A
   consumer killed mid-handler never commits, so the event is redelivered on restart: the ch 1
@@ -421,12 +421,15 @@ from then on the component resumes from its own committed position.
   travel (ch 10). Ch 3's demo scripts ask for it too: the Booking agent answers a request
   within a second, before a fresh subscription has settled, so each script opens its broker
   with `start="beginning"` and filters what it reads by its workflow's `correlationid`.
-* One Kafka detail the port does not hide: redelivery of an unacknowledged event depends
-  on the group having committed at least once. A group killed before its first commit has
-  no committed offset, so it resets by `start` and the in-flight event is skipped. Every
-  event after that is redelivered as promised. Ch 1's demo is unaffected because act 1
-  completes a round trip before act 2 kills anything, and a queue-backed adapter has no
-  equivalent gap, since its queue exists from the moment of binding.
+* A partition without a committed position has its starting position committed once it is
+  assigned. Kafka resumes a group from its committed position and resets a partition
+  without one by `start`, so without this commit a consumer killed during its first record
+  on a partition would resume past that record. The delivery loop makes the commit, not the
+  rebalance listener, because the client resolves a position only after the listener
+  returns; where records were fetched meanwhile, the start is the first unfinished one.
+  Redelivery therefore holds from a partition's first record, on every partition, and a
+  queue-backed adapter needs no equivalent, since its queue exists from the moment of
+  binding.
 
 === Ordering: the contract and how the adapter keeps it
 
@@ -482,10 +485,13 @@ both). The Kafka adapter keeps the promise as follows.
   refinement the book's adapter does without: it records the offsets finished beyond the
   watermark in the commit's metadata, so a restart skips them instead of replaying them.
 * **The partition count** is a deployment decision: it caps a component's useful replicas and
-  is expensive to change once keys have hashed into it.
+  is expensive to change once keys have hashed into it. The demos create every topic with
+  two (`KAFKA_NUM_PARTITIONS` in `compose/kafka.yaml`, the same in every chapter), the count
+  needed by ch 4's two replicas of the Booking agent. A reader changes the count by setting
+  `KAFKA_NUM_PARTITIONS` in `.env`, and the new count applies to topics created afterwards.
 * **Share groups** (KIP-932, GA in Apache Kafka 4.2): many consumers per partition with
   per-record acknowledgement, order only within a fetched batch, no per-key order; the
-  equivalent of Pub/Sub without ordering keys. They could back only a subscription mode that
+  equivalent of Pub/Sub without ordering keys. They could back only a subscription that
   explicitly gives up order, never a silent adapter choice, and the Python clients do not
   support them for production. Not used; a sidebar candidate in ch 4 or ch 15.
 
@@ -1058,9 +1064,9 @@ plain format of the file.
   `agentic_eda.Dockerfile`, the image with the library alone and its `adk` extra, used by
   the library's suite.
 * `.env` at the repository root: one required file of reader configuration for the whole
-  book. Containers read it through `env_file`; compose-time switches (`OLLAMA_ENABLED`)
-  reach the shared fragments through `include:` with `env_file`, since Compose interpolation
-  only reads the project directory's own `.env`.
+  book. Containers read it through `env_file`; compose-time settings (`OLLAMA_ENABLED`,
+  `KAFKA_NUM_PARTITIONS`) reach the shared fragments through `include:` with `env_file`,
+  since Compose interpolation only reads the project directory's own `.env`.
 * Tests: unit tests are colocated with each component and run inside that component's image
   (the only environment with its exact dependencies). The entry point is per chapter:
   `tests-<component>` services plus `tests-chapter` in the chapter's own

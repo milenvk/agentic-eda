@@ -60,12 +60,7 @@ class EventBroker(Protocol):
         """
         ...
 
-    async def subscribe(
-        self,
-        event_type: str,
-        handler: EventHandler,
-        mode: str = "broadcast",
-    ) -> None:
+    async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         """Call ``handler`` for every event of the given type.
 
         Returning from the handler acknowledges the event; raising delivers it again, with

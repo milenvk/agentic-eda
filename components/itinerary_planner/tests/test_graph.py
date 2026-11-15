@@ -255,7 +255,7 @@ async def test_hosted_by_the_activator_it_answers_an_event_with_an_event(
             published.append(event)
             return event
 
-        async def subscribe(self, event_type, handler, mode="broadcast") -> None:
+        async def subscribe(self, event_type, handler) -> None:
             handlers[event_type] = handler
 
         async def run(self) -> None:

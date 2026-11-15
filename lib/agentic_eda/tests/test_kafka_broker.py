@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager, suppress
 from types import SimpleNamespace
 
 import pytest
+from aiokafka.errors import IllegalStateError
 from aiokafka.structs import TopicPartition
 
 from agentic_eda import kafka_broker
@@ -62,6 +63,8 @@ class FakeConsumer:
         self.commits: list[dict] = []
         self.seeks: list[tuple[TopicPartition, int]] = []
         self.served: dict[TopicPartition, list] = {}
+        self.committed_position: int | None = None  # the group's committed position
+        self.position_now: int | Exception = 0  # where the consumer reads next
         self._paused: set[TopicPartition] = set()
         FakeConsumer.last = self
 
@@ -111,6 +114,15 @@ class FakeConsumer:
     async def commit(self, offsets=None) -> None:
         self.calls.append("commit")
         self.commits.append(dict(offsets))
+
+    async def committed(self, partition: TopicPartition) -> int | None:
+        self.calls.append("committed")
+        return self.committed_position
+
+    async def position(self, partition: TopicPartition) -> int:
+        if isinstance(self.position_now, Exception):
+            raise self.position_now
+        return self.position_now
 
 
 @pytest.fixture
@@ -321,12 +333,16 @@ async def test_a_subscriber_announces_itself_once_it_is_listening(caplog):
     async def commit() -> None:
         pass
 
-    listener = kafka_broker._PartitionListener("AuditConsumer", Watermark(), commit)
+    noted: set[TopicPartition] = set()
+    listener = kafka_broker._PartitionListener(
+        "AuditConsumer", commit, Watermark().forget, noted.update
+    )
 
     with caplog.at_level(logging.INFO, logger="EventBroker"):
         await listener.on_partitions_assigned([BOOKING])
 
     assert "AuditConsumer is subscribed and waiting for events" in caplog.text
+    assert noted == {BOOKING}
 
 
 async def test_a_revoked_partition_is_committed_and_then_forgotten():
@@ -338,7 +354,7 @@ async def test_a_revoked_partition_is_committed_and_then_forgotten():
     async def commit() -> None:
         commits.append(str(watermark.advanced()))
 
-    listener = kafka_broker._PartitionListener("test", commit, watermark.forget)
+    listener = kafka_broker._PartitionListener("test", commit, watermark.forget, set().update)
     watermark.fetched(BOOKING, 0)
     watermark.fetched(BOOKING, 1)
     watermark.finished(BOOKING, 0)
@@ -348,6 +364,71 @@ async def test_a_revoked_partition_is_committed_and_then_forgotten():
 
     assert commits == [str({BOOKING: 1})]
     assert watermark.advanced() == {}
+
+
+async def test_a_partition_without_a_position_has_its_start_committed(fake_kafka):
+    """A group reads a partition without a committed position from the end. Without this
+    commit, a consumer killed during its first record there would resume past the record."""
+    broker = KafkaEventBroker("kafka:9092", client_name="test")
+
+    async with running(broker):
+        await until(lambda: fake_kafka.last)
+        consumer = fake_kafka.last
+        consumer.position_now = 7
+        await consumer.listener.on_partitions_assigned([BOOKING])
+        await until(lambda: consumer.commits)
+
+    assert consumer.commits == [{BOOKING: 7}]
+
+
+async def test_a_partition_with_a_committed_position_is_left_alone(fake_kafka):
+    broker = KafkaEventBroker("kafka:9092", client_name="test")
+
+    async with running(broker):
+        await until(lambda: fake_kafka.last)
+        consumer = fake_kafka.last
+        consumer.committed_position = 3
+        await consumer.listener.on_partitions_assigned([BOOKING])
+        await until(lambda: "committed" in consumer.calls)
+
+    assert consumer.commits == []
+    assert consumer.calls.count("committed") == 1  # asked once per assignment
+
+
+async def test_the_start_of_a_partition_being_read_is_its_first_unfinished_record(fake_kafka):
+    """A fetch moves the consumer's position past the records it returned, so that
+    position would confirm a record still in flight."""
+    broker = KafkaEventBroker("kafka:9092", client_name="test")
+    handler = Gated()
+    await broker.subscribe("booking.TripRequested", handler)
+    fake_kafka.prepared.append(batch((5, "a", b"trip-1")))
+
+    async with running(broker):
+        await until(lambda: handler.started == ["a"])
+        consumer = fake_kafka.last
+        consumer.position_now = 6
+        await consumer.listener.on_partitions_assigned([BOOKING])
+        await until(lambda: consumer.commits)
+        assert consumer.commits == [{BOOKING: 5}]
+        handler.release("a")
+
+
+async def test_a_partition_taken_away_meanwhile_is_tried_again(fake_kafka):
+    """The group may reassign its partitions between the question and the commit. The
+    loop goes on, and commits the start once the partition is its own again."""
+    broker = KafkaEventBroker("kafka:9092", client_name="test")
+
+    async with running(broker) as loop:
+        await until(lambda: fake_kafka.last)
+        consumer = fake_kafka.last
+        consumer.position_now = IllegalStateError("Partition booking-0 is not assigned")
+        await consumer.listener.on_partitions_assigned([BOOKING])
+        await until(lambda: consumer.calls.count("committed") >= 2)
+        assert not loop.done() and consumer.commits == []
+        consumer.position_now = 7
+        await until(lambda: consumer.commits)
+
+    assert consumer.commits == [{BOOKING: 7}]
 
 
 async def test_commit_happens_only_after_the_handler_finishes(fake_kafka):

@@ -132,7 +132,7 @@ When the watch terminal shows `planning trip ...`, kill the planner
 mid-inference, then bring it back:
 
 ```sh
-docker compose stop itinerary-planner
+docker compose kill itinerary-planner
 docker compose start itinerary-planner
 ```
 

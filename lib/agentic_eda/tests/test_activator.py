@@ -43,7 +43,7 @@ class StubBroker:
         self.published.append(event)
         return event
 
-    async def subscribe(self, event_type, handler, mode="broadcast") -> None:
+    async def subscribe(self, event_type, handler) -> None:
         self.handlers[event_type] = handler
 
     async def run(self) -> None:

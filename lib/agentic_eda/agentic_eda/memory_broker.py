@@ -42,9 +42,7 @@ class InMemoryBroker:
         self._queue.put_nowait(event)
         return event
 
-    async def subscribe(
-        self, event_type: str, handler: EventHandler, mode: str = "broadcast"
-    ) -> None:
+    async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         self._handlers.setdefault(event_type, []).append(handler)
 
     async def run(self) -> None:

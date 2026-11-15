@@ -13,6 +13,7 @@ from functools import partial
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from aiokafka.abc import ConsumerRebalanceListener
+from aiokafka.errors import CommitFailedError, IllegalStateError
 from aiokafka.structs import ConsumerRecord, TopicPartition
 from cloudevents.core.bindings import kafka
 from cloudevents.core.v1.event import CloudEvent
@@ -77,8 +78,10 @@ class _PartitionListener(ConsumerRebalanceListener):
 
     On assignment it announces that the component is listening: nothing else
     can tell a reader when a subscriber is live, and a subscriber receives only
-    what is published after it subscribes. On revocation it commits what has
-    finished, while the partitions are still its own to commit, and forgets them.
+    what is published after it subscribes. It also notes the partitions, so the
+    delivery loop commits a starting position for each one without a position.
+    On revocation it commits what has finished, while the partitions are still
+    its own to commit, and forgets them.
     """
 
     def __init__(
@@ -86,16 +89,19 @@ class _PartitionListener(ConsumerRebalanceListener):
         client_name: str,
         commit: Callable[[], Awaitable[None]],
         forget: Callable[[Iterable[TopicPartition]], None],
+        note: Callable[[Iterable[TopicPartition]], None],
     ) -> None:
         self._client_name = client_name
         self._commit = commit
         self._forget = forget
+        self._note = note
 
     async def on_partitions_revoked(self, revoked) -> None:
         await self._commit()
         self._forget(revoked)
 
     async def on_partitions_assigned(self, assigned) -> None:
+        self._note(assigned)
         # A subscriber receives only what follows it, so the moment it is listening
         # is the moment that matters to anyone about to publish.
         log.info("%s is subscribed and waiting for events", self._client_name)
@@ -198,12 +204,7 @@ class KafkaEventBroker:
         log.info("\n%s", format_event("PUBLISHED", event))
         return event
 
-    async def subscribe(
-        self,
-        event_type: str,
-        handler: EventHandler,
-        mode: str = "broadcast",
-    ) -> None:
+    async def subscribe(self, event_type: str, handler: EventHandler) -> None:
         self._handlers.setdefault(event_type, []).append(handler)
 
     async def run(self) -> None:
@@ -214,7 +215,9 @@ class KafkaEventBroker:
         commit what has finished. A record is committed only after its handlers
         return, and only up to the watermark, so a consumer that dies
         mid-handler never confirms the event: the broker delivers it again on
-        restart.
+        restart. A partition without a committed position has its starting
+        position committed once it is assigned, so that holds for the first
+        record of a partition too.
 
         A handler that raises stops its lane. The loop then starts nothing new,
         lets the other lanes finish, commits what finished, and seeks every
@@ -238,14 +241,16 @@ class KafkaEventBroker:
         lanes = Lanes(self._max_in_flight)
         watermark, attempts = Watermark(), Attempts()
         commit = partial(self._commit_finished, consumer, watermark)
+        newly_assigned: set[TopicPartition] = set()
 
         def forget(partitions: Iterable[TopicPartition]) -> None:
             watermark.forget(partitions)
             attempts.forget(partitions)
+            newly_assigned.difference_update(partitions)
 
         consumer.subscribe(
             topics=sorted({topic_for(event_type) for event_type in self._handlers}),
-            listener=_PartitionListener(self._client_name, commit, forget),
+            listener=_PartitionListener(self._client_name, commit, forget, newly_assigned.update),
         )
         await consumer.start()
         try:
@@ -269,6 +274,7 @@ class KafkaEventBroker:
                                 partial(self._handle, watermark, attempts, partition, record),
                             )
                 await commit()
+                await self._commit_starts(consumer, watermark, newly_assigned)
                 if lanes.failure is not None and lanes.in_flight == 0:
                     await self._take_again(consumer, watermark, lanes.failure)
                     lanes = Lanes(self._max_in_flight)
@@ -347,3 +353,34 @@ class KafkaEventBroker:
         offsets = watermark.advanced()
         if offsets:
             await consumer.commit(offsets)
+
+    async def _commit_starts(
+        self,
+        consumer: AIOKafkaConsumer,
+        watermark: Watermark,
+        newly_assigned: set[TopicPartition],
+    ) -> None:
+        """Commit the starting position of each newly assigned partition without a position.
+
+        A group resumes a partition from its committed position, and reads a partition
+        without one from the end. Left without one, a consumer killed before its first
+        record on a partition had finished would resume past that record, and the
+        record would never be delivered again.
+        """
+        partitions = set(newly_assigned)
+        unfinished = watermark.positions()
+        try:
+            starts = {}
+            for partition in partitions:
+                if await consumer.committed(partition) is None:
+                    # Records fetched already have moved the consumer's position past them.
+                    starts[partition] = (
+                        unfinished[partition]
+                        if partition in unfinished
+                        else await consumer.position(partition)
+                    )
+            if starts:
+                await consumer.commit(starts)
+        except (IllegalStateError, CommitFailedError):
+            return  # the group is reassigning its partitions; the next turn repeats the check
+        newly_assigned.difference_update(partitions)
