@@ -40,13 +40,20 @@ reconciliation of 2026-09-11:
   `destination.InspirationRequested`), follows the customer's trips by trip id, and records
   `customer.CustomerNotified` when it delivers a message, so the audit trail records what the
   customer was told. Until ch 4 the demo scripts stand in for the customer channel and write the same
-  requests; the email replay and the Router hold it for email. A framework's own UI is an entry
-  into a single agent, never into the system.
+  requests; once the Front Desk arrives, every demo still runs from headless scripts (never
+  depending on the chat UI), with multi-turn interactive acts using a bounded, goal-prompted LLM
+  customer script over the Front Desk's HTTP surface and burst acts sending pre-seeded messages
+  (decided 2026-11-17); the email replay and the Router hold it for email. A framework's own UI
+  is an entry into a single agent, never into the system.
 * **LLM strategy:** reasoning agents default to one cloud API key; Ollama is the documented
   zero-cost fallback and powers the Semantic Router and Guardrail models. Model access goes
   through **LiteLLM** rather than a hand-written port (see Ports below).
-* **Vendors:** external systems are shipped, deterministic, seeded simulators, each shaped like the
-  real supplier surface behind it.
+* **Vendors and outside stand-ins:** external *software* APIs (airline, hotel inventory and
+  reservations, car rental, payment, travel advisories) are shipped, deterministic, seeded
+  simulators shaped like the real supplier surfaces; external *agent* counterparts (the Support
+  Desk AaaS sim and the hotel simulator's A2A negotiation face) call the configured LLM by
+  default so edge prompting and negotiation stay genuinely probabilistic, with deterministic
+  env-var switches where an act must trigger a specific failure mode (decided 2026-11-17).
 * **Frameworks:** the roster is fixed by section 1.5: **LangGraph, Google ADK, LlamaIndex,
   CrewAI**. Framework agents are the showcases; every other agent is plain Python against
   the Ports. Debut order: LangGraph in ch 2 (the Planner), ADK in ch 3 (the Booking agent as a
@@ -1140,14 +1147,17 @@ Planners, the Booking agent, the audit consumer, and the airline and hotel simul
   Router. Exists to show a published language evolving as callers appear.
 |===
 
-=== External vendor simulators (shipped, seeded, deterministic)
+=== External vendor simulators
 
 Each simulator's surface is a printable subset of the real supplier's, endpoints and field
 names, never schemas. Planning queries a simulator for availability and offers; booking places
-reservations on it. A simulator is a component and grows like one: a face or a script is
-added in the chapter that first uses it, and a behaviour switch is a setting off by default.
-Through ch 3 the airline simulator has every endpoint listed below, and the hotel simulator
-has its inventory over MCP.
+reservations on it. Software API faces are deterministic and seeded from `supplier_world`;
+external *agent* faces (the Support Desk AaaS sim and the hotel simulator's A2A agent face)
+call the configured LLM by default so external agent edges behave probabilistically, while
+keeping deterministic behaviour switches for scripted failure acts (decided 2026-11-17). A
+simulator is a component and grows like one: a face or a script is added in the chapter that
+first uses it, and a behaviour switch is a setting off by default. Through ch 3 the airline
+simulator has every endpoint listed below, and the hotel simulator has its inventory over MCP.
 
 Every simulator draws on one world seed in the suppliers' shared package (`supplier_world`, outside the agency's code): about
 thirty cities on every inhabited continent, each with its IATA airports, a handful of hotels
@@ -1187,8 +1197,9 @@ code a flight search takes, so nearby airports (JFK and Newark) appear in one se
   (flexible, or advance purchase at a discount) with a rooms-left field, the rooms quoted and
   their type (a family room where more than two guests share one), the plan's cancellation policy, and the
   total for the stay; a hotel without rooms enough is left out. Its agent face over A2A
-  (ch 7): a hotel's agent that negotiates a rate, with three auto-responder configurations
-  (instant, slow counter for ch 8, non-converging for ch 9's livelock). REST for the
+  (ch 7): a hotel's LLM-backed agent that negotiates a rate, with deterministic mode switches
+  where an act needs fixed timing or non-convergence (slow counter for ch 8, non-converging for
+  ch 9's livelock). REST for the
   reservation step (ch 7): reservation with a confirmation number, cancellation. Scriptable
   failure modes: the last room gone at the reservation step (the ch 7 lesson), sold-out after
   confirmation through its callback adapter (`servicing.HotelSoldOut`, the ch 9 saga trigger).
@@ -1212,8 +1223,9 @@ code a flight search takes, so nearby airports (JFK and Newark) appear in one se
 
 | Support Desk AaaS sim
 | 5
-| An external "agent as a service" answering support requests; integrated via Deterministic
-  Edge Prompting, PII-scrubbed by the ch 13 egress interceptor. Deliberately *not* our code.
+| An external LLM-backed "agent as a service" answering support requests; integrated via
+  Deterministic Edge Prompting, PII-scrubbed by the ch 13 egress interceptor. Deliberately
+  *not* our code.
 |===
 
 Inbound email (ch 5) is a replay script over a seeded dataset (real requests, vendor updates,

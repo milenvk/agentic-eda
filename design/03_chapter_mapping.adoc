@@ -111,75 +111,88 @@ payment offstage until ch 10.
 
 | 4
 | Workflow
-| W1 step 1 for chat; the Booking agent at two replicas; the lanes under a burst
-| Front Desk (the Customer Relations agent: chat shell out of the page budget, intent classifier
-  and publishing code in it, the classifier's structured output, writer of Customer and
-  Conversation, delivery by subscription), the Booking agent at two replicas with the Audit
-  Consumer hearing every event, the lanes demonstration (a burst of trip requests into one
-  Planner process, every inference in flight, order kept per trip, a kill mid-burst replayed
-  from the watermark); the email channel, the Router, the filter, the `InboxStore`, the
-  support edge, and the crew moved to ch 5 and ch 7 on 2026-11-09
-| `customer.ChatMessageReceived` and `customer.CustomerNotified`; the chat path end to end
-| Reflex agents (the classifier as the first), routing at the edge (the front agent routes and
-  does not act; the words are routed, not interpreted, so `CustomerReplied` carries words;
-  `produces` as the capability surface; the Router is ch 5's), order per key in the contract
-  and at two replicas (one component, one consumer group; the partition count caps the
-  replicas; no subscription modes), concurrency inside the consumer (per-key lanes, the commit
-  watermark, the in-flight cap; lanes built by the client on Kafka and provided by the broker
-  on Pub/Sub, SQS FIFO, and Service Bus), subscribe-all, the capability intersection rule,
-  pull vs push, delivery as a subscription with one adapter per channel; the practical shows
-  the classifier's shape only; the customer context by the boundary test
+| W1 step 1 for chat; W3's inspiration path; W2 complete (support edge) (revamped 2026-11-18)
+| Front Desk (the Customer Relations hybrid conversational channel agent: chat UI shell out of
+  the page budget, multi-turn dialogue loop and open-host request publishing in it, writer of
+  Customer and Conversation in PostgreSQL holding transcript + correlation pointers `trip_id`,
+  `latest_proposal_id`, `pending_question` with zero `Trip` field duplication, delivery by
+  subscription), Destination Inspiration crew (CrewAI, in `destination`, answering
+  `destination.InspirationRequested` with `destination.SuggestionPackReady` via `output_pydantic`
+  inside FastAPI + `eda.attach`, zero PDF/MinIO dependency yet), support adapter and Support Desk
+  AaaS sim (the first component not our code)
+| The Booking agent's read-only `/mcp` endpoint (`mcp==2.2.0` streamable HTTP exposing `get_trip`
+  for live `Trip` status and offer-validity checks while all `Trip` mutations stay on
+  `EventBroker`), the Audit Consumer upgraded to `subscribe("*")`, `customer.CustomerNotified`,
+  `destination.InspirationRequested` and `destination.SuggestionPackReady`,
+  `support.SupportRequested` and `support.SupportTicketResolved`; the multi-turn chat path end to
+  end
+| Hybrid conversational edge (not a stateless reflex router: synchronous greetings, guardrails,
+  slot gathering, local policy FAQs, and read-only `Trip` MCP lookups in chat; open-host request
+  publishing when crossing a bounded context; `CustomerReplied` carries raw `words` and
+  `answering` context so two LLMs read in two bounded contexts; `Conversation` holds correlation
+  pointers rather than shadow `Trip` state; delivery by subscription), the customer and
+  destination and support contexts by the boundary test, polyglot capability growth on CrewAI
+  beside ADK and LangGraph, subscribe-all (`"*"` sentinel floor on `EventBroker`), three-part
+  external boundary rule: (1) synchronous-query rule for perishable single-caller reads
+  (`BookingAgent` `/mcp`, Hotel `/mcp`, legacy Airline REST), (2) pull loops vs infrastructure
+  HTTP push (`Kafka Connect` + Aiven HTTP Sink Connector locally, `Eventarc Advanced` in ch 15)
+  with an invariant activator handler, and (3) vendor anticorruption layer + deterministic edge
+  prompting at the `support` boundary (`Support Desk` AaaS shock absorber)
 
 | 5
 | Component
-| W3's ingestion; S1 variants; W1 step 1 for email; W2 complete; W3's inspiration path (from ch 4, 2026-11-09)
-| `BlobStore` (MinIO), claim-check ingestion (`destination.BrochureUploaded`,
-  `destination.DocumentAvailable`), Destination Research agent (LlamaIndex, an MCP tool server
-  over the indexed brochures, the Planner's tool; moved here from ch 3 on 2026-10-07), the
-  Observer/Reflector agent in both variants (summarizing vs experiential), with no store behind
-  them;
-  moved here from ch 4 on 2026-11-09: email replay script + seeded dataset
-  (`customer.EmailReceived`), Semantic Router at two replicas (writing booking's, support's,
-  and destination's requests directly, and `booking.SupplierUpdateReceived`; the time window
-  sorted by sender timestamp), email delivery adapter, Token Defense Filter, support adapter
-  and Support Desk AaaS sim (the first component not our code), Destination Inspiration crew
-  (CrewAI, the target of routing by meaning, its pack through `output_pydantic`)
-| The A/B; the Planner's tool call to the Research agent, with the airline's REST and the
-  hotel's MCP taught as the Planner's other tools;
-  `customer.EmailReceived`; `support.SupportRequested` and `support.SupportTicketResolved`,
-  the support edge
-| Claim check, context bottleneck, memory strategies; tools over MCP and a legacy system over
-  REST (two of the four kinds of counterpart), the synchronous-query rule (a perishable answer
-  nobody else acts on), the destination context by the boundary test; from ch 4 (2026-11-09): semantic routing over a windowed burst with
-  competing replicas (why the classifier and the Router are two components), semantic
-  windowing, payload mediation, the filter, the ingress re-sequencer at one line, edge
-  prompting at the vendor's edge (the template at the edge, the reply parsed back, the broker
-  ignorant of prompt engineering, the anticorruption layer named), the support context by the
-  boundary test, the shock absorber in one sentence
+| W1 step 1 for email; the Semantic Router and Booking agent at two replicas; the lanes under a
+  burst (revamped 2026-11-18)
+| Email replay script + seeded dataset (`customer.EmailReceived`), Semantic Router at two
+  replicas (the stateless reflex classifier, `eda.produces` discriminated union as
+  `response_format`, writing booking's, support's, and destination's open-host requests directly
+  plus `booking.SupplierUpdateReceived`; time window sorted by sender timestamp), email delivery
+  adapter, Token Defense Filter, the Booking agent at two replicas, the lanes demonstration (a
+  burst of trip requests into one Planner process, every inference in flight, order kept per
+  trip, a kill mid-burst replayed from the watermark)
+| `customer.EmailReceived` and email delivery on `customer.CustomerNotified`; two-replica
+  consumer groups on the Semantic Router and Booking agent; per-key `Lanes`, `Watermark`, and
+  `max_in_flight` demonstrated under burst and mid-burst crash
+| Stateless reflex semantic routing over asynchronous event bursts (contrasted with ch 4's
+  stateful conversational Front Desk), deterministic token-defense filtering, semantic windowing,
+  payload mediation, the ingress re-sequencer at one line, order per key in the contract
+  (`order_per` and `partitionkey`, subject key vs `correlationid`) and across competing replicas
+  (one component, one consumer group; partition count caps replicas), concurrency inside one
+  consumer process (per-key `Lanes`, `Watermark` offset commits, `max_in_flight` backpressure;
+  client-side lanes on Kafka vs broker-serialized keys on Pub/Sub, SQS FIFO, and Service Bus)
 
 | 6
 | Component
-| S1 complete
-| `SemanticViewStore` keyed by the trip id
-| The Observer's writes into the store; the Planner's hydration adapter (stateless hydration by
-  the trip id through the context path, `correlationid` scoping the current workflow only); the
-  five-round scenario run without and with the store
-| Event sourcing (NDC and ONE Order as the sidebar), Agentic CQRS, materialized semantic views,
-  Tier 1+2 hydration, idempotent projections, staging across topics; the three kinds of state
-  named (working memory, the record, the log; moved from ch 3 on 2026-10-16)
+| W3's ingestion; S1 variants and S1 complete (unified 2026-11-18)
+| `BlobStore` (MinIO), claim-check ingestion (`destination.BrochureUploaded`,
+  `destination.DocumentAvailable`), Destination Research agent (LlamaIndex, an MCP tool server
+  over the indexed brochures, the Planner's optional enrichment tool with graceful degradation),
+  the Observer/Reflector agent in both variants (summarizing vs experiential) built once with
+  `SemanticViewStore` (PostgreSQL, keyed by `trip_id`)
+| The Planner's MCP tool call to Destination Research; both Observer variants projecting into
+  `SemanticViewStore` for side-by-side A/B comparison; the Planner's hydration adapter
+  (`HYDRATION_ADAPTER`, stateless hydration by `trip_id`, `correlationid` scoping the current
+  workflow only); the five-round drifting scenario run without and with `SemanticViewStore`
+  hydration
+| Context bottleneck, event sourcing (NDC and ONE Order as the sidebar), Claim Check (`BlobStore`
+  + MinIO) paired with LlamaIndex MCP retrieval and graceful degradation, Agentic CQRS (evolving
+  ch 4's point-to-point MCP read into cross-context materialized semantic views), summarizing vs
+  experiential memory (`sb_ch06_memory_debate`), idempotent projections, Tier 1+2 stateless
+  hydration; the three kinds of state named (working memory, the record, the log; moved from ch 3
+  on 2026-10-16)
 
 | 7
 | Workflow
 | W1 slice 3: the proposal negotiated and reserved, ending with the trip reserved and both holds
-  in place; the two Paris runs; the newer-request interrupt
+  in place; the two Paris runs; the newer-request interrupt (consolidated to 6 sections on
+  2026-11-18)
 | Hotel Negotiator (ADK, A2A client; one activation per distinct stay, `booking.RateNegotiated`
   through the book's first publish tool; running inside ADK's FastAPI app with the activator
   attached in its lifespan, as every ADK agent does),
   the Hotel Reservation System sim's agent face over A2A with its instant auto-responder,
   `BarrierStore`, Rental Car agent (py, on `FlightReserved`), Car Rental sim; the first run's
   recording for ch 12;
-  the `InboxStore` table (the Agentic Inbox staging an early supplier update), moved from ch 4
-  on 2026-11-09
+  the `InboxStore` table (the Agentic Inbox staging an early supplier update)
 | The Booking agent's wait at the barrier before `ProposalReady` and its reservation step
   (`FlightReserved`, `HotelReserved`, `ReservationFailed`, `CarReserved`, holds with an expiry,
   the fallback decided by reasoning among the backup, a re-plan, and a question to the
@@ -188,19 +201,18 @@ payment offstage until ch 10.
   Planner's own request type declared interrupting for its key, the older request answered with
   `planning.ItineraryRequestSuperseded`; context paths and lessons filed
   under them, hydrated by the Planner in the second run
-| Orchestration vs choreography, scatter-gather and the barrier on the broker (argued against
-  the searches, which stay inside), A2A as the book's first agent-to-agent edge, with the
-  protocols of the agent world (A2A, MCP, REST, and the vendor that speaks none; the protocol
-  table), the broker as universal translator, ingress and egress protocols defining the
-  architecture, and the four kinds of counterpart in one line (tools over MCP, agents over A2A,
-  legacy over REST, a person through edge prompting; from ch 3, 2026-10-07), propose-commit (the Planner proposes, the
-  customer commits; the Negotiator proposes, the reservation step commits), the last-room
-  conflict, hierarchical context, communication topologies, planning without side effects, the
-  edge observes and the owner commits, interrupting events and their three strategies, out-of-sequence handling (the
-  Agentic Inbox as activation gated on completeness, the ingress re-sequencer cited from ch 5,
-  NACK and retry analyzed, not built; from ch 4, 2026-11-09),
-  experiential lessons in context paths, ACRISS beside the Rental Car agent; 7.8's dynamic
-  provisioning stays a horizon with its costs stated
+| Orchestration vs choreography and the seven communication topologies, scatter-gather and the
+  barrier on the broker (argued against the searches, which stay inside), A2A as the book's first
+  agent-to-agent edge, with the protocols of the agent world (A2A, MCP, REST, and the vendor that
+  speaks none; the protocol table), the broker as universal translator, ingress and egress
+  protocols defining the architecture, and the four kinds of counterpart in one line (tools over
+  MCP, agents over A2A, legacy over REST, a vendor through edge prompting), propose-commit (the
+  Planner proposes, the customer commits; the Negotiator proposes, the reservation step commits),
+  the last-room conflict, hierarchical context, planning without side effects, the edge observes
+  and the owner commits, interrupting events and their three strategies, out-of-sequence handling
+  (the Agentic Inbox as activation gated on completeness, the ingress re-sequencer cited from
+  ch 5, NACK and retry analyzed, not built), experiential lessons in context paths, ACRISS beside
+  the Rental Car agent; 7.5's dynamic provisioning stays a horizon with its costs stated
 
 | 8
 | Workflow
@@ -306,12 +318,13 @@ payment offstage until ch 10.
   planning; AWS secondary: EventBridge behind FIFO SQS; Azure repo: Service Bus sessions), Redis
   Streams adapter sharded per key, Terraform, load + chaos test; share groups as a sidebar
   candidate
-| The same components on other brokers and stores; model swap to Vertex/Bedrock via LiteLLM
+| The same components on other brokers and stores; LLM swap to Vertex/Bedrock via LiteLLM
   config
-| Ports pay off: zero agent-code changes; serverless scale-to-zero; per-key order kept by
-  construction on every supported broker, the lanes the broker's where it serializes per key
-  and the adapter's own (reused from Kafka) where it hands out partitions; the push
-  attachment, a CloudEvents route on the ADK app of ch 7 with Eventarc Advanced delivering
-  into it and no agent code changed; ADK's Eventarc toolset named as the same idea as the
-  activator's publish tools, on GCP
+| Ports pay off: zero agent-code changes; the 12-row broker capability intersection matrix
+  (`tbl_ch15_capability_intersection`, moved from ch 4 on 2026-11-18); serverless scale-to-zero;
+  per-key order kept by construction on every supported broker, the lanes the broker's where it
+  serializes per key and the adapter's own (reused from Kafka) where it hands out partitions;
+  the push attachment, a CloudEvents route on the ADK app of ch 7 with Eventarc Advanced
+  delivering into it and no agent code changed; ADK's Eventarc toolset named as the same idea as
+  the activator's publish tools, on GCP
 |===

@@ -1046,7 +1046,13 @@ plain format of the file.
   time), so the durability act's kill window does not depend on the reader's model speed.
   Components get the same narration for free: the Kafka adapter logs a card for every event
   published or received (the `EventBroker` logger, INFO), so `docker compose logs <component>`
-  shows that component's side of the conversation.
+  shows that component's side of the conversation. Once the Front Desk opens, every walkthrough
+  still runs strictly from scripts without touching the web UI: multi-turn interactive acts
+  drive the Front Desk's HTTP endpoints with a bounded, goal-prompted LLM customer script
+  (`max_turns` capped, adapting naturally to clarifications and dynamic option rankings, and
+  foreshadowing ch 12's user-simulator evaluation pattern), while burst, replay, and
+  fault-injection acts send deterministic pre-seeded inputs so local Ollama runs never spend
+  inference budget generating load (decided 2026-11-17).
 * `compose/`: one fragment **per infrastructure service** (`kafka.yaml`, `ollama.yaml`;
   `postgres.yaml` from ch 3, later `minio.yaml`, and so on). A chapter's `compose.yaml` uses `include:`
   to pull exactly the needed fragments, so no chapter drags unused infrastructure. The compose
@@ -1092,7 +1098,11 @@ plain format of the file.
   it with `service_healthy`. A caller reaches a supplier at an address read from a setting
   (on the Planner, `AIRLINE_URL` and `HOTEL_INVENTORY_URL`), set by the chapter's compose
   file; unset, the client raises an error naming the setting. The caller's client translates: it asks in the supplier's terms
-  and answers in the caller's own, so no supplier field name reaches an agent's code.
+  and answers in the caller's own, so no supplier field name reaches an agent's code. External
+  *agent* faces (`Support Desk AaaS sim`, the hotel simulator's A2A face) call LiteLLM
+  (`LLM_MODEL`) on the happy path so external agent interactions stay probabilistic, and fall
+  back to deterministic env-var switches where an act must force a specific failure mode
+  (decided 2026-11-17).
 
 == House Style
 
